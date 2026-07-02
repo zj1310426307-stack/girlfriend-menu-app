@@ -21,7 +21,7 @@ services:
       - key: ADMIN_SECRET
         generateValue: true
       - key: FRONTEND_URL
-        value: http://localhost:5173
+        value: https://girlfriend-menu-app.vercel.app,http://localhost:5173
 
 databases:
   - name: girlfriend-menu-db
