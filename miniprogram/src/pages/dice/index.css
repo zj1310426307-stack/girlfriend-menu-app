@@ -1,0 +1,23 @@
+page {
+  min-height: 100%;
+  background: #050817;
+}
+
+.dice-webview-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 20px;
+  min-height: 100vh;
+  color: #eadde2;
+  background:
+    radial-gradient(circle at 50% 30%, rgba(38, 106, 153, 0.34), transparent 38%),
+    #050817;
+  font-size: 28px;
+}
+
+.dice-webview-heart {
+  color: #ee7189;
+  font-size: 64px;
+}

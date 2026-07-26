@@ -31,6 +31,15 @@ export default function Home() {
         <Link className="my-orders-entry" to="/my-orders">♡ 我的点菜单</Link>
       </section>
       <section className="content">
+        <Link className="home-game-entry" to="/games/dice">
+          <span className="home-game-icon" aria-hidden="true">⚄</span>
+          <span>
+            <small>BAR GAME · 3D PHYSICS</small>
+            <strong>喝酒小游戏</strong>
+            <em>来一局大话骰，看看今晚谁先被开</em>
+          </span>
+          <b aria-hidden="true">进入游戏 →</b>
+        </Link>
         <CategoryTabs categories={categories} active={category} onChange={setCategory} />
         {loading && <div className="state-box">正在翻开菜单…</div>}
         {error && <div className="state-box error">{error}</div>}

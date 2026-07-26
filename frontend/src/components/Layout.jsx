@@ -8,6 +8,9 @@ export default function Layout() {
   const { count } = useCart();
   const isAdmin = location.pathname.startsWith("/admin");
   const isAdminLogin = location.pathname === "/admin/login";
+  const isEmbeddedDice =
+    location.pathname === "/games/dice"
+    && new URLSearchParams(location.search).get("embed") === "weapp";
 
   const logout = () => {
     localStorage.removeItem("admin_token");
@@ -15,8 +18,8 @@ export default function Layout() {
   };
 
   return (
-    <div className="app-shell">
-      <header className={`topbar ${isAdmin ? "admin-topbar" : ""}`}>
+    <div className={`app-shell ${isEmbeddedDice ? "embedded-dice-shell" : ""}`}>
+      {!isEmbeddedDice && <header className={`topbar ${isAdmin ? "admin-topbar" : ""}`}>
         <Link to={isAdmin ? "/admin" : "/"} className="brand">
           <span className="brand-mark">♡</span>
           <span>{isAdmin ? "小厨房管理台" : "宝贝专属菜单"}</span>
@@ -36,11 +39,11 @@ export default function Layout() {
             {count > 0 && <span className="cart-badge">{count}</span>}
           </Link>
         )}
-      </header>
+      </header>}
       <main>
         <Outlet />
       </main>
-      {!isAdmin && (
+      {!isAdmin && !isEmbeddedDice && (
         <footer className="footer">
           每一顿饭，都想认真做给你吃 <span>♥</span>
         </footer>

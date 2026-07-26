@@ -1,0 +1,21 @@
+{
+  "appid": "wx08cb090781c3e679",
+  "projectname": "girlfriend-menu-miniprogram",
+  "description": "女朋友专属点菜小程序",
+  "compileType": "miniprogram",
+  "miniprogramRoot": "dist/",
+  "setting": {
+    "urlCheck": true,
+    "es6": true,
+    "enhance": true,
+    "postcss": true,
+    "minified": true,
+    "coverView": true,
+    "lazyloadPlaceholderEnable": false,
+    "preloadBackgroundData": false,
+    "autoAudits": false,
+    "newFeature": false,
+    "minifyWXML": true
+  },
+  "condition": {}
+}

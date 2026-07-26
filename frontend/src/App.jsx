@@ -1,4 +1,12 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  lazy,
+  Suspense,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { Route, Routes } from "react-router-dom";
 
 import Layout from "./components/Layout";
@@ -13,6 +21,8 @@ import Home from "./pages/Home";
 import MyOrders from "./pages/MyOrders";
 import OrderStatus from "./pages/OrderStatus";
 import { getCustomerId } from "./utils/customer";
+
+const DiceGame = lazy(() => import("./games/dice/DiceGame"));
 
 const CartContext = createContext(null);
 
@@ -72,6 +82,14 @@ export default function App() {
           <Route path="/cart" element={<Cart />} />
           <Route path="/my-orders" element={<MyOrders />} />
           <Route path="/orders/:id" element={<OrderStatus />} />
+          <Route
+            path="/games/dice"
+            element={(
+              <Suspense fallback={<div className="state-box route-loading">3D 骰子桌正在布置…</div>}>
+                <DiceGame />
+              </Suspense>
+            )}
+          />
           <Route path="/admin/login" element={<AdminLogin />} />
           <Route element={<AdminRoute />}>
             <Route path="/admin" element={<Admin />} />
