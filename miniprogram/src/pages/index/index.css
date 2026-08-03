@@ -133,6 +133,12 @@
   background: linear-gradient(135deg, #fff 0%, #fff4f1 100%);
 }
 
+.dice-online-entry {
+  margin-top: -12px;
+  background: linear-gradient(135deg, #301824, #652f48);
+  border-color: rgba(237, 117, 145, .3);
+}
+
 .dice-entry-icon {
   display: flex;
   align-items: center;

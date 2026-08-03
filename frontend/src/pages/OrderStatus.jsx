@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
-import { createReview, getOrder } from "../api";
+import { createReview, getApiErrorMessage, getOrder } from "../api";
 
 const STEPS = ["待接单", "已接单", "制作中", "已完成"];
 
@@ -15,19 +15,27 @@ export default function OrderStatus() {
   const [reviewing, setReviewing] = useState(false);
   const [reviewError, setReviewError] = useState("");
 
-  useEffect(() => {
-    let active = true;
-    const load = () =>
-      getOrder(id)
-        .then((data) => active && setOrder(data))
-        .catch(() => active && setError("订单没有找到。"));
-    load();
-    const timer = setInterval(load, 5000);
-    return () => {
-      active = false;
-      clearInterval(timer);
-    };
+  const loadOrder = useCallback(async (silent = false) => {
+    try {
+      const data = await getOrder(id);
+      setOrder(data);
+      setError("");
+    } catch (requestError) {
+      if (!silent) setError(getApiErrorMessage(requestError, "订单没有找到。"));
+    }
   }, [id]);
+
+  useEffect(() => {
+    loadOrder();
+  }, [loadOrder]);
+
+  useEffect(() => {
+    if (!order || ["已完成", "暂时做不了"].includes(order.status)) return undefined;
+    const timer = setInterval(() => {
+      if (document.visibilityState === "visible") loadOrder(true);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [loadOrder, order]);
 
   if (error) return <div className="content state-box error">{error}</div>;
   if (!order) return <div className="content state-box">正在查询订单…</div>;
@@ -47,7 +55,7 @@ export default function OrderStatus() {
       });
       setOrder((current) => ({ ...current, review }));
     } catch (requestError) {
-      setReviewError(requestError.response?.data?.detail || "评价提交失败，请稍后再试。");
+      setReviewError(getApiErrorMessage(requestError, "评价提交失败，请稍后再试。"));
     } finally {
       setReviewing(false);
     }

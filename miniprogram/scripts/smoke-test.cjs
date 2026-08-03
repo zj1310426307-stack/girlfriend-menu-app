@@ -14,8 +14,11 @@ const SCREENSHOT_DIR =
   process.env.DICE_SCREENSHOT_DIR === "off"
     ? null
     : process.env.DICE_SCREENSHOT_DIR || process.env.TEMP;
-const DEVTOOLS_HTTP_PORT = Number(process.env.WECHAT_DEVTOOLS_PORT || 9320);
-const DICE_ONLY = process.env.DICE_ONLY === "1";
+const DEVTOOLS_HTTP_PORT = Number(process.env.WECHAT_DEVTOOLS_PORT || 9330);
+const DEVTOOLS_CLI_PORT = Number(process.env.WECHAT_DEVTOOLS_CLI_PORT || 9421);
+const DICE_ONLY = process.env.DICE_ONLY === "1" || process.argv.includes("--dice-only");
+const KEEP_OPEN = process.argv.includes("--keep-open");
+const STOP_BEFORE_OPEN = process.argv.includes("--stop-before-open");
 
 /**
  * Throw a readable error when an automated interaction does not meet a condition.
@@ -61,17 +64,49 @@ async function waitForElement(page, selector, timeout = 6000) {
 }
 
 /**
- * Verify invite entry, live dishes and the complete 3D game's web-view handoff.
+ * Wait until a temporary loading element has left the render tree.
+ */
+async function waitForElementToDisappear(page, selector, timeout = 8000) {
+  const expiresAt = Date.now() + timeout;
+  let element = await page.$(selector);
+
+  while (element && Date.now() < expiresAt) {
+    await page.waitFor(180);
+    element = await page.$(selector);
+  }
+
+  return !element;
+}
+
+/**
+ * Verify invite entry, live dishes and the native WebGL dice game.
  * The test uses the installed WeChat DevTools and the deployed backend API.
  */
 async function run() {
   console.log("[smoke] 正在连接微信开发者工具");
-  const miniProgram = await automator.launch({
-    cliPath: CLI_PATH,
-    projectPath: PROJECT_PATH,
-    args: ["--port", String(DEVTOOLS_HTTP_PORT)],
-    trustProject: true,
-    timeout: 120000
+  let miniProgram;
+  try {
+    miniProgram = await automator.connect({
+      wsEndpoint: `ws://127.0.0.1:${DEVTOOLS_HTTP_PORT}`
+    });
+  } catch {
+    miniProgram = await automator.launch({
+      cliPath: CLI_PATH,
+      projectPath: PROJECT_PATH,
+      args: ["--port", String(DEVTOOLS_CLI_PORT)],
+      port: DEVTOOLS_HTTP_PORT,
+      trustProject: true,
+      timeout: 120000
+    });
+  }
+
+  miniProgram.on("console", (entry) => {
+    if (entry?.type === "error" || entry?.level === "error") {
+      console.error("[devtools console]", entry);
+    }
+  });
+  miniProgram.on("exception", (entry) => {
+    console.error("[devtools exception]", entry);
   });
 
   try {
@@ -79,6 +114,7 @@ async function run() {
     await miniProgram.callWxMethod("clearStorageSync");
     let page = await miniProgram.reLaunch("/pages/index/index");
     await page.waitFor(1500);
+    console.log("[smoke] 首页已重新加载");
 
     const inviteTitle = await page.$(".invite-title");
     const inviteInput = await page.$(".invite-input");
@@ -90,9 +126,20 @@ async function run() {
     await inviteInput.input("love2026");
     await inviteButton.tap();
 
-    // Render may wake the free backend during the full menu test. Dice-only
-    // checks only need the unlocked home screen and should stay fast.
-    await page.waitFor(DICE_ONLY ? 1800 : 35000);
+    // Poll in short intervals instead of one long wait. This keeps the
+    // DevTools automation connection alive while a free Render service wakes.
+    if (DICE_ONLY) {
+      await page.waitFor(1800);
+    } else {
+      const menuExpiresAt = Date.now() + 70000;
+      while (Date.now() < menuExpiresAt) {
+        const readyCards = await page.$$(".dish-card");
+        const readyError = await page.$(".state-box.error");
+        if (readyCards.length > 0 || readyError) break;
+        await page.waitFor(800);
+      }
+    }
+    console.log("[smoke] 邀请码已提交");
 
     const heroTitle = await page.$(".hero-title");
     const dishCards = await page.$$(".dish-card");
@@ -108,28 +155,121 @@ async function run() {
       );
     }
 
-    console.log("[smoke] 进入完整 3D 骰子 web-view");
+    console.log("[smoke] 进入原生 3D 骰子桌");
     const diceEntry = await page.$(".dice-entry");
     assert(diceEntry, "首页没有渲染摇骰子入口");
     await diceEntry.tap();
     page = await waitForCurrentPage(miniProgram, "pages/dice/index", page);
+    console.log(`[smoke] 骰子路由已打开：${page?.path || "unknown"}`);
 
     assert(
       page?.path?.replace(/^\/+/, "") === "pages/dice/index",
       "点击入口后没有进入摇骰子页面"
     );
-    const gameWebView =
-      (await waitForElement(page, ".dice-game-webview", 3000))
-      || (await waitForElement(page, "web-view", 7000));
-    assert(gameWebView, "完整 3D 游戏 web-view 没有渲染");
-    const gameUrl = await gameWebView.attribute("src");
+    const gameCanvas = await waitForElement(page, ".dice-webgl-canvas", 7000);
+    const primaryAction = await waitForElement(page, ".dice-primary-action", 7000);
+    assert(gameCanvas, "原生 WebGL 骰子画布没有渲染");
+    assert(primaryAction, "摇骰按钮没有渲染");
+    console.log("[smoke] WebGL 画布节点已渲染");
+
+    // The loading overlay disappears only after the WeChat WebGL node and the
+    // lightweight native renderer have both initialized successfully.
+    await waitForElementToDisappear(page, ".dice-canvas-overlay", 9000);
+    const canvasError = await page.$(".dice-canvas-overlay.error");
+    const loadingOverlay = await page.$(".dice-canvas-overlay");
     assert(
-      gameUrl === "https://girlfriend-menu-web-zj13104.onrender.com/games/dice?embed=weapp",
-      `3D 游戏地址不正确：${gameUrl || "空"}`
+      !canvasError,
+      canvasError ? `3D 初始化失败：${await canvasError.text()}` : "3D 初始化失败"
     );
+    assert(!loadingOverlay, "原生 3D 骰子桌没有完成初始化");
+    console.log("[smoke] 3D 场景已初始化");
+
+    await primaryAction.tap();
+    console.log("[smoke] 已触发物理摇骰");
+    await page.waitFor(500);
+    const rollingAction = await page.$(".dice-primary-action");
+    assert(
+      rollingAction && (await rollingAction.text()).includes("碰撞中"),
+      "点击后没有进入骰子碰撞状态"
+    );
+
+    await page.waitFor(2900);
+    const openHint = await waitForElement(page, ".dice-open-hint", 3000);
+    const canvasShell = await page.$(".dice-canvas-shell");
+    assert(openHint && canvasShell, "骰子停稳后没有显示上滑开盅入口");
+    const boundaryMetrics = await page.$(".dice-boundary-metrics");
+    assert(boundaryMetrics, "没有渲染骰盅边界诊断数据");
+    const [
+      maxDiceRadius,
+      cupSafeRadius,
+      minDiceSeparation,
+      maxDiceTilt,
+      settleMs,
+      physicsSteps
+    ] = (await boundaryMetrics.text())
+      .split("|")
+      .map(Number);
+    assert(
+      Number.isFinite(maxDiceRadius) && maxDiceRadius > 0 && cupSafeRadius > 0,
+      "没有取得骰盅边界诊断数据"
+    );
+    assert(
+      maxDiceRadius <= cupSafeRadius + 0.001,
+      `骰子超出骰盅安全边界：${maxDiceRadius} > ${cupSafeRadius}`
+    );
+    assert(
+      Number.isFinite(minDiceSeparation) && minDiceSeparation >= 1.18,
+      `骰子之间发生重叠：最小中心距离 ${minDiceSeparation}`
+    );
+    assert(
+      Number.isFinite(maxDiceTilt) && maxDiceTilt <= 0.001,
+      `骰子没有平稳落在桌面：最大倾斜误差 ${maxDiceTilt}`
+    );
+    assert(
+      Number.isFinite(settleMs) && settleMs >= 1700 && settleMs <= 3450,
+      `物理停稳时间不在预期范围：${settleMs}ms`
+    );
+    assert(
+      Number.isFinite(physicsSteps) && physicsSteps >= 180,
+      `固定时间步执行不足：${physicsSteps}`
+    );
+    console.log("[smoke] 骰子已停稳，准备开盅");
+    if (STOP_BEFORE_OPEN) {
+      console.log("[smoke] 已停留在骰盅预览状态");
+      return;
+    }
+
+    await canvasShell.touchstart({
+      touches: [{ identifier: 0, clientX: 180, clientY: 420, pageX: 180, pageY: 420 }]
+    });
+    await canvasShell.touchmove({
+      touches: [{ identifier: 0, clientX: 180, clientY: 280, pageX: 180, pageY: 280 }]
+    });
+    await canvasShell.touchend({
+      touches: [],
+      changeTouches: [{ identifier: 0, clientX: 180, clientY: 280, pageX: 180, pageY: 280 }],
+      changedTouches: [{ identifier: 0, clientX: 180, clientY: 280, pageX: 180, pageY: 280 }]
+    });
+    await page.waitFor(1000);
+
+    let bidControls = await waitForElement(page, ".dice-bid-controls", 3500);
+    if (!bidControls) {
+      const tapToOpenHint = await page.$(".dice-open-hint");
+      assert(tapToOpenHint, "上滑后开盅提示意外消失");
+      await tapToOpenHint.tap();
+      bidControls = await waitForElement(page, ".dice-bid-controls", 3000);
+    }
+    const myDice = await page.$(".dice-value-row");
+    assert(bidControls, "开盅后没有进入玩家叫骰阶段");
+    assert(myDice, "开盅后没有显示自己的 5 颗骰子结果");
+    console.log("[smoke] 开盅并进入叫骰阶段");
+    const diceValueText = await myDice.text();
+    const diceValues = diceValueText.match(/[1-6]/g) || [];
+    assert(diceValues.length === 5, `骰子数量不是 5：${diceValues.length}`);
     if (SCREENSHOT_DIR) {
+      console.log("[smoke] 正在保存模拟器截图");
       await miniProgram.screenshot({
-        path: path.join(SCREENSHOT_DIR, "dice-webview.png")
+        path: path.join(SCREENSHOT_DIR, "dice-native-webgl.png")
       });
     }
 
@@ -140,14 +280,25 @@ async function run() {
           heroText: await heroTitle.text(),
           dishCount: dishCards.length,
           dicePath: page.path,
-          diceMode: "web-view",
-          gameUrl
+          diceMode: "native-webgl",
+          diceCount: diceValues.length,
+          diceValues: diceValues.map(Number),
+          maxDiceRadius,
+          cupSafeRadius,
+          minDiceSeparation,
+          maxDiceTilt,
+          settleMs,
+          physicsSteps
         },
         null,
         2
       )
     );
   } finally {
+    if (KEEP_OPEN) {
+      miniProgram.disconnect();
+      return;
+    }
     await Promise.race([
       miniProgram.close(),
       new Promise((resolve) => setTimeout(resolve, 8000))

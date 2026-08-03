@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { getMyOrders } from "../api";
@@ -23,12 +23,16 @@ export default function MyOrders() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  useEffect(() => {
+  const loadOrders = useCallback(() => {
+    setLoading(true);
+    setError("");
     getMyOrders(getCustomerId())
       .then(setOrders)
       .catch(() => setError("点菜单暂时没有找到，请稍后再试。"))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(loadOrders, [loadOrders]);
 
   return (
     <section className="content my-orders-page">
@@ -42,7 +46,12 @@ export default function MyOrders() {
       </div>
 
       {loading && <div className="state-box">正在翻找以前的点菜单…</div>}
-      {error && <div className="state-box error">{error}</div>}
+      {error && (
+        <div className="state-box error">
+          <p>{error}</p>
+          <button className="retry-button" type="button" onClick={loadOrders}>重新加载</button>
+        </div>
+      )}
 
       {!loading && !error && orders.length === 0 && (
         <div className="my-orders-empty">

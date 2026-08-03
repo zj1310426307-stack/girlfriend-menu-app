@@ -16,6 +16,7 @@ export default function Index() {
   const [category, setCategory] = useState("全部");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [failedImages, setFailedImages] = useState({});
 
   // Load the menu only after the invite state has been checked.
   const loadDishes = () => {
@@ -61,6 +62,18 @@ export default function Index() {
 
   const goDetail = (id) => {
     Taro.navigateTo({ url: `/pages/detail/index?id=${id}` });
+  };
+
+  const openDiceGame = () => {
+    Taro.navigateTo({ url: "/pages/dice/index" }).catch((error) => {
+      const detail = error?.errMsg || error?.message || String(error);
+      console.error("打开骰子模块失败", detail);
+      Taro.showModal({
+        title: "骰子模块没有打开",
+        content: `当前版本 v1.0.17\n${detail}`,
+        showCancel: false,
+      });
+    });
   };
 
   const addDish = (event, dish) => {
@@ -127,14 +140,26 @@ export default function Index() {
 
       <View
         className="dice-entry card"
-        onClick={() => Taro.navigateTo({ url: "/pages/dice/index" })}
+        onClick={openDiceGame}
       >
         <View className="dice-entry-icon">
           <Text>⚄</Text>
         </View>
         <View className="dice-entry-copy">
           <Text className="dice-entry-title">3D 大话骰 · 吹牛</Text>
-          <Text className="dice-entry-desc">完整酒吧桌面、物理碰撞和 AI 对局</Text>
+          <Text className="dice-entry-desc">原生酒吧桌面、上滑开盅和 AI 对局 · v1.0.17</Text>
+        </View>
+        <Text className="dice-entry-arrow">›</Text>
+      </View>
+
+      <View
+        className="dice-entry dice-online-entry card"
+        onClick={() => Taro.navigateTo({ url: "/pages/dice-online/index" })}
+      >
+        <View className="dice-entry-icon"><Text>♥</Text></View>
+        <View className="dice-entry-copy">
+          <Text className="dice-entry-title">和女朋友实时对战</Text>
+          <Text className="dice-entry-desc">创建双人房间，实时叫骰和开盅</Text>
         </View>
         <Text className="dice-entry-arrow">›</Text>
       </View>
@@ -152,14 +177,27 @@ export default function Index() {
       </ScrollView>
 
       {loading && <View className="state-box">正在翻开菜单…</View>}
-      {error && <View className="state-box error">{error}</View>}
+      {error && (
+        <View className="state-box error">
+          <Text>{error}</Text>
+          <View className="retry-button" onClick={loadDishes}>
+            <Text>重新加载菜单</Text>
+          </View>
+        </View>
+      )}
 
       {!loading && !error && (
         <View className="dish-list">
           {visibleDishes.map((dish) => (
             <View className="dish-card card" key={dish.id} onClick={() => goDetail(dish.id)}>
-              {dish.image_url ? (
-                <Image className="dish-image" src={resolveImageUrl(dish.image_url)} mode="aspectFill" />
+              {dish.image_url && !failedImages[dish.id] ? (
+                <Image
+                  className="dish-image"
+                  src={resolveImageUrl(dish.image_url)}
+                  mode="aspectFill"
+                  lazyLoad
+                  onError={() => setFailedImages((current) => ({ ...current, [dish.id]: true }))}
+                />
               ) : (
                 <View className="dish-placeholder">🍲</View>
               )}
@@ -179,6 +217,10 @@ export default function Index() {
             </View>
           ))}
         </View>
+      )}
+
+      {!loading && !error && visibleDishes.length === 0 && (
+        <View className="state-box">这个分类还没有菜，换一个看看吧。</View>
       )}
 
       <View className="cart-fab" onClick={() => Taro.navigateTo({ url: "/pages/cart/index" })}>

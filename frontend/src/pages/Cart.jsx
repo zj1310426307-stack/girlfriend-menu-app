@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { useCart } from "../App";
-import { createOrder, resolveImageUrl } from "../api";
+import { createOrder, getApiErrorMessage, resolveImageUrl } from "../api";
 import { getCustomerId } from "../utils/customer";
 
 export default function Cart() {
@@ -26,8 +26,8 @@ export default function Cart() {
       });
       clearCart();
       navigate(`/orders/${order.id}`);
-    } catch {
-      setError("提交失败了，请稍后再试。");
+    } catch (requestError) {
+      setError(getApiErrorMessage(requestError, "提交失败了，请稍后再试。"));
       setSubmitting(false);
     }
   };

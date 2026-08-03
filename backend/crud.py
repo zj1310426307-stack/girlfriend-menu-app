@@ -8,14 +8,18 @@ import schemas
 
 
 def list_dishes(db: Session, category: str | None = None):
-    query = db.query(models.Dish)
+    query = db.query(models.Dish).filter(models.Dish.is_active.is_(True))
     if category:
         query = query.filter(models.Dish.category == category)
     return query.order_by(models.Dish.id.desc()).all()
 
 
 def get_dish(db: Session, dish_id: int):
-    dish = db.get(models.Dish, dish_id)
+    dish = (
+        db.query(models.Dish)
+        .filter(models.Dish.id == dish_id, models.Dish.is_active.is_(True))
+        .first()
+    )
     if not dish:
         raise HTTPException(status_code=404, detail="菜品不存在")
     return dish
@@ -40,7 +44,9 @@ def update_dish(db: Session, dish_id: int, data: schemas.DishUpdate):
 
 def delete_dish(db: Session, dish_id: int):
     dish = get_dish(db, dish_id)
-    db.delete(dish)
+    # Keep historical order items intact. A physical delete can fail on
+    # PostgreSQL once the dish has been ordered because of the foreign key.
+    dish.is_active = False
     db.commit()
 
 

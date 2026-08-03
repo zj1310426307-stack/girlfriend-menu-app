@@ -2,7 +2,10 @@ backend/.venv/
 backend/.runtime312/
 backend/.env
 backend/__pycache__/
+backend/**/__pycache__/
+backend/**/*.py[cod]
 backend/*.db
+backend/tests/*.db
 backend/uploads/*
 !backend/uploads/.gitkeep
 frontend/node_modules/

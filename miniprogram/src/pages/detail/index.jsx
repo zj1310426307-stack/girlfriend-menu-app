@@ -10,12 +10,21 @@ import "./index.css";
 export default function Detail() {
   const [dish, setDish] = useState(null);
   const [error, setError] = useState("");
+  const [dishId, setDishId] = useState("");
+  const [imageFailed, setImageFailed] = useState(false);
+
+  const loadDish = (id) => {
+    if (!id) return;
+    setError("");
+    getDish(id)
+      .then(setDish)
+      .catch((err) => setError(err.message || "没有找到这道菜"));
+  };
 
   useLoad((params) => {
     if (!ensureInvitePassed()) return;
-    getDish(params.id)
-      .then(setDish)
-      .catch((err) => setError(err.message || "没有找到这道菜"));
+    setDishId(params.id);
+    loadDish(params.id);
   });
 
   const addDish = () => {
@@ -23,13 +32,27 @@ export default function Detail() {
     Taro.showToast({ title: "已加入点菜清单", icon: "success" });
   };
 
-  if (error) return <View className="page"><View className="state-box error">{error}</View></View>;
+  if (error) {
+    return (
+      <View className="page">
+        <View className="state-box error">
+          <Text>{error}</Text>
+          <View className="retry-button" onClick={() => loadDish(dishId)}><Text>重新加载</Text></View>
+        </View>
+      </View>
+    );
+  }
   if (!dish) return <View className="page"><View className="state-box">正在端上这道菜…</View></View>;
 
   return (
     <View className="page detail-page">
-      {dish.image_url ? (
-        <Image className="detail-image" src={resolveImageUrl(dish.image_url)} mode="aspectFill" />
+      {dish.image_url && !imageFailed ? (
+        <Image
+          className="detail-image"
+          src={resolveImageUrl(dish.image_url)}
+          mode="aspectFill"
+          onError={() => setImageFailed(true)}
+        />
       ) : (
         <View className="detail-placeholder">🍲</View>
       )}

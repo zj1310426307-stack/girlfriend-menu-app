@@ -9,18 +9,27 @@ OrderStatus = Literal["待接单", "已接单", "制作中", "已完成", "暂�
 
 class AdminLogin(BaseModel):
     password: str = Field(min_length=1, max_length=200)
+    invite_code: str = Field(min_length=1, max_length=100)
 
 
 class AdminLoginOut(BaseModel):
     token: str
 
 
+class DiceRoomCreate(BaseModel):
+    invite_code: str = Field(min_length=1, max_length=100)
+
+
+class DiceRoomOut(BaseModel):
+    room_code: str
+
+
 class DishBase(BaseModel):
     name: str = Field(min_length=1, max_length=100)
-    description: str = ""
+    description: str = Field(default="", max_length=1000)
     category: str = Field(min_length=1, max_length=50)
     price: float = Field(ge=0)
-    image_url: str = ""
+    image_url: str = Field(default="", max_length=500)
 
 
 class DishCreate(DishBase):
@@ -44,7 +53,7 @@ class OrderItemCreate(BaseModel):
 
 
 class OrderCreate(BaseModel):
-    items: list[OrderItemCreate] = Field(min_length=1)
+    items: list[OrderItemCreate] = Field(min_length=1, max_length=30)
     note: str = Field(default="", max_length=500)
     desired_time: str = Field(default="", max_length=50)
     customer_id: str | None = Field(default=None, max_length=100)

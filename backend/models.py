@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 
 from database import Base
@@ -15,6 +15,7 @@ class Dish(Base):
     category = Column(String(50), nullable=False, index=True)
     price = Column(Float, nullable=False, default=0)
     image_url = Column(String(500), default="")
+    is_active = Column(Boolean, nullable=False, default=True, index=True)
     created_at = Column(DateTime, default=datetime.now, nullable=False)
 
 
@@ -22,11 +23,11 @@ class Order(Base):
     __tablename__ = "orders"
 
     id = Column(Integer, primary_key=True, index=True)
-    status = Column(String(20), nullable=False, default="待接单")
+    status = Column(String(20), nullable=False, default="待接单", index=True)
     note = Column(Text, default="")
     desired_time = Column(String(50), default="")
     customer_id = Column(String(100), nullable=True, index=True)
-    created_at = Column(DateTime, default=datetime.now, nullable=False)
+    created_at = Column(DateTime, default=datetime.now, nullable=False, index=True)
 
     items = relationship(
         "OrderItem",

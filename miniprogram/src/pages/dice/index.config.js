@@ -3,5 +3,5 @@ export default definePageConfig({
   navigationBarBackgroundColor: "#070b19",
   navigationBarTextStyle: "white",
   backgroundColor: "#050817",
-  disableScroll: true,
+  disableScroll: false,
 });

@@ -117,6 +117,27 @@ button::after {
   background: #fff0f1;
 }
 
+.retry-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 260px;
+  min-height: 68px;
+  margin: 24px auto 0;
+  padding: 0 28px;
+  border: 2px solid #eabfc5;
+  border-radius: 38px;
+  color: #cf596b;
+  background: #fff;
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.retry-button text {
+  line-height: 1;
+  text-align: center;
+}
+
 .section-title {
   display: block;
   margin: 24px 0 18px;

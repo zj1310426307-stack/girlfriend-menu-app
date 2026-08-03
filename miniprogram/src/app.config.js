@@ -2,6 +2,7 @@ export default defineAppConfig({
   pages: [
     "pages/index/index",
     "pages/dice/index",
+    "pages/dice-online/index",
     "pages/detail/index",
     "pages/cart/index",
     "pages/my-orders/index",

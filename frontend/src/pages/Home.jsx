@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { getDishes } from "../api";
@@ -11,12 +11,16 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  useEffect(() => {
+  const loadDishes = useCallback(() => {
+    setLoading(true);
+    setError("");
     getDishes()
       .then(setDishes)
-      .catch(() => setError("菜单暂时走丢了，请确认后端已经启动。"))
+      .catch(() => setError("菜单暂时走丢了，服务器可能正在醒来。"))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(loadDishes, [loadDishes]);
 
   const categories = useMemo(() => [...new Set(dishes.map((dish) => dish.category))], [dishes]);
   const visible =
@@ -41,12 +45,20 @@ export default function Home() {
           <b aria-hidden="true">进入游戏 →</b>
         </Link>
         <CategoryTabs categories={categories} active={category} onChange={setCategory} />
-        {loading && <div className="state-box">正在翻开菜单…</div>}
-        {error && <div className="state-box error">{error}</div>}
+        {loading && <div className="state-box" aria-live="polite">正在翻开菜单…</div>}
+        {error && (
+          <div className="state-box error" role="alert">
+            <p>{error}</p>
+            <button className="retry-button" type="button" onClick={loadDishes}>重新加载菜单</button>
+          </div>
+        )}
         {!loading && !error && (
           <div className="dish-grid">
             {visible.map((dish) => <DishCard key={dish.id} dish={dish} />)}
           </div>
+        )}
+        {!loading && !error && visible.length === 0 && (
+          <div className="state-box">这个分类还没有菜，换一个看看吧。</div>
         )}
       </section>
     </>

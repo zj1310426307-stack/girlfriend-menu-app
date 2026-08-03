@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import Taro, { useLoad } from "@tarojs/taro";
+import { useEffect, useRef, useState } from "react";
+import Taro, { useDidHide, useDidShow, useLoad } from "@tarojs/taro";
 import { Text, Textarea, View } from "@tarojs/components";
 
 import { createReview, getOrder } from "../../api";
@@ -15,8 +15,10 @@ export default function OrderDetail() {
   const [wantAgain, setWantAgain] = useState("想吃");
   const [comment, setComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const pageVisibleRef = useRef(true);
 
   const loadOrder = (id) => {
+    setError("");
     getOrder(id)
       .then(setOrder)
       .catch((err) => setError(err.message || "订单没有找到"));
@@ -28,11 +30,22 @@ export default function OrderDetail() {
     loadOrder(params.id);
   });
 
+  useDidHide(() => {
+    pageVisibleRef.current = false;
+  });
+
+  useDidShow(() => {
+    pageVisibleRef.current = true;
+    if (orderId) loadOrder(orderId);
+  });
+
   useEffect(() => {
-    if (!orderId) return undefined;
-    const timer = setInterval(() => loadOrder(orderId), 5000);
+    if (!orderId || ["已完成", "暂时做不了"].includes(order?.status)) return undefined;
+    const timer = setInterval(() => {
+      if (pageVisibleRef.current) loadOrder(orderId);
+    }, 5000);
     return () => clearInterval(timer);
-  }, [orderId]);
+  }, [orderId, order?.status]);
 
   const submitReview = async () => {
     if (!order || submitting) return;
@@ -52,7 +65,16 @@ export default function OrderDetail() {
     }
   };
 
-  if (error) return <View className="page"><View className="state-box error">{error}</View></View>;
+  if (error) {
+    return (
+      <View className="page">
+        <View className="state-box error">
+          <Text>{error}</Text>
+          <View className="retry-button" onClick={() => loadOrder(orderId)}><Text>重新加载</Text></View>
+        </View>
+      </View>
+    );
+  }
   if (!order) return <View className="page"><View className="state-box">正在查询订单…</View></View>;
 
   const unavailable = order.status === "暂时做不了";

@@ -1,18 +1,32 @@
 from contextlib import asynccontextmanager
+import asyncio
 import hashlib
 import os
 from pathlib import Path
 import secrets
 
-from fastapi import Depends, FastAPI, File, Header, HTTPException, Response, UploadFile, status
+from fastapi import (
+    Depends,
+    FastAPI,
+    File,
+    Header,
+    HTTPException,
+    Response,
+    UploadFile,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 import crud
 import models
 import schemas
-from database import Base, SessionLocal, engine, ensure_order_customer_id_column, get_db
+from database import Base, SessionLocal, engine, ensure_compatible_schema, get_db
+from realtime import dice_room_manager, order_event_hub
 from seed import seed_dishes
 from storage import UPLOAD_DIR, ensure_upload_directory, save_image
 
@@ -27,13 +41,13 @@ ensure_upload_directory()
 async def lifespan(_: FastAPI):
     ensure_upload_directory()
     Base.metadata.create_all(bind=engine)
-    ensure_order_customer_id_column()
+    ensure_compatible_schema()
     with SessionLocal() as db:
         seed_dishes(db)
     yield
 
 
-app = FastAPI(title="女朋友专属点菜小程序 API", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="女朋友专属点菜小程序 API", version="1.1.0", lifespan=lifespan)
 
 
 def get_frontend_origins():
@@ -64,6 +78,10 @@ def get_admin_password():
     return password
 
 
+def get_admin_invite_code():
+    return os.getenv("ADMIN_INVITE_CODE", "love2026")
+
+
 def get_admin_token():
     secret = os.getenv("ADMIN_SECRET")
     if not secret:
@@ -71,7 +89,7 @@ def get_admin_token():
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="后端尚未配置 ADMIN_SECRET",
         )
-    value = f"{get_admin_password()}:{secret}".encode("utf-8")
+    value = f"{get_admin_password()}:{get_admin_invite_code()}:{secret}".encode("utf-8")
     return hashlib.sha256(value).hexdigest()
 
 
@@ -84,9 +102,32 @@ def verify_admin_token(authorization: str | None = Header(default=None)):
         )
 
 
+def is_admin_token(token: str | None):
+    return bool(token) and secrets.compare_digest(token, get_admin_token())
+
+
 @app.get("/")
 def root():
     return {"message": "女朋友专属点菜小程序 API 正常运行"}
+
+
+@app.get("/api/health", include_in_schema=False)
+def health_check():
+    """Lightweight liveness endpoint for Render/Railway monitoring."""
+    return {"status": "ok", "service": "girlfriend-menu-api"}
+
+
+@app.get("/api/ready", include_in_schema=False)
+def readiness_check(db: Session = Depends(get_db)):
+    """Readiness also verifies that the configured database is reachable."""
+    try:
+        db.execute(text("SELECT 1"))
+    except Exception as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="数据库暂时不可用",
+        ) from error
+    return {"status": "ready", "database": engine.dialect.name}
 
 
 @app.post("/api/admin/login", response_model=schemas.AdminLoginOut)
@@ -96,7 +137,86 @@ def admin_login(data: schemas.AdminLogin):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="管理密码错误",
         )
+    if not secrets.compare_digest(data.invite_code, get_admin_invite_code()):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="邀请码错误",
+        )
     return {"token": get_admin_token()}
+
+
+@app.websocket("/ws/admin/orders")
+async def admin_order_events(websocket: WebSocket):
+    await websocket.accept()
+    try:
+        auth_message = await asyncio.wait_for(websocket.receive_json(), timeout=8)
+        if auth_message.get("type") != "auth" or not is_admin_token(auth_message.get("token")):
+            await websocket.send_json({"type": "error", "message": "管理登录已失效"})
+            await websocket.close(code=4401)
+            return
+        await order_event_hub.add(websocket)
+        await websocket.send_json({"type": "ready"})
+        while True:
+            message = await websocket.receive_json()
+            if message.get("type") == "ping":
+                await websocket.send_json({"type": "pong"})
+    except (WebSocketDisconnect, asyncio.TimeoutError):
+        pass
+    finally:
+        await order_event_hub.remove(websocket)
+
+
+@app.post("/api/games/dice/rooms", response_model=schemas.DiceRoomOut)
+async def create_dice_room(data: schemas.DiceRoomCreate):
+    if not secrets.compare_digest(data.invite_code, get_admin_invite_code()):
+        raise HTTPException(status_code=401, detail="邀请码错误")
+    return {"room_code": await dice_room_manager.create_room()}
+
+
+@app.websocket("/ws/games/dice/{room_code}")
+async def dice_room_socket(websocket: WebSocket, room_code: str):
+    await websocket.accept()
+    player_id = None
+    normalized_room_code = room_code.strip().upper()
+    try:
+        join_message = await asyncio.wait_for(websocket.receive_json(), timeout=10)
+        if join_message.get("type") != "join":
+            await websocket.send_json({"type": "error", "message": "请先加入房间"})
+            await websocket.close(code=4400)
+            return
+        if not secrets.compare_digest(
+            str(join_message.get("invite_code") or ""),
+            get_admin_invite_code(),
+        ):
+            await websocket.send_json({"type": "error", "message": "邀请码错误"})
+            await websocket.close(code=4401)
+            return
+        player_id = str(join_message.get("player_id") or "")[:100]
+        player_name = str(join_message.get("name") or "玩家")[:20]
+        if not player_id:
+            await websocket.send_json({"type": "error", "message": "玩家标识不能为空"})
+            await websocket.close(code=4400)
+            return
+        joined, message = await dice_room_manager.join(
+            normalized_room_code,
+            player_id,
+            player_name,
+            websocket,
+        )
+        if not joined:
+            await websocket.send_json({"type": "error", "message": message})
+            await websocket.close(code=4404)
+            return
+        while True:
+            action = await websocket.receive_json()
+            error = await dice_room_manager.handle(normalized_room_code, player_id, action)
+            if error:
+                await websocket.send_json({"type": "error", "message": error})
+    except (WebSocketDisconnect, asyncio.TimeoutError):
+        pass
+    finally:
+        if player_id:
+            await dice_room_manager.leave(normalized_room_code, player_id, websocket)
 
 
 @app.post("/api/upload/image", dependencies=[Depends(verify_admin_token)])
@@ -169,8 +289,10 @@ def remove_dish(dish_id: int, db: Session = Depends(get_db)):
 
 
 @app.post("/api/orders", response_model=schemas.OrderOut, status_code=status.HTTP_201_CREATED)
-def submit_order(data: schemas.OrderCreate, db: Session = Depends(get_db)):
-    return crud.create_order(db, data)
+async def submit_order(data: schemas.OrderCreate, db: Session = Depends(get_db)):
+    order = crud.create_order(db, data)
+    await order_event_hub.broadcast("order_created", order.id)
+    return order
 
 
 @app.get(
@@ -197,12 +319,14 @@ def order_detail(order_id: int, db: Session = Depends(get_db)):
     response_model=schemas.OrderOut,
     dependencies=[Depends(verify_admin_token)],
 )
-def change_order_status(
+async def change_order_status(
     order_id: int,
     data: schemas.OrderStatusUpdate,
     db: Session = Depends(get_db),
 ):
-    return crud.update_order_status(db, order_id, data.status)
+    order = crud.update_order_status(db, order_id, data.status)
+    await order_event_hub.broadcast("order_status_changed", order.id)
+    return order
 
 
 @app.post(
@@ -210,12 +334,14 @@ def change_order_status(
     response_model=schemas.ReviewOut,
     status_code=status.HTTP_201_CREATED,
 )
-def add_order_review(
+async def add_order_review(
     order_id: int,
     data: schemas.ReviewCreate,
     db: Session = Depends(get_db),
 ):
-    return crud.create_review(db, order_id, data)
+    review = crud.create_review(db, order_id, data)
+    await order_event_hub.broadcast("order_reviewed", order_id)
+    return review
 
 
 @app.get("/api/orders/{order_id}/review", response_model=schemas.ReviewOut)

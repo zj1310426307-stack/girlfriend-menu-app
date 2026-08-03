@@ -26,7 +26,16 @@ export default function MyOrders() {
   useDidShow(loadOrders);
 
   if (loading) return <View className="page"><View className="state-box">正在找回之前点过的菜…</View></View>;
-  if (error) return <View className="page"><View className="state-box error">{error}</View></View>;
+  if (error) {
+    return (
+      <View className="page">
+        <View className="state-box error">
+          <Text>{error}</Text>
+          <View className="retry-button" onClick={loadOrders}><Text>重新加载</Text></View>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View className="page">

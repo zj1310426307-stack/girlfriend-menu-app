@@ -42,6 +42,36 @@ def ensure_order_customer_id_column():
         )
 
 
+def ensure_compatible_schema():
+    """Apply small, idempotent upgrades without rebuilding existing data."""
+    ensure_order_customer_id_column()
+    inspector = inspect(engine)
+    table_names = set(inspector.get_table_names())
+
+    with engine.begin() as connection:
+        if "dishes" in table_names:
+            dish_columns = {column["name"] for column in inspector.get_columns("dishes")}
+            if "is_active" not in dish_columns:
+                default_value = "1" if engine.dialect.name == "sqlite" else "TRUE"
+                connection.execute(
+                    text(
+                        "ALTER TABLE dishes ADD COLUMN "
+                        f"is_active BOOLEAN NOT NULL DEFAULT {default_value}"
+                    )
+                )
+            connection.execute(
+                text("CREATE INDEX IF NOT EXISTS ix_dishes_is_active ON dishes (is_active)")
+            )
+
+        if "orders" in table_names:
+            connection.execute(
+                text("CREATE INDEX IF NOT EXISTS ix_orders_status ON orders (status)")
+            )
+            connection.execute(
+                text("CREATE INDEX IF NOT EXISTS ix_orders_created_at ON orders (created_at)")
+            )
+
+
 def get_db():
     db = SessionLocal()
     try:

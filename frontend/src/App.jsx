@@ -19,6 +19,7 @@ import DishDetail from "./pages/DishDetail";
 import DishManage from "./pages/DishManage";
 import Home from "./pages/Home";
 import MyOrders from "./pages/MyOrders";
+import NotFound from "./pages/NotFound";
 import OrderStatus from "./pages/OrderStatus";
 import { getCustomerId } from "./utils/customer";
 
@@ -96,6 +97,7 @@ export default function App() {
             <Route path="/admin/dishes" element={<DishManage />} />
             <Route path="/admin/stats" element={<AdminStats />} />
           </Route>
+          <Route path="*" element={<NotFound />} />
         </Route>
       </Routes>
     </CartContext.Provider>

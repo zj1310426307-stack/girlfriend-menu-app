@@ -1,23 +1,534 @@
 page {
   min-height: 100%;
-  background: #050817;
+  color: #eef5ff;
+  background: #040711;
 }
 
-.dice-webview-loading {
+.dice-native-page {
+  min-height: 100vh;
+  padding: 28px 22px 70px;
+  background:
+    radial-gradient(circle at 16% 8%, rgba(44, 105, 154, 0.28), transparent 28%),
+    radial-gradient(circle at 84% 24%, rgba(216, 75, 111, 0.15), transparent 24%),
+    linear-gradient(180deg, #070b17 0%, #040711 100%);
+}
+
+.dice-native-loading {
+  min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-direction: column;
   gap: 20px;
-  min-height: 100vh;
-  color: #eadde2;
-  background:
-    radial-gradient(circle at 50% 30%, rgba(38, 106, 153, 0.34), transparent 38%),
-    #050817;
-  font-size: 28px;
+  color: #dce9fa;
+  background: #040711;
+  font-size: 27px;
 }
 
-.dice-webview-heart {
+.dice-native-heart {
   color: #ee7189;
-  font-size: 64px;
+  font-size: 62px;
+  line-height: 1;
+}
+
+.dice-heading {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 8px 8px 24px;
+}
+
+.dice-kicker {
+  display: block;
+  color: #ef7892;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 4px;
+}
+
+.dice-title {
+  display: block;
+  margin-top: 11px;
+  color: #f7f8fb;
+  font-size: 43px;
+  font-weight: 900;
+  letter-spacing: 1px;
+}
+
+.dice-subtitle {
+  display: block;
+  margin-top: 10px;
+  color: #91a4be;
+  font-size: 24px;
+}
+
+.dice-status-card,
+.dice-private-card,
+.dice-control-card,
+.dice-reveal-card,
+.dice-rules-card {
+  border: 2px solid rgba(119, 166, 207, 0.18);
+  border-radius: 26px;
+  background: rgba(13, 20, 36, 0.92);
+  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.32);
+}
+
+.dice-status-card {
+  display: flex;
+  align-items: stretch;
+  margin-bottom: 18px;
+  padding: 18px 22px;
+}
+
+.dice-status-card > view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  color: #7f94ae;
+  font-size: 21px;
+}
+
+.dice-current-bid {
+  padding-left: 24px;
+  border-left: 2px solid rgba(120, 167, 209, 0.14);
+}
+
+.dice-status-value {
+  color: #f4f7fb;
+  font-size: 29px;
+  font-weight: 800;
+}
+
+.dice-status-small {
+  color: #dc7890;
+  font-size: 19px;
+}
+
+.dice-player-picker {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+  padding: 0 8px;
+  color: #9bacc2;
+  font-size: 22px;
+}
+
+.dice-player-picker > view {
+  display: flex;
+  gap: 10px;
+}
+
+.dice-player-option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 66px;
+  height: 54px;
+  border: 2px solid rgba(120, 167, 209, 0.24);
+  border-radius: 28px;
+  color: #9fb0c6;
+  background: rgba(13, 23, 42, 0.82);
+  font-size: 21px;
+}
+
+.dice-player-option text,
+.dice-primary-action text,
+.dice-open-action text {
+  display: block;
+  line-height: 1;
+  text-align: center;
+}
+
+.dice-player-option.active {
+  color: #fff;
+  border-color: #ea708a;
+  background: #d95f7a;
+  box-shadow: 0 8px 18px rgba(217, 95, 122, 0.26);
+}
+
+.dice-canvas-shell {
+  position: relative;
+  width: 100%;
+  height: 690px;
+  overflow: hidden;
+  border: 2px solid rgba(102, 176, 225, 0.3);
+  border-radius: 30px;
+  background: #040711;
+  box-shadow:
+    0 24px 50px rgba(0, 0, 0, 0.45),
+    inset 0 0 54px rgba(48, 135, 194, 0.12);
+}
+
+.dice-canvas-shell.can-open {
+  border-color: rgba(235, 112, 140, 0.58);
+  box-shadow:
+    0 24px 50px rgba(0, 0, 0, 0.45),
+    0 0 30px rgba(235, 112, 140, 0.16);
+}
+
+.dice-webgl-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.dice-boundary-metrics {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0.001;
+  pointer-events: none;
+}
+
+.dice-live-badge {
+  position: absolute;
+  top: 22px;
+  left: 22px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border: 1px solid rgba(135, 203, 240, 0.22);
+  border-radius: 20px;
+  color: #8fa9c2;
+  background: rgba(4, 9, 20, 0.58);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+
+.dice-live-dot {
+  color: #70d4ff;
+  font-size: 13px;
+  text-shadow: 0 0 12px rgba(112, 212, 255, 0.95);
+}
+
+.dice-canvas-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 34px;
+  color: #a9bad0;
+  background: #050817;
+  font-size: 25px;
+  text-align: center;
+}
+
+.dice-canvas-overlay.error {
+  color: #f0a0ae;
+}
+
+.dice-open-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 28px;
+  z-index: 4;
+  width: 390px;
+  margin-left: -195px;
+  padding: 16px 20px;
+  border: 2px solid rgba(255, 255, 255, 0.16);
+  border-radius: 36px;
+  color: #fff;
+  background: rgba(4, 8, 20, 0.78);
+  font-size: 23px;
+  text-align: center;
+  backdrop-filter: blur(10px);
+}
+
+.dice-open-hint text {
+  display: block;
+}
+
+.dice-open-arrow {
+  margin-bottom: 2px;
+  color: #ef7892;
+  font-size: 34px;
+  line-height: 1;
+}
+
+.dice-scene-message {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 72px;
+  margin: -16px 22px 18px;
+  padding: 16px 22px;
+  position: relative;
+  z-index: 5;
+  border: 2px solid rgba(239, 120, 146, 0.25);
+  border-radius: 22px;
+  color: #dce7f5;
+  background: rgba(21, 24, 39, 0.96);
+  font-size: 23px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.dice-private-card,
+.dice-control-card,
+.dice-reveal-card,
+.dice-rules-card {
+  margin-top: 18px;
+  padding: 25px;
+}
+
+.dice-private-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.dice-section-title {
+  display: block;
+  margin-top: 7px;
+  color: #f3f6fa;
+  font-size: 30px;
+  font-weight: 850;
+}
+
+.dice-private-tip {
+  flex-basis: 100%;
+  color: #7990aa;
+  font-size: 20px;
+  text-align: right;
+}
+
+.dice-values-placeholder {
+  color: #73869f;
+  font-size: 22px;
+}
+
+.dice-value-row {
+  display: flex;
+  gap: 9px;
+}
+
+.dice-value-row > text {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 13px;
+  color: #173d91;
+  background: linear-gradient(145deg, #ffffff, #dce6f1);
+  box-shadow: inset -4px -5px 9px rgba(50, 70, 90, 0.18), 0 7px 12px rgba(0, 0, 0, 0.24);
+  font-size: 25px;
+  font-weight: 900;
+  line-height: 52px;
+  text-align: center;
+}
+
+.dice-primary-action,
+.dice-open-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 78px;
+  border-radius: 42px;
+  color: #fff;
+  background: linear-gradient(135deg, #ef7892, #ce4f70);
+  box-shadow: 0 11px 24px rgba(218, 81, 113, 0.28);
+  font-size: 27px;
+  font-weight: 850;
+  text-align: center;
+}
+
+.dice-primary-action.disabled,
+.dice-open-action.disabled {
+  opacity: 0.5;
+  box-shadow: none;
+}
+
+.dice-bid-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.dice-control-label {
+  display: block;
+  margin-bottom: 12px;
+  color: #9bacc2;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.dice-stepper {
+  display: flex;
+  align-items: center;
+  width: 270px;
+  height: 66px;
+  overflow: hidden;
+  border: 2px solid rgba(121, 164, 204, 0.22);
+  border-radius: 34px;
+  background: #0a1222;
+}
+
+.dice-stepper > view,
+.dice-stepper > text {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 90px;
+  height: 62px;
+  color: #f3f6fa;
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 62px;
+  text-align: center;
+}
+
+.dice-stepper > view {
+  color: #ee7890;
+  font-size: 38px;
+}
+
+.dice-face-options {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 9px;
+}
+
+.dice-face-options > view {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 62px;
+  border: 2px solid rgba(121, 164, 204, 0.22);
+  border-radius: 18px;
+  color: #a5b6ca;
+  background: #0a1222;
+  font-size: 25px;
+  font-weight: 800;
+}
+
+.dice-face-options > view.active {
+  color: #fff;
+  border-color: #e96d87;
+  background: #d95d79;
+}
+
+.dice-action-row {
+  display: flex;
+  gap: 14px;
+  margin-top: 24px;
+}
+
+.dice-action-row .dice-primary-action {
+  flex: 1;
+}
+
+.dice-open-action {
+  flex: 0 0 128px;
+  background: linear-gradient(135deg, #498dcc, #28669e);
+  box-shadow: 0 11px 24px rgba(46, 111, 166, 0.28);
+}
+
+.dice-ai-thinking {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 80px;
+  color: #9fb1c7;
+  font-size: 24px;
+  letter-spacing: 2px;
+}
+
+.dice-outcome-text {
+  display: block;
+  margin: 14px 0 20px;
+  color: #dfe8f5;
+  font-size: 23px;
+  line-height: 1.6;
+}
+
+.dice-player-results {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+}
+
+.dice-player-results > view {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 15px;
+  border-radius: 18px;
+  background: rgba(7, 13, 25, 0.82);
+}
+
+.dice-player-results > view.loser {
+  border: 2px solid rgba(238, 113, 137, 0.55);
+  background: rgba(108, 31, 53, 0.3);
+}
+
+.dice-player-results .dice-value-row > text {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  font-size: 21px;
+  line-height: 42px;
+}
+
+.dice-result-name {
+  width: 82px;
+  color: #dfe8f5;
+  font-size: 22px;
+  font-weight: 750;
+}
+
+.dice-loser-tag {
+  margin-left: auto;
+  color: #ff91a6;
+  font-size: 19px;
+}
+
+.dice-rules-card > text:not(.dice-kicker):not(.dice-section-title) {
+  display: block;
+  margin-top: 13px;
+  color: #93a6bd;
+  font-size: 22px;
+  line-height: 1.6;
+}
+
+.dice-history {
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 2px solid rgba(120, 164, 204, 0.15);
+}
+
+.dice-history > text {
+  display: block;
+  margin-top: 8px;
+  color: #d07a8d;
+  font-size: 20px;
+  line-height: 1.5;
+}
+
+@media (max-width: 360px) {
+  .dice-canvas-shell {
+    height: 620px;
+  }
+
+  .dice-player-option {
+    width: 58px;
+  }
+
+  .dice-value-row > text {
+    width: 46px;
+    height: 46px;
+    line-height: 46px;
+  }
 }

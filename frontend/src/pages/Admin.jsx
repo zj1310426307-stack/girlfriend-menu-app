@@ -1,26 +1,63 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { getOrders, updateOrderStatus } from "../api";
+import {
+  getApiErrorMessage,
+  getOrders,
+  subscribeToAdminOrderEvents,
+  updateOrderStatus,
+} from "../api";
 import OrderCard from "../components/OrderCard";
 
 export default function Admin() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [liveStatus, setLiveStatus] = useState("connecting");
 
-  const load = useCallback(() => {
+  const load = useCallback((silent = false) => {
+    if (!silent) setLoading(true);
     getOrders()
-      .then(setOrders)
-      .catch(() => setError("订单加载失败，请检查后端。"))
-      .finally(() => setLoading(false));
+      .then((data) => {
+        setOrders(data);
+        setError("");
+      })
+      .catch((requestError) => {
+        if (!silent) setError(getApiErrorMessage(requestError, "订单加载失败，请检查后端。"));
+      })
+      .finally(() => {
+        if (!silent) setLoading(false);
+      });
   }, []);
 
-  useEffect(load, [load]);
+  useEffect(() => {
+    load();
+    const timer = setInterval(() => {
+      if (document.visibilityState === "visible") load(true);
+    }, 10000);
+    return () => clearInterval(timer);
+  }, [load]);
+
+  useEffect(
+    () => subscribeToAdminOrderEvents({
+      onEvent: (message) => {
+        if (["order_created", "order_status_changed", "order_reviewed"].includes(message.type)) {
+          load(true);
+        }
+      },
+      onStatus: setLiveStatus,
+    }),
+    [load],
+  );
 
   const changeStatus = async (id, status) => {
-    const updated = await updateOrderStatus(id, status);
-    setOrders((list) => list.map((order) => (order.id === id ? updated : order)));
+    try {
+      const updated = await updateOrderStatus(id, status);
+      setOrders((list) => list.map((order) => (order.id === id ? updated : order)));
+      setError("");
+    } catch (requestError) {
+      setError(getApiErrorMessage(requestError, "订单状态修改失败，请重试。"));
+    }
   };
 
   const stats = useMemo(() => {
@@ -49,6 +86,9 @@ export default function Admin() {
         <div>
           <span className="eyebrow">KITCHEN BOARD</span>
           <h1>今天的订单</h1>
+          <span className={`live-status live-${liveStatus}`}>
+            <i />{liveStatus === "online" ? "实时接单中" : "正在连接实时订单"}
+          </span>
         </div>
         <Link className="primary-button compact" to="/admin/dishes">管理菜品</Link>
       </div>

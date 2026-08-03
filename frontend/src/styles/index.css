@@ -115,6 +115,13 @@ button { cursor: pointer; }
 .footer span { color: var(--pink); }
 .state-box { text-align: center; padding: 50px 20px; color: #9a7770; background: white; border-radius: 18px; }
 .state-box.error, .form-error { color: #bb4454; background: #fff0f1; }
+.state-box.error p { margin: 0 0 14px; }
+.retry-button {
+  border: 1px solid #e8b9c0; border-radius: 22px; padding: 9px 18px;
+  color: var(--pink-dark); background: white; font-weight: 600;
+}
+.retry-button:hover { background: #fff8f8; }
+.app-error-page p { margin: 0 0 24px; color: #96766f; }
 .detail-page { width: min(760px, 100%); margin: 0 auto; padding: 24px 20px 70px; }
 .detail-page .back-link { display: inline-block; margin-bottom: 18px; }
 .detail-image { width: 100%; height: min(55vw, 440px); min-height: 260px; object-fit: cover; border-radius: 25px; }
@@ -188,6 +195,10 @@ textarea { resize: vertical; }
 .review-result p { color: #80665f; line-height: 1.7; }
 .admin-heading { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 25px; }
 .admin-heading h1 { margin: 7px 0 0; font-size: 30px; }
+.live-status { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; color: #9a7d75; font-size: 12px; }
+.live-status i { width: 8px; height: 8px; border-radius: 50%; background: #c9b5af; }
+.live-status.live-online { color: #3f7d59; }
+.live-status.live-online i { background: #4ca36c; box-shadow: 0 0 0 4px #4ca36c1f; }
 .orders-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; }
 .order-card { padding: 20px; border: 1px solid #f2e2dc; border-radius: 18px; background: white; box-shadow: var(--shadow); }
 .order-card-head, .order-card-foot { display: flex; justify-content: space-between; align-items: flex-start; gap: 15px; }

@@ -1,12 +1,15 @@
 {
   "name": "girlfriend-menu-miniprogram",
-  "version": "1.0.9",
+  "version": "1.0.17",
   "private": true,
   "description": "女朋友专属点菜小程序端",
   "scripts": {
     "build:weapp": "taro build --type weapp",
     "dev:weapp": "taro build --type weapp --watch",
-    "test:smoke": "node scripts/smoke-test.cjs"
+    "test:smoke": "node scripts/smoke-test.cjs",
+    "test:dice": "node scripts/smoke-test.cjs --dice-only",
+    "preview:dice": "node scripts/smoke-test.cjs --dice-only --keep-open",
+    "preview:cup": "node scripts/smoke-test.cjs --dice-only --keep-open --stop-before-open"
   },
   "dependencies": {
     "@babel/runtime": "^7.25.0",
