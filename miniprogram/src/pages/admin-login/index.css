@@ -1,0 +1,14 @@
+page { min-height: 100%; background: #fff8f5; }
+.mini-admin-login { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 44px 28px; background: radial-gradient(circle at 20% 15%, rgba(238,123,146,.18), transparent 26%), radial-gradient(circle at 88% 30%, rgba(144,191,228,.16), transparent 24%), #fff8f5; }
+.mini-admin-login-card { width: 100%; padding: 46px 34px 38px; border: 2px solid #f0ded8; border-radius: 34px; background: rgba(255,255,255,.97); box-shadow: 0 22px 58px rgba(111,70,62,.13); text-align: center; }
+.mini-admin-lock { width: 90px; height: 90px; margin: 0 auto 22px; display: flex; align-items: center; justify-content: center; border-radius: 28px; color: #fff; background: linear-gradient(145deg, #724e49, #4b3532); box-shadow: 0 12px 28px rgba(76,49,45,.24); }
+.mini-admin-lock text { font-size: 38px; font-weight: 900; line-height: 1; }
+.mini-admin-kicker { display: block; color: #d55d74; font-size: 19px; font-weight: 900; letter-spacing: 4px; }
+.mini-admin-title { display: block; margin-top: 14px; color: #58443f; font-size: 43px; font-weight: 900; }
+.mini-admin-desc { display: block; margin-top: 16px; color: #9e7d75; font-size: 24px; line-height: 1.7; }
+.mini-admin-password { height: 82px; margin-top: 34px; padding: 0 24px; border: 2px solid #ead9d4; border-radius: 22px; color: #58443f; background: #fffaf8; font-size: 28px; text-align: center; }
+.mini-admin-error { display: block; margin-top: 15px; color: #bd4354; font-size: 23px; }
+.mini-admin-submit { min-height: 80px; margin-top: 24px; display: flex; align-items: center; justify-content: center; border-radius: 44px; color: #fff; background: linear-gradient(135deg, #e9778e, #c9506b); box-shadow: 0 12px 26px rgba(208,81,108,.25); font-size: 28px; font-weight: 900; }
+.mini-admin-submit text { line-height: 1; }
+.mini-admin-safe { display: block; margin-top: 20px; color: #b1938b; font-size: 20px; line-height: 1.6; }
+.disabled { opacity: .55; }

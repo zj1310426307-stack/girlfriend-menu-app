@@ -70,7 +70,7 @@ export default function Index() {
       console.error("打开骰子模块失败", detail);
       Taro.showModal({
         title: "骰子模块没有打开",
-        content: `当前版本 v1.0.17\n${detail}`,
+        content: `当前版本 v1.0.18\n${detail}`,
         showCancel: false,
       });
     });
@@ -138,6 +138,27 @@ export default function Index() {
         </View>
       </View>
 
+      <View className="home-section-head">
+        <View><Text>甜蜜小工具</Text><Text>决定不了的事，交给一点好运</Text></View>
+      </View>
+
+      <View className="home-tool-grid">
+        <View className="home-tool-card wheel-home-entry" onClick={() => Taro.navigateTo({ url: "/pages/wheel/index" })}>
+          <View className="home-tool-icon"><Text>转</Text></View>
+          <Text className="home-tool-title">今晚转盘</Text>
+          <Text className="home-tool-desc">自己添加选项，转出今晚答案</Text>
+        </View>
+        <View className="home-tool-card admin-home-entry" onClick={() => Taro.navigateTo({ url: "/pages/admin-login/index" })}>
+          <View className="home-tool-icon"><Text>厨</Text></View>
+          <Text className="home-tool-title">小厨房管理</Text>
+          <Text className="home-tool-desc">实时看她点了什么、几点想吃</Text>
+        </View>
+      </View>
+
+      <View className="home-section-head game-section-head">
+        <View><Text>一起玩一局</Text><Text>单机练习或和女朋友实时对战</Text></View>
+      </View>
+
       <View
         className="dice-entry card"
         onClick={openDiceGame}
@@ -147,7 +168,7 @@ export default function Index() {
         </View>
         <View className="dice-entry-copy">
           <Text className="dice-entry-title">3D 大话骰 · 吹牛</Text>
-          <Text className="dice-entry-desc">原生酒吧桌面、上滑开盅和 AI 对局 · v1.0.17</Text>
+          <Text className="dice-entry-desc">原生酒吧桌面、上滑开盅和 AI 对局 · v1.0.18</Text>
         </View>
         <Text className="dice-entry-arrow">›</Text>
       </View>
@@ -162,6 +183,11 @@ export default function Index() {
           <Text className="dice-entry-desc">创建双人房间，实时叫骰和开盅</Text>
         </View>
         <Text className="dice-entry-arrow">›</Text>
+      </View>
+
+      <View className="menu-section-head">
+        <View><Text>今天的菜单</Text><Text>{dishes.length ? `${dishes.length} 道认真准备的菜` : "挑一道今天想吃的"}</Text></View>
+        <View onClick={() => Taro.navigateTo({ url: "/pages/cart/index" })}><Text>查看清单</Text></View>
       </View>
 
       <ScrollView className="category-tabs" scrollX>

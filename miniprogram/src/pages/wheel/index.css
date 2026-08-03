@@ -1,0 +1,86 @@
+page { min-height: 100%; color: #5b4844; background: #fff8f5; }
+
+.wheel-page {
+  min-height: 100vh;
+  padding: 28px 24px 80px;
+  background:
+    radial-gradient(circle at 8% 4%, rgba(244, 140, 160, .18), transparent 24%),
+    radial-gradient(circle at 92% 14%, rgba(144, 191, 228, .2), transparent 26%),
+    linear-gradient(180deg, #fffaf7, #fff5f1);
+}
+
+.wheel-loading { min-height: 100vh; display: flex; align-items: center; justify-content: center; color: #9a7770; background: #fff8f5; font-size: 26px; }
+.wheel-hero { padding: 20px 10px 30px; text-align: center; }
+.wheel-kicker { display: block; color: #d55e75; font-size: 19px; font-weight: 900; letter-spacing: 4px; }
+.wheel-title { display: block; margin-top: 14px; color: #5c4540; font-size: 45px; font-weight: 900; }
+.wheel-desc { display: block; max-width: 620px; margin: 14px auto 0; color: #a17f77; font-size: 24px; line-height: 1.65; }
+
+.wheel-stage {
+  position: relative;
+  width: 650px;
+  max-width: 100%;
+  height: 650px;
+  max-height: calc(100vw - 48px);
+  margin: 0 auto;
+  padding: 12px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #fff, #f0d9d4);
+  box-shadow: 0 24px 62px rgba(116, 68, 61, .22), inset 0 0 0 4px rgba(255,255,255,.9);
+}
+
+.wheel-canvas { width: 100%; height: 100%; border-radius: 50%; }
+.wheel-pointer {
+  position: absolute;
+  left: 50%;
+  top: -9px;
+  z-index: 4;
+  width: 0;
+  height: 0;
+  margin-left: -22px;
+  border-left: 22px solid transparent;
+  border-right: 22px solid transparent;
+  border-top: 62px solid #7a4d4d;
+  filter: drop-shadow(0 7px 5px rgba(74, 39, 39, .25));
+}
+.wheel-overlay { position: absolute; inset: 12px; display: flex; align-items: center; justify-content: center; border-radius: 50%; color: #9c7c74; background: #fff3ef; font-size: 25px; }
+
+.wheel-spin {
+  width: 300px;
+  min-height: 82px;
+  margin: 30px auto 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 46px;
+  color: #fff;
+  background: linear-gradient(135deg, #ee7b92, #cb536d);
+  box-shadow: 0 13px 28px rgba(210, 82, 111, .28);
+  font-size: 29px;
+  font-weight: 900;
+}
+.wheel-spin text { line-height: 1; }
+.disabled { opacity: .48; }
+.wheel-result { margin: 24px 0 0; padding: 22px 28px; border: 2px solid #f1d9d4; border-radius: 24px; background: rgba(255,255,255,.92); text-align: center; box-shadow: 0 12px 30px rgba(100, 67, 60, .08); }
+.wheel-result text { display: block; color: #a17c73; font-size: 22px; }
+.wheel-result text:last-child { margin-top: 7px; color: #d5526d; font-size: 38px; font-weight: 900; }
+
+.wheel-editor { margin-top: 30px; padding: 28px 24px; border: 2px solid #f1ded8; border-radius: 30px; background: rgba(255,255,255,.96); box-shadow: 0 16px 38px rgba(111, 70, 62, .09); }
+.wheel-editor-head { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 20px; }
+.wheel-editor-head > view:first-child { display: flex; flex-direction: column; gap: 6px; }
+.wheel-editor-head > view:first-child text:first-child { color: #5c4742; font-size: 31px; font-weight: 900; }
+.wheel-editor-head > view:first-child text:last-child { color: #aa8880; font-size: 21px; }
+.wheel-add { min-width: 136px; min-height: 60px; display: flex; align-items: center; justify-content: center; border: 2px solid #eccbd0; border-radius: 34px; color: #d65b74; background: #fff5f5; font-size: 23px; font-weight: 800; }
+.wheel-options { display: flex; flex-direction: column; gap: 12px; }
+.wheel-option { display: flex; align-items: center; gap: 12px; min-height: 74px; padding: 8px 10px 8px 14px; border: 2px solid #f3e5df; border-radius: 19px; background: #fffcfb; }
+.wheel-color { width: 20px; height: 44px; flex: 0 0 20px; border-radius: 12px; }
+.wheel-number { width: 30px; color: #b8958d; font-size: 21px; font-weight: 800; text-align: center; }
+.wheel-option input { flex: 1; min-height: 58px; color: #5d4944; font-size: 26px; }
+.wheel-remove { min-width: 76px; min-height: 50px; display: flex; align-items: center; justify-content: center; border-radius: 26px; color: #b66773; background: #fff1f2; font-size: 21px; }
+.wheel-tip { display: block; margin-top: 18px; color: #b08e86; font-size: 20px; line-height: 1.6; }
+
+@media (max-width: 360px) {
+  .wheel-page { padding-inline: 18px; }
+  .wheel-title { font-size: 40px; }
+  .wheel-editor { padding-inline: 18px; }
+  .wheel-editor-head { align-items: flex-start; }
+}

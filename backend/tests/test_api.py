@@ -177,3 +177,19 @@ def test_two_player_dice_room_privacy_and_challenge():
                 assert first_finished["phase"] == second_finished["phase"] == "finished"
                 assert first_finished["outcome"]["actual_count"] == 4
                 assert set(first_finished["all_dice"]) == {"gf_first", "gf_second"}
+                assert next(
+                    player["score"]
+                    for player in first_finished["players"]
+                    if player["id"] == first_finished["outcome"]["winner_id"]
+                ) == 1
+
+                first.send_json({"type": "rematch"})
+                first_waiting = first.receive_json()
+                second_waiting = second.receive_json()
+                assert first_waiting["phase"] == second_waiting["phase"] == "finished"
+                second.send_json({"type": "rematch"})
+                first_rematch = first.receive_json()
+                second_rematch = second.receive_json()
+                assert first_rematch["phase"] == second_rematch["phase"] == "rolling"
+                assert first_rematch["round"] == 2
+                assert sum(player["score"] for player in first_rematch["players"]) == 1

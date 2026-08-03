@@ -33,7 +33,12 @@ button::after {
   margin: -28px -24px 26px;
   padding: 64px 30px 52px;
   text-align: center;
-  background: linear-gradient(145deg, #fff8f1, #fff0ed);
+  border-radius: 0 0 42px 42px;
+  background:
+    radial-gradient(circle at 16% 20%, rgba(255,255,255,.95), transparent 24%),
+    radial-gradient(circle at 87% 18%, rgba(235,129,151,.13), transparent 26%),
+    linear-gradient(145deg, #fff9f1, #ffedea);
+  box-shadow: 0 15px 38px rgba(129, 82, 72, .08);
 }
 
 .eyebrow {

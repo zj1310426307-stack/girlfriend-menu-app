@@ -85,20 +85,17 @@ async function waitForElementToDisappear(page, selector, timeout = 8000) {
 async function run() {
   console.log("[smoke] 正在连接微信开发者工具");
   let miniProgram;
-  try {
-    miniProgram = await automator.connect({
-      wsEndpoint: `ws://127.0.0.1:${DEVTOOLS_HTTP_PORT}`
-    });
-  } catch {
-    miniProgram = await automator.launch({
-      cliPath: CLI_PATH,
-      projectPath: PROJECT_PATH,
-      args: ["--port", String(DEVTOOLS_CLI_PORT)],
-      port: DEVTOOLS_HTTP_PORT,
-      trustProject: true,
-      timeout: 120000
-    });
-  }
+  // Always ask DevTools to open this exact project. Connecting to a leftover
+  // automation port can succeed even when no mini-program project is active,
+  // which makes currentPage/reLaunch hang without a useful error.
+  miniProgram = await automator.launch({
+    cliPath: CLI_PATH,
+    projectPath: PROJECT_PATH,
+    args: ["--port", String(DEVTOOLS_CLI_PORT)],
+    port: DEVTOOLS_HTTP_PORT,
+    trustProject: true,
+    timeout: 120000
+  });
 
   miniProgram.on("console", (entry) => {
     if (entry?.type === "error" || entry?.level === "error") {
@@ -153,6 +150,30 @@ async function run() {
           ? `菜单接口失败：${await menuError.text()}`
           : "菜单接口完成后没有渲染菜品"
       );
+
+      console.log("[smoke] 验证可配置转盘与小程序管理入口");
+      const wheelEntry = await page.$(".wheel-home-entry");
+      assert(wheelEntry, "首页没有渲染今晚转盘入口");
+      await wheelEntry.tap();
+      page = await waitForCurrentPage(miniProgram, "pages/wheel/index", page);
+      const wheelCanvas = await waitForElement(page, ".wheel-canvas", 7000);
+      const wheelAdd = await waitForElement(page, ".wheel-add", 3000);
+      const wheelOptionsBefore = await page.$$(".wheel-option");
+      assert(wheelCanvas && wheelAdd, "转盘页面没有完整渲染");
+      assert(wheelOptionsBefore.length >= 2, "转盘选项少于 2 个");
+      await wheelAdd.tap();
+      await page.waitFor(300);
+      const wheelOptionsAfter = await page.$$(".wheel-option");
+      assert(wheelOptionsAfter.length === wheelOptionsBefore.length + 1, "添加转盘分区失败");
+      page = await miniProgram.navigateBack();
+
+      const adminEntry = await page.$(".admin-home-entry");
+      assert(adminEntry, "首页没有渲染小厨房管理入口");
+      await adminEntry.tap();
+      page = await waitForCurrentPage(miniProgram, "pages/admin-login/index", page);
+      assert(await page.$(".mini-admin-password"), "小厨房登录页没有渲染密码框");
+      page = await miniProgram.navigateBack();
+      console.log("[smoke] 转盘增项与管理登录页正常");
     }
 
     console.log("[smoke] 进入原生 3D 骰子桌");

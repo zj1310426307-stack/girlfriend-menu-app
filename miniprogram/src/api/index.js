@@ -94,3 +94,21 @@ export const createDiceRoom = (inviteCode) =>
     method: "POST",
     data: { invite_code: inviteCode }
   });
+
+export const adminLogin = (password, inviteCode) =>
+  request("/admin/login", {
+    method: "POST",
+    data: { password, invite_code: inviteCode }
+  });
+
+export const getAdminOrders = (token) =>
+  request("/orders", {
+    header: { Authorization: `Bearer ${token}` }
+  });
+
+export const updateAdminOrderStatus = (orderId, status, token) =>
+  request(`/orders/${orderId}/status`, {
+    method: "PATCH",
+    data: { status },
+    header: { Authorization: `Bearer ${token}` }
+  });

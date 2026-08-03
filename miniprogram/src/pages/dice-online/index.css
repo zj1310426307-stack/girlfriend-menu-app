@@ -29,6 +29,14 @@ page { min-height: 100%; color: #edf5ff; background: #060a16; }
 .online-heading .online-title { font-size: 38px; }
 .online-room-code { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; padding: 12px 16px; border: 2px solid #2f4665; border-radius: 18px; color: #e9f3ff; background: #0c1627; font-size: 22px; font-weight: 800; letter-spacing: 2px; }
 .online-room-code text:last-child { color: #7891ad; font-size: 18px; font-weight: 500; letter-spacing: 0; }
+.online-scoreboard { display: grid; grid-template-columns: 1fr 145px 1fr; align-items: center; gap: 10px; margin-bottom: 16px; padding: 16px; border: 2px solid rgba(97,151,202,.24); border-radius: 24px; background: linear-gradient(145deg, rgba(14,27,48,.98), rgba(25,17,34,.98)); box-shadow: 0 14px 32px rgba(0,0,0,.22); }
+.online-score-player { min-height: 82px; display: flex; align-items: center; justify-content: center; gap: 12px; padding: 10px 13px; border-radius: 18px; color: #dceaff; background: rgba(36,77,116,.38); }
+.online-score-player > text:first-child { max-width: 120px; font-size: 21px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.online-score-player > text:last-child { color: #fff; font-size: 38px; font-weight: 900; }
+.online-score-player.opponent { flex-direction: row-reverse; background: rgba(137,48,78,.34); }
+.online-score-round { display: flex; flex-direction: column; align-items: center; gap: 5px; color: #f28ba1; text-align: center; }
+.online-score-round text:first-child { font-size: 24px; font-weight: 900; }
+.online-score-round text:last-child { color: #718aa6; font-size: 16px; line-height: 1.4; }
 .online-players { display: flex; gap: 12px; margin-bottom: 16px; }
 .online-players > view { flex: 1; display: flex; flex-direction: column; gap: 6px; min-height: 78px; padding: 14px 18px; border: 2px solid #1f3049; border-radius: 20px; color: #dce8f7; background: #0b1424; font-size: 23px; }
 .online-players > view text:last-child { color: #7f95b0; font-size: 19px; }
@@ -44,17 +52,30 @@ page { min-height: 100%; color: #edf5ff; background: #060a16; }
 .online-dice-wait { color: #758ca8; font-size: 23px; }
 .online-controls { margin-bottom: 18px; }
 .disabled { opacity: .5; }
-.online-current-bid { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; color: #899fb9; font-size: 23px; }
-.online-current-bid text:last-child { color: #fff; font-size: 30px; font-weight: 900; }
+.online-current-bid { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; padding: 17px 19px; border: 2px solid #263c58; border-radius: 20px; color: #899fb9; background: #091321; font-size: 22px; }
+.online-current-bid > view { display: flex; flex-direction: column; gap: 4px; }
+.online-current-bid > view text:last-child { color: #667f9c; font-size: 17px; }
+.online-current-bid > text:last-child { color: #fff; font-size: 28px; font-weight: 900; text-align: right; }
+.online-quick-bids { margin-bottom: 18px; }
+.online-quick-bids > text { display: block; margin-bottom: 9px; color: #839ab5; font-size: 20px; }
+.online-quick-bids > view { display: flex; gap: 9px; }
+.online-quick-bids > view > text { flex: 1; min-height: 56px; display: flex; align-items: center; justify-content: center; border: 2px solid #2c405c; border-radius: 30px; color: #a9bdd4; background: #101b2d; font-size: 21px; text-align: center; }
+.online-quick-bids > view > text.active { color: #fff; border-color: #df6881; background: #b94d68; }
 .online-bid-controls { display: grid; grid-template-columns: 210px 1fr; gap: 20px; margin-bottom: 24px; color: #8fa4bd; font-size: 21px; }
 .online-stepper { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; border: 2px solid #293c57; border-radius: 36px; overflow: hidden; }
 .online-stepper text { flex: 1; min-height: 64px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 27px; line-height: 64px; text-align: center; }
 .online-stepper text:first-child, .online-stepper text:last-child { color: #ef7892; background: #111e32; }
 .online-faces > view { display: flex; gap: 8px; margin-top: 10px; }
-.online-faces > view text { flex: 1; min-height: 62px; display: flex; align-items: center; justify-content: center; border: 2px solid #293c57; border-radius: 16px; color: #aec0d5; line-height: 62px; text-align: center; }
+.online-faces > view > text { flex: 1; min-height: 68px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; border: 2px solid #293c57; border-radius: 16px; color: #aec0d5; text-align: center; }
+.online-faces > view > text > text:first-child { font-size: 28px; line-height: 1; }
+.online-faces > view > text > text:last-child { font-size: 15px; line-height: 1; }
 .online-faces > view text.active { color: #fff; border-color: #e46a84; background: #c95470; }
+.online-rule-tip { display: block; margin: -5px 0 18px; color: #7188a4; font-size: 18px; line-height: 1.55; }
 .online-action-row { display: grid; grid-template-columns: 1fr 130px; gap: 14px; }
 .online-open { background: linear-gradient(135deg, #3e739e, #275379); }
+.online-open { flex-direction: column; gap: 3px; }
+.online-open text:first-child { font-size: 28px; }
+.online-open text:last-child { color: #a8c6df; font-size: 16px; font-weight: 500; }
 .online-result > text { display: block; color: #9eb2c9; font-size: 23px; }
 .online-result > view:not(.online-primary) { margin-top: 18px; padding-top: 16px; border-top: 2px solid #1f3047; }
 .online-result > view:not(.online-primary) > text { display: block; margin-bottom: 10px; color: #dbe8f6; font-size: 23px; }
@@ -62,6 +83,9 @@ page { min-height: 100%; color: #edf5ff; background: #060a16; }
 .online-exit { display: flex; justify-content: center; padding: 20px; color: #7188a4; font-size: 23px; }
 
 @media (max-width: 360px) {
+  .online-scoreboard { grid-template-columns: 1fr 112px 1fr; padding: 11px; }
+  .online-score-player { flex-direction: column; gap: 2px; }
+  .online-score-player.opponent { flex-direction: column; }
   .online-bid-controls { grid-template-columns: 1fr; }
   .online-canvas-shell { height: 500px; }
   .online-heading { align-items: flex-start; }

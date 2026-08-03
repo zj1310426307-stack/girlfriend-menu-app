@@ -70,6 +70,7 @@ class DiceRoomManager:
         return {
             "room_code": room_code,
             "players": OrderedDict(),
+            "scores": {},
             "dice": {},
             "phase": "waiting",
             "turn_id": None,
@@ -91,6 +92,7 @@ class DiceRoomManager:
                 "name": player_name[:20] or "玩家",
                 "socket": websocket,
             }
+            room["scores"].setdefault(player_id, 0)
             if len(room["players"]) == 2 and room["phase"] == "waiting":
                 room["phase"] = "rolling"
             payloads = self._payloads(room)
@@ -204,6 +206,7 @@ class DiceRoomManager:
             "winner_id": winner_id,
             "loser_id": loser_id,
         }
+        room["scores"][winner_id] = room["scores"].get(winner_id, 0) + 1
         room["phase"] = "finished"
         room["turn_id"] = None
         room["rematch_ready"] = set()
@@ -232,6 +235,7 @@ class DiceRoomManager:
                 "name": player["name"],
                 "rolled": player["id"] in room["dice"],
                 "rematch_ready": player["id"] in room["rematch_ready"],
+                "score": room["scores"].get(player["id"], 0),
             }
             for player in room["players"].values()
         ]
@@ -245,6 +249,7 @@ class DiceRoomManager:
                 "turn_id": room["turn_id"],
                 "current_bid": room["current_bid"],
                 "outcome": room["outcome"],
+                "round": room["round"] + 1,
                 "my_dice": room["dice"].get(player_id),
                 "all_dice": room["dice"] if room["phase"] == "finished" else None,
             }
