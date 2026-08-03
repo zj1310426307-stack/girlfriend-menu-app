@@ -148,27 +148,32 @@ git push -u origin main
 
 ## 部署后端
 
-### 方案 A：Render
+### 方案 A：Render + Neon PostgreSQL（推荐）
 
-1. 在 Render 创建 PostgreSQL 数据库，复制其内部连接地址。
-2. 创建 Web Service 并连接 GitHub 仓库。
-3. Root Directory 填写 `backend`。
-4. Build Command：
+Render 免费 PostgreSQL 会在创建 30 天后过期，因此长期使用时建议让 Render 只运行 FastAPI，把数据库放在 Neon：
+
+1. 在 Neon 创建项目和 PostgreSQL 数据库。
+2. 在 Neon 的 Connect 页面选择 pooled connection，复制以 `postgresql://` 开头并包含 `sslmode=require` 的连接地址。
+3. 在 Render 创建 Web Service 并连接 GitHub 仓库。
+4. Root Directory 填写 `backend`。
+5. Build Command：
 
    ```text
    pip install -r requirements.txt
    ```
 
-5. Start Command：
+6. Start Command：
 
    ```text
    uvicorn main:app --host 0.0.0.0 --port $PORT
    ```
 
-6. 配置 `DATABASE_URL`、`FRONTEND_URL`、`ADMIN_PASSWORD`、`ADMIN_INVITE_CODE`、`ADMIN_SECRET`。
-7. 部署完成后记录 `https://你的服务.onrender.com`。
+7. 将 Neon 连接地址保存为 Render 的 `DATABASE_URL`，并配置 `FRONTEND_URL`、`ADMIN_PASSWORD`、`ADMIN_INVITE_CODE`、`ADMIN_SECRET`。
+8. 部署完成后记录 `https://你的服务.onrender.com`。
 
-仓库中的 `backend/Procfile` 已包含生产启动命令。Render 连接 GitHub 后，默认可在分支更新时自动重新部署。参考：[Render 部署与环境变量文档](https://render.com/docs/deploys)。
+`render.yaml` 将 `DATABASE_URL` 标记为手动配置，避免 Blueprint 再创建或绑定 30 天过期的 Render 免费数据库。仓库中的 `backend/Procfile` 已包含生产启动命令。Render 连接 GitHub 后，默认可在分支更新时自动重新部署。参考：[Render 部署与环境变量文档](https://render.com/docs/deploys)。
+
+首次连接空的 Neon 数据库时，FastAPI 会自动创建 `dishes`、`orders`、`order_items`、`reviews` 表并写入测试菜品，不需要手动执行 SQL。旧 Render PostgreSQL 已过期时，只有在 Render 的恢复期内升级或导出后，旧订单和评价才可以迁移。
 
 ### 方案 B：Railway
 
