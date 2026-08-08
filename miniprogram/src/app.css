@@ -1,7 +1,18 @@
 page {
+  --bg-cream: #faf7f2;
+  --surface: #fffdf8;
+  --text-main: #333633;
+  --text-muted: #777d73;
+  --sage: #8fb996;
+  --coral: #e47b6c;
+  --gold: #e8b86d;
+  --danger: #b9504f;
+  --border-soft: #e7e2d9;
+  --radius-card: 28px;
+  --shadow-card: 0 10px 28px rgba(66, 70, 62, .08);
   min-height: 100%;
-  color: #493d3a;
-  background: #fffaf7;
+  color: var(--text-main);
+  background: var(--bg-cream);
   font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
@@ -27,6 +38,7 @@ button::after {
 .page {
   min-height: 100vh;
   padding: 28px 24px 60px;
+  background: var(--bg-cream);
 }
 
 .hero {
@@ -42,7 +54,7 @@ button::after {
 }
 
 .eyebrow {
-  color: #cf596b;
+  color: #71816a;
   font-size: 22px;
   font-weight: 700;
   letter-spacing: 4px;
@@ -75,7 +87,7 @@ button::after {
   padding: 0 32px;
   border-radius: 44px;
   color: #fff;
-  background: #e87988;
+  background: var(--sage);
   font-size: 28px;
   font-weight: 700;
   line-height: 76px;
@@ -92,9 +104,9 @@ button::after {
 }
 
 .secondary-button {
-  color: #cf596b;
-  background: #fff;
-  border: 2px solid #efcfd2;
+  color: #6f8068;
+  background: var(--surface);
+  border: 2px solid #d9e0d4;
 }
 
 .disabled {
@@ -152,10 +164,10 @@ button::after {
 }
 
 .card {
-  background: #fff;
-  border: 2px solid #f6e9e4;
+  background: var(--surface);
+  border: 2px solid var(--border-soft);
   border-radius: 28px;
-  box-shadow: 0 12px 34px rgba(139, 89, 75, 0.1);
+  box-shadow: var(--shadow-card);
 }
 
 .input,

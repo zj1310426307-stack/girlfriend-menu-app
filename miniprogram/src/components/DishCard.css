@@ -1,0 +1,163 @@
+.shared-dish-card {
+  display: flex;
+  min-height: 228px;
+  overflow: hidden;
+  border: 2px solid var(--border-soft);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+
+.shared-dish-image,
+.shared-dish-placeholder {
+  width: 220px;
+  min-height: 228px;
+  flex: 0 0 220px;
+}
+
+.shared-dish-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #7a8873;
+  background: #e8eee3;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 2px;
+}
+
+.shared-dish-body {
+  min-width: 0;
+  flex: 1;
+  padding: 22px;
+}
+
+.shared-dish-heading,
+.shared-dish-heading > view:first-child,
+.shared-dish-footer,
+.shared-dish-meta,
+.shared-dish-tags {
+  display: flex;
+  align-items: center;
+}
+
+.shared-dish-heading {
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.shared-dish-heading > view:first-child {
+  min-width: 0;
+  flex: 1;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.shared-dish-name {
+  min-width: 0;
+  color: var(--text-main);
+  font-size: 31px;
+  font-weight: 900;
+}
+
+.shared-dish-category {
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  border-radius: 18px;
+  color: #6f8068;
+  background: #edf2e9;
+  font-size: 19px;
+  white-space: nowrap;
+}
+
+.shared-favorite-button,
+.shared-add-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.shared-favorite-button {
+  width: 54px;
+  height: 54px;
+  flex: 0 0 54px;
+  border-radius: 50%;
+  color: #9ba195;
+  background: #f5f3ee;
+  font-size: 31px;
+}
+
+.shared-favorite-button.is-favorite { color: var(--coral); background: #fff0ec; }
+
+.shared-dish-description {
+  display: block;
+  height: 64px;
+  margin-top: 12px;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 23px;
+  line-height: 1.45;
+}
+
+.shared-dish-meta {
+  gap: 14px;
+  margin-top: 10px;
+  color: #7c866f;
+  font-size: 20px;
+}
+
+.shared-dish-tags {
+  gap: 9px;
+  margin-top: 9px;
+  overflow: hidden;
+  color: #a27a52;
+  font-size: 19px;
+  white-space: nowrap;
+}
+
+.shared-dish-footer {
+  justify-content: space-between;
+  margin-top: 13px;
+}
+
+.shared-dish-price { color: var(--coral); font-size: 30px; font-weight: 900; }
+
+.shared-add-button {
+  width: 58px;
+  height: 58px;
+  border-radius: 20px;
+  color: #fff;
+  background: var(--sage);
+  font-size: 39px;
+  box-shadow: 0 8px 18px rgba(127, 146, 118, .24);
+}
+
+.shared-add-button text,
+.shared-favorite-button text { line-height: 1; }
+
+.shared-dish-card.is-compact {
+  min-width: 310px;
+  min-height: 330px;
+  flex-direction: column;
+}
+
+.shared-dish-card.is-compact .shared-dish-image,
+.shared-dish-card.is-compact .shared-dish-placeholder {
+  width: 100%;
+  min-height: 176px;
+  height: 176px;
+  flex-basis: 176px;
+}
+
+.shared-dish-card.is-compact .shared-dish-body { padding: 18px; }
+.shared-dish-card.is-compact .shared-dish-heading > view:first-child { flex-direction: column; gap: 7px; }
+.shared-dish-card.is-compact .shared-dish-name { font-size: 27px; }
+.shared-dish-card.is-compact .shared-dish-meta { margin-top: 12px; }
+
+@media (max-width: 360px) {
+  .shared-dish-image,
+  .shared-dish-placeholder { width: 188px; flex-basis: 188px; }
+  .shared-dish-body { padding: 18px; }
+  .shared-dish-name { font-size: 28px; }
+}
