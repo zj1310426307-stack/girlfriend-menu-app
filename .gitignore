@@ -8,6 +8,8 @@ backend/*.db
 backend/tests/*.db
 backend/uploads/*
 !backend/uploads/.gitkeep
+# Temporary Render retirement page build output (not the removed web app).
+frontend/dist/
 miniprogram/node_modules/
 miniprogram/dist/
 miniprogram/.swc/

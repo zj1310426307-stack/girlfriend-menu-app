@@ -1,6 +1,6 @@
 # 女朋友专属点菜小程序
 
-这是一个只通过微信小程序访问的情侣私厨点菜系统。React/Vite 网页端已在 `1.0.19` 中移除；用户端和管理端都位于同一个微信小程序，FastAPI 后端继续负责菜单、订单、评价、统计和实时对战数据，生产数据库使用 Neon PostgreSQL。
+这是一个只通过微信小程序访问的情侣私厨点菜系统。React/Vite 网页应用已在 `1.0.19` 中移除；用户端和管理端都位于同一个微信小程序，FastAPI 后端继续负责菜单、订单、评价、统计和实时对战数据，生产数据库使用 Neon PostgreSQL。`frontend/` 仅保留一张临时停用提示页，用于在 Render 静态服务彻底删除前阻止旧网页应用继续使用，不包含任何点菜功能。
 
 ## 当前功能
 
@@ -31,6 +31,7 @@
 ```text
 girlfriend-menu-app/
 ├── backend/                  # FastAPI、SQLAlchemy、PostgreSQL/SQLite
+├── frontend/                 # 旧网址停用提示（不是应用，删除 Render 静态服务后可移除）
 ├── miniprogram/              # Taro React 微信小程序（唯一界面）
 │   ├── config/
 │   ├── src/
