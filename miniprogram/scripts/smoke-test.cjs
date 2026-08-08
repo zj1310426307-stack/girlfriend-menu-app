@@ -29,6 +29,13 @@ function assert(condition, message) {
   }
 }
 
+function withTimeout(promise, timeout, message) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(message)), timeout))
+  ]);
+}
+
 /**
  * Wait for a tap-driven route change without depending on a fixed compile delay.
  */
@@ -118,8 +125,16 @@ async function run() {
 
   try {
     console.log("[smoke] 清理缓存并验证邀请码");
-    await miniProgram.callWxMethod("clearStorageSync");
-    let page = await miniProgram.reLaunch("/pages/index/index");
+    await withTimeout(
+      miniProgram.callWxMethod("clearStorageSync"),
+      8000,
+      "当前开发者工具实例没有响应清缓存请求，请确认已打开本项目"
+    );
+    let page = await withTimeout(
+      miniProgram.reLaunch("/pages/index/index"),
+      15000,
+      "当前开发者工具实例没有打开本项目，无法重新加载首页"
+    );
     await page.waitFor(1500);
     console.log("[smoke] 首页已重新加载");
 
