@@ -92,6 +92,14 @@ export default function Detail() {
         </View>
         <Text className="detail-title">{dish.name}</Text>
         <Text className="detail-desc">{dish.description || "今天也很适合吃这道菜。"}</Text>
+        <View className="detail-meta-grid">
+          <View><Text>制作时间</Text><Text>{dish.cook_time != null ? `${dish.cook_time} 分钟` : "认真准备"}</Text></View>
+          <View><Text>难度</Text><Text>{dish.difficulty != null ? "★".repeat(dish.difficulty) : "随心发挥"}</Text></View>
+          <View><Text>辣度</Text><Text>{dish.spicy_level > 0 ? "辣".repeat(dish.spicy_level) : "不辣"}</Text></View>
+        </View>
+        {Array.isArray(dish.tags) && dish.tags.length > 0 && (
+          <View className="detail-tags">{dish.tags.map((tag) => <Text key={tag}>#{tag}</Text>)}</View>
+        )}
         <View className="detail-action">
           <Text className="detail-price">¥{Number(dish.price).toFixed(2)}</Text>
           <View className="primary-button detail-button" onClick={addDish}>

@@ -2,9 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import Taro from "@tarojs/taro";
 import { Input, ScrollView, Text, View } from "@tarojs/components";
 
-import { getDishes } from "../../api";
+import { getDishes, getFavoriteRanking } from "../../api";
 import DishCard from "../../components/DishCard";
 import { addToCart } from "../../utils/cart";
+import { getCustomerId } from "../../utils/customer";
 import { hasInvitePassed, INVITE_CODE, passInvite } from "../../utils/invite";
 import "./index.css";
 
@@ -15,16 +16,26 @@ export default function Index() {
   const [inviteCode, setInviteCode] = useState("");
   const [inviteError, setInviteError] = useState("");
   const [dishes, setDishes] = useState([]);
+  const [ranking, setRanking] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const loadDishes = () => {
+  const loadDishes = async () => {
     setLoading(true);
     setError("");
-    getDishes()
-      .then(setDishes)
-      .catch((requestError) => setError(requestError.message || "菜单暂时走丢了"))
-      .finally(() => setLoading(false));
+    try {
+      const [dishResult, rankingResult] = await Promise.allSettled([
+        getDishes(),
+        getFavoriteRanking(getCustomerId())
+      ]);
+      if (dishResult.status === "rejected") throw dishResult.reason;
+      setDishes(dishResult.value);
+      setRanking(rankingResult.status === "fulfilled" ? rankingResult.value : []);
+    } catch (requestError) {
+      setError(requestError.message || "菜单暂时走丢了");
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -44,8 +55,18 @@ export default function Index() {
     setInvitePassed(true);
   };
 
-  const recommendations = useMemo(() => dishes.slice(0, 3), [dishes]);
-  const recentChoices = useMemo(() => dishes.slice(3, 7), [dishes]);
+  const rankedDishes = useMemo(
+    () => ranking.map((rank) => dishes.find((dish) => dish.id === rank.dish_id)).filter(Boolean),
+    [dishes, ranking]
+  );
+  const recommendations = useMemo(() => {
+    const rankedIds = new Set(rankedDishes.map((dish) => dish.id));
+    return [...rankedDishes, ...dishes.filter((dish) => !rankedIds.has(dish.id))].slice(0, 3);
+  }, [dishes, rankedDishes]);
+  const recentChoices = useMemo(
+    () => (rankedDishes.length ? rankedDishes : dishes.slice(3, 7)),
+    [dishes, rankedDishes]
+  );
   const todayMenu = useMemo(() => dishes.slice(0, 4), [dishes]);
   const openDish = (dish) => Taro.navigateTo({ url: `/pages/detail/index?id=${dish.id}` });
   const addDish = (dish) => {
@@ -112,6 +133,24 @@ export default function Index() {
               ))}
             </View>
           </ScrollView>
+
+          {ranking.length > 0 && (
+            <>
+              <View className="v2-section-heading"><View><Text>她最喜欢 ♥</Text><Text>综合点单、评价和再次点单</Text></View></View>
+              <View className="v2-ranking-card">
+                {ranking.map((item, index) => {
+                  const dish = dishes.find((candidate) => candidate.id === item.dish_id);
+                  return (
+                    <View key={item.dish_id} onClick={() => dish && openDish(dish)}>
+                      <Text>{index + 1}</Text>
+                      <View><Text>{item.name}</Text><Text>点过 {item.count} 次{item.rating ? ` · ${item.rating} 颗爱心` : ""}</Text></View>
+                      <Text>{item.is_favorite ? "♥" : "›"}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            </>
+          )}
 
           <View className="v2-section-heading v2-heading-with-action">
             <View><Text>今日菜单</Text><Text>{dishes.length} 道可以认真准备的菜</Text></View>

@@ -20,7 +20,11 @@ const EMPTY_FORM = {
   category: "",
   price: "",
   description: "",
-  image_url: ""
+  image_url: "",
+  cook_time: "",
+  difficulty: "",
+  spicy_level: "0",
+  tags: ""
 };
 
 export default function AdminDishesPage() {
@@ -73,7 +77,11 @@ export default function AdminDishesPage() {
       category: dish.category,
       price: String(dish.price),
       description: dish.description || "",
-      image_url: dish.image_url || ""
+      image_url: dish.image_url || "",
+      cook_time: dish.cook_time == null ? "" : String(dish.cook_time),
+      difficulty: dish.difficulty == null ? "" : String(dish.difficulty),
+      spicy_level: dish.spicy_level == null ? "0" : String(dish.spicy_level),
+      tags: Array.isArray(dish.tags) ? dish.tags.join("、") : ""
     });
     Taro.pageScrollTo({ scrollTop: 0, duration: 260 });
   };
@@ -117,12 +125,30 @@ export default function AdminDishesPage() {
       Taro.showToast({ title: "请填写正确价格", icon: "none" });
       return;
     }
+    const optionalNumber = (value) => value === "" ? null : Number(value);
+    const cookTime = optionalNumber(form.cook_time);
+    const difficulty = optionalNumber(form.difficulty);
+    const spicyLevel = optionalNumber(form.spicy_level);
+    if (cookTime !== null && (!Number.isInteger(cookTime) || cookTime < 0 || cookTime > 1440)) {
+      return Taro.showToast({ title: "制作时间请填写 0-1440 的整数", icon: "none" });
+    }
+    if (difficulty !== null && (!Number.isInteger(difficulty) || difficulty < 1 || difficulty > 5)) {
+      return Taro.showToast({ title: "难度请填写 1-5", icon: "none" });
+    }
+    if (spicyLevel !== null && (!Number.isInteger(spicyLevel) || spicyLevel < 0 || spicyLevel > 3)) {
+      return Taro.showToast({ title: "辣度请填写 0-3", icon: "none" });
+    }
+    const tags = [...new Set(form.tags.split(/[、,，#\s]+/).map((tag) => tag.trim()).filter(Boolean))].slice(0, 10);
     const payload = {
       name: form.name.trim(),
       category: form.category.trim(),
       price,
       description: form.description.trim(),
-      image_url: form.image_url.trim()
+      image_url: form.image_url.trim(),
+      cook_time: cookTime,
+      difficulty,
+      spicy_level: spicyLevel,
+      tags
     };
     setSaving(true);
     try {
@@ -177,6 +203,12 @@ export default function AdminDishesPage() {
           <View className="dish-field"><Text>分类</Text><Input value={form.category} maxlength={50} placeholder="肉肉 / 蔬菜" onInput={(event) => updateField("category", event.detail.value)} /></View>
         </View>
         <View className="dish-field"><Text>价格（元）</Text><Input value={form.price} type="digit" placeholder="0.00" onInput={(event) => updateField("price", event.detail.value)} /></View>
+        <View className="dish-field-row dish-meta-fields">
+          <View className="dish-field"><Text>制作时间（分钟）</Text><Input value={form.cook_time} type="number" placeholder="例如 45" onInput={(event) => updateField("cook_time", event.detail.value)} /></View>
+          <View className="dish-field"><Text>难度（1-5）</Text><Input value={form.difficulty} type="number" placeholder="例如 3" onInput={(event) => updateField("difficulty", event.detail.value)} /></View>
+        </View>
+        <View className="dish-field"><Text>辣度（0-3）</Text><Input value={form.spicy_level} type="number" placeholder="0 不辣，3 很辣" onInput={(event) => updateField("spicy_level", event.detail.value)} /></View>
+        <View className="dish-field"><Text>标签</Text><Input value={form.tags} maxlength={120} placeholder="下饭、暖胃、她喜欢" onInput={(event) => updateField("tags", event.detail.value)} /></View>
         <View className="dish-field"><Text>菜品介绍</Text><Textarea value={form.description} maxlength={1000} placeholder="写一点她看到就会想吃的介绍" onInput={(event) => updateField("description", event.detail.value)} /></View>
         <View className="dish-field"><Text>图片链接</Text><Input value={form.image_url} maxlength={500} placeholder="可手动填写 https://..." onInput={(event) => updateField("image_url", event.detail.value)} /></View>
         <View className="dish-image-tools">
@@ -201,6 +233,14 @@ export default function AdminDishesPage() {
             <View className="dish-admin-copy">
               <View><Text>{dish.name}</Text><Text>{dish.category}</Text></View>
               <Text className="dish-admin-description">{dish.description || "还没有菜品介绍"}</Text>
+              <View className="dish-admin-meta">
+                {dish.cook_time != null && <Text>{dish.cook_time} 分钟</Text>}
+                {dish.difficulty != null && <Text>难度 {"★".repeat(dish.difficulty)}</Text>}
+                {dish.spicy_level > 0 && <Text>{"辣".repeat(dish.spicy_level)}</Text>}
+              </View>
+              {Array.isArray(dish.tags) && dish.tags.length > 0 && (
+                <View className="dish-admin-tags">{dish.tags.slice(0, 4).map((tag) => <Text key={tag}>#{tag}</Text>)}</View>
+              )}
               <Text className="dish-admin-price">¥{Number(dish.price).toFixed(2)}</Text>
               <View className="dish-admin-buttons">
                 <View onClick={() => editDish(dish)}><Text>编辑</Text></View>

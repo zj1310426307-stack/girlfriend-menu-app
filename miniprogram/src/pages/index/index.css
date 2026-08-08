@@ -28,6 +28,14 @@
 .v2-recent-scroll { width: calc(100% + 24px); white-space: nowrap; }
 .v2-recent-row { display: inline-flex; gap: 16px; padding-right: 24px; }
 .v2-today-list { display: flex; flex-direction: column; gap: 18px; }
+.v2-ranking-card { overflow: hidden; border: 2px solid var(--border-soft); border-radius: 28px; background: var(--surface); box-shadow: var(--shadow-card); }
+.v2-ranking-card > view { min-height: 92px; display: flex; align-items: center; gap: 18px; padding: 0 22px; border-bottom: 1px solid var(--border-soft); }
+.v2-ranking-card > view:last-child { border-bottom: 0; }
+.v2-ranking-card > view > text:first-child { width: 43px; height: 43px; display: flex; align-items: center; justify-content: center; border-radius: 15px; color: #fff; background: var(--sage); font-size: 20px; font-weight: 900; }
+.v2-ranking-card > view > view { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 5px; }
+.v2-ranking-card > view > view text:first-child { color: var(--text-main); font-size: 25px; font-weight: 900; }
+.v2-ranking-card > view > view text:last-child { color: var(--text-muted); font-size: 19px; }
+.v2-ranking-card > view > text:last-child { color: var(--coral); font-size: 29px; font-weight: 900; }
 .v2-shortcuts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .v2-shortcuts > view { min-height: 150px; display: flex; flex-direction: column; justify-content: center; padding: 20px; border: 2px solid var(--border-soft); border-radius: 26px; background: var(--surface); }
 .v2-shortcuts text:first-child { color: var(--text-main); font-size: 25px; font-weight: 900; }

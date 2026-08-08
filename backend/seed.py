@@ -142,8 +142,22 @@ SAMPLE_DISHES = [
 
 def seed_dishes(db: Session):
     existing_names = {name for (name,) in db.query(models.Dish.name).all()}
+    default_tags = {
+        "家常菜": ["家常", "下饭"],
+        "肉肉": ["下饭", "满足"],
+        "蔬菜": ["清爽", "家常"],
+        "甜品": ["甜甜", "饭后"],
+        "汤": ["暖胃", "舒服"],
+        "海鲜": ["鲜香", "认真做"],
+    }
     missing_dishes = [
-        models.Dish(**dish)
+        models.Dish(
+            **dish,
+            cook_time=35 if dish["category"] not in {"汤", "甜品"} else 20,
+            difficulty=2,
+            spicy_level=1 if any(word in dish["name"] for word in ("辣", "鱼香", "干锅")) else 0,
+            tags=default_tags.get(dish["category"], ["今日推荐"]),
+        )
         for dish in SAMPLE_DISHES
         if dish["name"] not in existing_names
     ]

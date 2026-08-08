@@ -393,6 +393,17 @@ def order_review(order_id: int, db: Session = Depends(get_db)):
 
 
 @app.get(
+    "/api/stats/favorite-ranking",
+    response_model=list[schemas.FavoriteRankingItem],
+)
+def favorite_ranking(
+    customer_id: str = Depends(get_customer_id),
+    db: Session = Depends(get_db),
+):
+    return crud.get_favorite_ranking(db, customer_id)
+
+
+@app.get(
     "/api/stats/summary",
     response_model=schemas.StatsSummary,
     dependencies=[Depends(verify_admin_token)],

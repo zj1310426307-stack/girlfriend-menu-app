@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from database import Base
@@ -15,6 +15,10 @@ class Dish(Base):
     category = Column(String(50), nullable=False, index=True)
     price = Column(Float, nullable=False, default=0)
     image_url = Column(String(500), default="")
+    cook_time = Column(Integer, nullable=True)
+    difficulty = Column(Integer, nullable=True)
+    spicy_level = Column(Integer, nullable=True, default=0)
+    tags = Column(JSON, nullable=True, default=list)
     is_active = Column(Boolean, nullable=False, default=True, index=True)
     created_at = Column(DateTime, default=datetime.now, nullable=False)
 

@@ -30,6 +30,10 @@ class DishBase(BaseModel):
     category: str = Field(min_length=1, max_length=50)
     price: float = Field(ge=0)
     image_url: str = Field(default="", max_length=500)
+    cook_time: int | None = Field(default=None, ge=0, le=1440)
+    difficulty: int | None = Field(default=None, ge=1, le=5)
+    spicy_level: int | None = Field(default=0, ge=0, le=3)
+    tags: list[str] = Field(default_factory=list, max_length=10)
 
 
 class DishCreate(DishBase):
@@ -132,3 +136,13 @@ class DishStats(BaseModel):
     dish_name: str
     total_quantity: int
     last_ordered_at: datetime
+
+
+class FavoriteRankingItem(BaseModel):
+    dish_id: int
+    name: str
+    count: int
+    rating: float | None = None
+    repeat_count: int
+    is_favorite: bool
+    score: float

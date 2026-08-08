@@ -54,6 +54,13 @@
   line-height: 1.7;
 }
 
+.detail-meta-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 26px; }
+.detail-meta-grid > view { min-height: 104px; display: flex; flex-direction: column; justify-content: center; padding: 13px; border-radius: 22px; background: #f2f5ee; text-align: center; }
+.detail-meta-grid text:first-child { color: #8b9384; font-size: 19px; }
+.detail-meta-grid text:last-child { display: block; margin-top: 7px; color: #55614f; font-size: 22px; font-weight: 900; }
+.detail-tags { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 20px; }
+.detail-tags text { padding: 7px 13px; border-radius: 18px; color: #9a714a; background: #fff5e7; font-size: 20px; }
+
 .detail-action {
   display: flex;
   align-items: center;

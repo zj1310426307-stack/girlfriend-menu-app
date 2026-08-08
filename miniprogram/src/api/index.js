@@ -89,6 +89,11 @@ export const removeFavorite = (dishId, customerId) =>
     header: customerHeader(customerId)
   });
 
+export const getFavoriteRanking = (customerId) =>
+  request("/stats/favorite-ranking", {
+    header: customerHeader(customerId)
+  });
+
 export const createOrder = (data) =>
   request("/orders", {
     method: "POST",

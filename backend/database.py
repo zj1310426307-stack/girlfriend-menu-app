@@ -59,6 +59,16 @@ def ensure_compatible_schema():
                         f"is_active BOOLEAN NOT NULL DEFAULT {default_value}"
                     )
                 )
+            for column_name, column_type in (
+                ("cook_time", "INTEGER"),
+                ("difficulty", "INTEGER"),
+                ("spicy_level", "INTEGER"),
+                ("tags", "JSON"),
+            ):
+                if column_name not in dish_columns:
+                    connection.execute(
+                        text(f"ALTER TABLE dishes ADD COLUMN {column_name} {column_type}")
+                    )
             connection.execute(
                 text("CREATE INDEX IF NOT EXISTS ix_dishes_is_active ON dishes (is_active)")
             )

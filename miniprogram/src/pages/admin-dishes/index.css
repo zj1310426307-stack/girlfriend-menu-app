@@ -33,6 +33,8 @@ page { min-height: 100%; color: #57433f; background: #f8f2ef; }
 .dish-admin-copy > view:first-child text:first-child { min-width: 0; color: #56423d; font-size: 27px; font-weight: 900; }
 .dish-admin-copy > view:first-child text:last-child { flex: 0 0 auto; padding: 5px 9px; border-radius: 14px; color: #c5576e; background: #fff0f2; font-size: 18px; }
 .dish-admin-description { display: -webkit-box; margin-top: 8px; overflow: hidden; color: #9d7e76; font-size: 20px; line-height: 1.45; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.dish-admin-meta, .dish-admin-tags { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 7px; }
+.dish-admin-meta text, .dish-admin-tags text { padding: 4px 8px; border-radius: 12px; color: #71816a; background: #eef2e9; font-size: 16px; }
 .dish-admin-price { margin-top: auto; color: #cf536b; font-size: 27px; font-weight: 900; }
 .dish-admin-buttons { display: flex; gap: 8px; margin-top: 9px; }
 .dish-admin-buttons > view { min-height: 44px; flex: 1; display: flex; align-items: center; justify-content: center; border-radius: 22px; color: #80645d; background: #f7efec; font-size: 19px; font-weight: 800; }

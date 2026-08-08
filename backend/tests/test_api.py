@@ -126,6 +126,97 @@ def test_realtime_order_event():
             assert event == {"type": "order_created", "order_id": response.json()["id"]}
 
 
+def test_v2_favorites_repeat_dish_metadata_and_ranking():
+    with TestClient(app) as client:
+        headers = admin_headers(client)
+        customer_headers = {"X-Customer-Id": "gf_v2_test"}
+        dish_response = client.post(
+            "/api/dishes",
+            headers=headers,
+            json={
+                "name": "V2 番茄牛腩",
+                "description": "用于验证 V2 完整点菜流程",
+                "category": "肉肉",
+                "price": 42,
+                "image_url": "",
+                "cook_time": 45,
+                "difficulty": 3,
+                "spicy_level": 0,
+                "tags": ["下饭", "暖胃"],
+            },
+        )
+        assert dish_response.status_code == 201
+        dish = dish_response.json()
+        dish_id = dish["id"]
+        assert dish["cook_time"] == 45
+        assert dish["tags"] == ["下饭", "暖胃"]
+
+        assert client.get("/api/favorites").status_code == 400
+        assert client.post(
+            f"/api/favorites/{dish_id}", headers=customer_headers
+        ).status_code == 200
+        favorites = client.get("/api/favorites", headers=customer_headers)
+        assert [item["id"] for item in favorites.json()] == [dish_id]
+
+        first_order = client.post(
+            "/api/orders",
+            json={
+                "items": [{"dish_id": dish_id, "quantity": 1}],
+                "note": "少盐",
+                "customer_id": "gf_v2_test",
+            },
+        )
+        assert first_order.status_code == 201
+        first_order_id = first_order.json()["id"]
+
+        assert client.post(
+            f"/api/orders/repeat/{first_order_id}",
+            headers={"X-Customer-Id": "gf_someone_else"},
+        ).status_code == 403
+        draft = client.post(
+            f"/api/orders/repeat/{first_order_id}", headers=customer_headers
+        )
+        assert draft.status_code == 200
+        assert draft.json()["items"][0]["available"] is True
+        assert draft.json()["note"] == "少盐"
+
+        repeated_order = client.post(
+            "/api/orders",
+            json={
+                "items": [{"dish_id": dish_id, "quantity": 2}],
+                "customer_id": "gf_v2_test",
+                "source_order_id": first_order_id,
+            },
+        )
+        assert repeated_order.status_code == 201
+        assert repeated_order.json()["source_order_id"] == first_order_id
+
+        client.patch(
+            f"/api/orders/{first_order_id}/status",
+            headers=headers,
+            json={"status": "已完成"},
+        )
+        client.post(
+            f"/api/orders/{first_order_id}/review",
+            json={"rating": 5, "want_again": "想吃", "comment": "暖暖的"},
+        )
+        ranking = client.get(
+            "/api/stats/favorite-ranking", headers=customer_headers
+        )
+        assert ranking.status_code == 200
+        top = ranking.json()[0]
+        assert top["dish_id"] == dish_id
+        assert top["count"] == 3
+        assert top["rating"] == 5.0
+        assert top["repeat_count"] == 1
+        assert top["is_favorite"] is True
+
+        assert client.delete(
+            f"/api/favorites/{dish_id}", headers=customer_headers
+        ).status_code == 204
+        assert client.get("/api/favorites", headers=customer_headers).json() == []
+
+
 def test_two_player_dice_room_privacy_and_challenge():
     with TestClient(app) as client:
         room_response = client.post(
