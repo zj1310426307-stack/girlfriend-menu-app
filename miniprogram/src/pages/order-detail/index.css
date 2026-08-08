@@ -11,14 +11,14 @@
   margin: 26px auto 22px;
   border-radius: 50%;
   color: #fff;
-  background: #e87988;
+  background: var(--sage);
   font-size: 52px;
-  box-shadow: 0 12px 32px rgba(232, 121, 136, 0.3);
+  box-shadow: 0 12px 32px rgba(127, 146, 118, 0.28);
 }
 
 .order-main-title {
   display: block;
-  color: #594641;
+  color: var(--text-main);
   font-size: 42px;
   font-weight: 800;
 }
@@ -26,7 +26,7 @@
 .order-subtitle {
   display: block;
   margin-top: 12px;
-  color: #9a7770;
+  color: var(--text-muted);
   font-size: 25px;
 }
 
@@ -64,13 +64,13 @@
 }
 
 .timeline-step.done {
-  color: #cf596b;
+  color: #71816a;
   font-weight: 700;
 }
 
 .timeline-step.done .timeline-dot {
   color: #fff;
-  background: #e87988;
+  background: var(--sage);
 }
 
 .unavailable,
@@ -78,8 +78,8 @@
   display: block;
   padding: 18px;
   border-radius: 18px;
-  color: #896b63;
-  background: #fff7f4;
+  color: #65725f;
+  background: #f2f5ee;
   font-size: 26px;
   text-align: center;
 }
@@ -92,7 +92,7 @@
 .order-items {
   margin-top: 22px;
   padding-top: 14px;
-  border-top: 2px solid #f0ded7;
+  border-top: 2px solid var(--border-soft);
 }
 
 .order-item,
@@ -101,31 +101,31 @@
   justify-content: space-between;
   gap: 24px;
   padding: 9px 0;
-  color: #634e49;
+  color: var(--text-main);
   font-size: 27px;
 }
 
 .meta-line {
-  color: #765e58;
+  color: var(--text-muted);
   font-size: 24px;
 }
 
 .meta-line text:first-child {
-  color: #aa8d85;
+  color: #929a8b;
   flex-shrink: 0;
 }
 
 .wait-hint {
   display: block;
   margin: 24px 0;
-  color: #a27f77;
+  color: var(--text-muted);
   font-size: 26px;
 }
 
 .review-title {
   display: block;
   margin: 10px 0 24px;
-  color: #594641;
+  color: var(--text-main);
   font-size: 36px;
   font-weight: 800;
 }
@@ -142,7 +142,7 @@
   width: 76px;
   height: 72px;
   min-height: 72px;
-  color: #ead8d5;
+  color: #dfe4db;
   background: transparent;
   font-size: 52px;
   line-height: 72px;
@@ -154,7 +154,7 @@
 }
 
 .heart-picker view.active {
-  color: #e87988;
+  color: var(--coral);
 }
 
 .want-options {
@@ -172,7 +172,7 @@
   border-radius: 36px;
   color: #80635c;
   background: #fff;
-  border: 2px solid #f0ded7;
+  border: 2px solid var(--border-soft);
   font-size: 25px;
   line-height: 62px;
 }
@@ -186,8 +186,8 @@
 
 .want-options view.active {
   color: #fff;
-  background: #e87988;
-  border-color: #e87988;
+  background: var(--sage);
+  border-color: var(--sage);
 }
 
 .submit-review {
@@ -196,7 +196,7 @@
 
 .heart-result {
   display: block;
-  color: #e87988;
+  color: var(--coral);
   font-size: 48px;
   letter-spacing: 6px;
 }

@@ -193,10 +193,10 @@ export default function OrderDetail() {
       )}
 
       <View className="bottom-actions">
-        <View className="secondary-button" onClick={() => Taro.navigateTo({ url: "/pages/my-orders/index" })}>
+        <View className="secondary-button" onClick={() => Taro.switchTab({ url: "/pages/my-orders/index" })}>
           <Text>我的点菜单</Text>
         </View>
-        <View className="secondary-button" onClick={() => Taro.reLaunch({ url: "/pages/index/index" })}>
+        <View className="secondary-button" onClick={() => Taro.switchTab({ url: "/pages/index/index" })}>
           <Text>再看看菜单</Text>
         </View>
       </View>

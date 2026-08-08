@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 OrderStatus = Literal["待接单", "已接单", "制作中", "已完成", "暂时做不了"]
@@ -34,6 +34,18 @@ class DishBase(BaseModel):
     difficulty: int | None = Field(default=None, ge=1, le=5)
     spicy_level: int | None = Field(default=0, ge=0, le=3)
     tags: list[str] = Field(default_factory=list, max_length=10)
+
+    @field_validator("tags", mode="before")
+    @classmethod
+    def normalize_tags(cls, value):
+        if not value:
+            return []
+        normalized = []
+        for raw_tag in value:
+            tag = str(raw_tag).strip().lstrip("#")[:30]
+            if tag and tag not in normalized:
+                normalized.append(tag)
+        return normalized
 
 
 class DishCreate(DishBase):

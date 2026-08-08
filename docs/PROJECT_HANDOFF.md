@@ -1,6 +1,6 @@
 # 项目交接与首次完整审计
 
-> 审计基线：小程序 `1.0.19`，提交 `4681b71`，日期 2026-08-08。
+> 当前交付基线：V2.0 开发版本 `2.0.0`，日期 2026-08-08。历史审计基线为 1.0.19。
 
 ## 1. 产品定位
 
@@ -17,14 +17,15 @@
 | 项目 | 当前状态 |
 | --- | --- |
 | 小程序技术 | Taro 4 + React 18 |
-| 小程序版本 | 1.0.19 |
+| 小程序版本 | 2.0.0（待上传/体验验收） |
 | 后端 | FastAPI + SQLAlchemy 2 |
 | 生产数据库 | Neon PostgreSQL |
 | 本地数据库 | SQLite 回退 |
 | 生产 API | `https://girlfriend-menu-api.onrender.com` |
 | 2026-08-08 健康检查 | `/api/health` 正常；`/api/ready` 返回 PostgreSQL ready |
 | 线上启用菜品 | 19 道 |
-| 后端自动测试 | 4 项通过 |
+| 后端自动测试 | 5 项通过 |
+| 数据库迁移 | Alembic `20260808_01`，全新 SQLite 验证通过 |
 | 小程序构建 | `npm run build:weapp` 通过 |
 | 正式发布状态 | 代码无法证明；需在微信公众平台“版本管理”确认 |
 
@@ -54,7 +55,10 @@ flowchart LR
 
 | 页面 | 路径 | 作用 |
 | --- | --- | --- |
-| 首页/邀请码 | `pages/index/index` | 邀请码、菜单、分类、工具和游戏入口 |
+| 首页/邀请码 | `pages/index/index` | 邀请码、智能推荐、最近常点、Top 5、今日菜单 |
+| 菜单 | `pages/menu/index` | 搜索、分类、收藏、加入清单 |
+| 一起玩 | `pages/games/index` | 统一收纳转盘、单机骰子和双人骰子 |
+| 我的 | `pages/profile/index` | 收藏、历史入口和低强调管理入口 |
 | 菜品详情 | `pages/detail/index` | 菜品信息与加入清单 |
 | 点菜清单 | `pages/cart/index` | 数量、备注、时间、提交订单 |
 | 我的点菜单 | `pages/my-orders/index` | 当前设备的历史订单 |
@@ -75,6 +79,7 @@ flowchart LR
 | `gf_invite_passed` | 是否通过邀请码 | 需要重新输入邀请码 |
 | `gf_customer_id` | 当前设备的匿名客户标识 | “我的点菜单”无法自动找回旧订单 |
 | `gf_menu_cart` | 未提交的点菜清单 | 清单丢失 |
+| `gf_repeat_order_draft` | 再次点单的来源和备注 | 草稿来源信息丢失 |
 | `gf_admin_token` | 管理登录令牌 | 需要重新登录管理端 |
 | `gf_wheel_items` | 自定义转盘选项 | 转盘恢复默认值 |
 
@@ -92,6 +97,10 @@ flowchart LR
 | `category` | String(50), indexed | 分类 |
 | `price` | Float | 展示价格 |
 | `image_url` | String(500) | 网络图片或 `/uploads/...` |
+| `cook_time` | Integer, nullable | 制作时间（分钟） |
+| `difficulty` | Integer, nullable | 难度 1～5 |
+| `spicy_level` | Integer, nullable | 辣度 0～3 |
+| `tags` | JSON, nullable | 最多 10 个展示标签 |
 | `is_active` | Boolean, indexed | 软下架标记 |
 | `created_at` | DateTime | 创建时间 |
 
@@ -104,6 +113,7 @@ flowchart LR
 | `note` | Text | 备注 |
 | `desired_time` | String(50) | 希望用餐时间，当前不是结构化时间 |
 | `customer_id` | String(100), nullable, indexed | 设备匿名标识，兼容无标识旧订单 |
+| `source_order_id` | FK orders, nullable, indexed | “再做一次”的来源订单 |
 | `created_at` | DateTime, indexed | 提交时间 |
 
 ### order_items
@@ -128,6 +138,17 @@ flowchart LR
 | `comment` | Text | 可选建议 |
 | `created_at` | DateTime | 评价时间 |
 
+### favorite_dishes
+
+| 字段 | 类型/约束 | 说明 |
+| --- | --- | --- |
+| `id` | Integer PK | 收藏编号 |
+| `customer_id` | String(100), indexed | 当前设备匿名标识 |
+| `dish_id` | FK dishes, indexed | 收藏菜品 |
+| `created_at` | DateTime | 收藏时间 |
+
+`customer_id + dish_id` 唯一，同一设备不会重复收藏。
+
 关系：订单拥有多个明细和最多一条评价。菜品下架采用 `is_active = false`，不会破坏历史订单快照。
 
 ## 7. API 清单
@@ -140,11 +161,16 @@ flowchart LR
 | GET | `/api/ready` | 数据库就绪检查 |
 | GET | `/api/dishes` | 菜品列表/分类筛选 |
 | GET | `/api/dishes/{id}` | 菜品详情 |
+| GET | `/api/favorites` | 当前设备收藏（`X-Customer-Id`） |
+| POST | `/api/favorites/{dish_id}` | 收藏菜品（`X-Customer-Id`） |
+| DELETE | `/api/favorites/{dish_id}` | 取消收藏（`X-Customer-Id`） |
 | POST | `/api/orders` | 提交订单 |
+| POST | `/api/orders/repeat/{id}` | 返回可编辑的再次点单草稿（`X-Customer-Id`） |
 | GET | `/api/orders/my/{customer_id}` | 当前设备历史订单 |
 | GET | `/api/orders/{id}` | 订单详情 |
 | POST | `/api/orders/{id}/review` | 提交评价 |
 | GET | `/api/orders/{id}/review` | 查询评价 |
+| GET | `/api/stats/favorite-ranking` | 当前设备喜欢排行（`X-Customer-Id`） |
 | POST | `/api/games/dice/rooms` | 创建双人骰子房间（校验邀请码） |
 
 管理 HTTP（Bearer token）：

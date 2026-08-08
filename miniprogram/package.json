@@ -1,8 +1,8 @@
 {
   "name": "girlfriend-menu-miniprogram",
-  "version": "1.0.19",
+  "version": "2.0.0",
   "private": true,
-  "description": "女朋友专属点菜小程序端",
+  "description": "情侣智能厨房管家微信小程序端",
   "scripts": {
     "build:weapp": "taro build --type weapp",
     "dev:weapp": "taro build --type weapp --watch",

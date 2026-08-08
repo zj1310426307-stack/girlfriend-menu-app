@@ -85,17 +85,27 @@ async function waitForElementToDisappear(page, selector, timeout = 8000) {
 async function run() {
   console.log("[smoke] 正在连接微信开发者工具");
   let miniProgram;
+  let ownsDevtools = false;
   // Always ask DevTools to open this exact project. Connecting to a leftover
   // automation port can succeed even when no mini-program project is active,
   // which makes currentPage/reLaunch hang without a useful error.
-  miniProgram = await automator.launch({
-    cliPath: CLI_PATH,
-    projectPath: PROJECT_PATH,
-    args: ["--port", String(DEVTOOLS_CLI_PORT)],
-    port: DEVTOOLS_HTTP_PORT,
-    trustProject: true,
-    timeout: 120000
-  });
+  try {
+    miniProgram = await automator.launch({
+      cliPath: CLI_PATH,
+      projectPath: PROJECT_PATH,
+      args: ["--port", String(DEVTOOLS_CLI_PORT)],
+      port: DEVTOOLS_HTTP_PORT,
+      trustProject: true,
+      timeout: 120000
+    });
+    ownsDevtools = true;
+  } catch (error) {
+    if (!/port .* in use/i.test(error?.message || "")) throw error;
+    console.log(`[smoke] 端口 ${DEVTOOLS_HTTP_PORT} 已有开发者工具，连接现有项目`);
+    miniProgram = await automator.connect({
+      wsEndpoint: `ws://127.0.0.1:${DEVTOOLS_HTTP_PORT}`
+    });
+  }
 
   miniProgram.on("console", (entry) => {
     if (entry?.type === "error" || entry?.level === "error") {
@@ -130,7 +140,7 @@ async function run() {
     } else {
       const menuExpiresAt = Date.now() + 70000;
       while (Date.now() < menuExpiresAt) {
-        const readyCards = await page.$$(".dish-card");
+        const readyCards = await page.$$(".shared-dish-card");
         const readyError = await page.$(".state-box.error");
         if (readyCards.length > 0 || readyError) break;
         await page.waitFor(800);
@@ -138,8 +148,8 @@ async function run() {
     }
     console.log("[smoke] 邀请码已提交");
 
-    const heroTitle = await page.$(".hero-title");
-    const dishCards = await page.$$(".dish-card");
+    const heroTitle = await page.$(".v2-home-title");
+    const dishCards = await page.$$(".shared-dish-card");
     const menuError = await page.$(".state-box.error");
 
     assert(heroTitle, "邀请码通过后未渲染菜单首页");
@@ -151,9 +161,10 @@ async function run() {
           : "菜单接口完成后没有渲染菜品"
       );
 
-      console.log("[smoke] 验证可配置转盘与小程序管理入口");
-      const wheelEntry = await page.$(".wheel-home-entry");
-      assert(wheelEntry, "首页没有渲染今晚转盘入口");
+      console.log("[smoke] 验证一起玩 Tab 与小程序管理入口");
+      page = await miniProgram.switchTab("/pages/games/index");
+      const wheelEntry = await waitForElement(page, ".wheel-game-entry", 4000);
+      assert(wheelEntry, "一起玩页面没有渲染今晚转盘入口");
       await wheelEntry.tap();
       page = await waitForCurrentPage(miniProgram, "pages/wheel/index", page);
       const wheelCanvas = await waitForElement(page, ".wheel-canvas", 7000);
@@ -167,8 +178,9 @@ async function run() {
       assert(wheelOptionsAfter.length === wheelOptionsBefore.length + 1, "添加转盘分区失败");
       page = await miniProgram.navigateBack();
 
-      const adminEntry = await page.$(".admin-home-entry");
-      assert(adminEntry, "首页没有渲染小厨房管理入口");
+      page = await miniProgram.switchTab("/pages/profile/index");
+      const adminEntry = await waitForElement(page, ".v2-profile-admin", 4000);
+      assert(adminEntry, "我的页面没有渲染小厨房管理入口");
       await adminEntry.tap();
       page = await waitForCurrentPage(miniProgram, "pages/admin-login/index", page);
       assert(await page.$(".mini-admin-password"), "小厨房登录页没有渲染密码框");
@@ -177,8 +189,9 @@ async function run() {
     }
 
     console.log("[smoke] 进入原生 3D 骰子桌");
-    const diceEntry = await page.$(".dice-entry");
-    assert(diceEntry, "首页没有渲染摇骰子入口");
+    page = await miniProgram.switchTab("/pages/games/index");
+    const diceEntry = await waitForElement(page, ".dice-game-entry", 4000);
+    assert(diceEntry, "一起玩页面没有渲染摇骰子入口");
     await diceEntry.tap();
     page = await waitForCurrentPage(miniProgram, "pages/dice/index", page);
     console.log(`[smoke] 骰子路由已打开：${page?.path || "unknown"}`);
@@ -316,7 +329,7 @@ async function run() {
       )
     );
   } finally {
-    if (KEEP_OPEN) {
+    if (KEEP_OPEN || !ownsDevtools) {
       miniProgram.disconnect();
       return;
     }
