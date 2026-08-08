@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from database import Base
@@ -73,3 +73,15 @@ class Review(Base):
     created_at = Column(DateTime, default=datetime.now, nullable=False)
 
     order = relationship("Order", back_populates="review")
+
+
+class FavoriteDish(Base):
+    __tablename__ = "favorite_dishes"
+    __table_args__ = (
+        UniqueConstraint("customer_id", "dish_id", name="uq_favorite_customer_dish"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    customer_id = Column(String(100), nullable=False, index=True)
+    dish_id = Column(Integer, ForeignKey("dishes.id"), nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.now, nullable=False)

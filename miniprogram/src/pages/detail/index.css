@@ -23,13 +23,18 @@
   padding: 34px;
 }
 
+.detail-heading-row { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+.detail-favorite { min-height: 58px; display: flex; align-items: center; justify-content: center; padding: 0 18px; border: 2px solid #d8dfd3; border-radius: 22px; color: #6f7d69; background: #f5f8f2; font-size: 22px; font-weight: 800; }
+.detail-favorite.active { color: var(--coral); border-color: #f0c7bf; background: #fff0ec; }
+.detail-favorite text { line-height: 1; }
+
 .dish-category {
   display: inline-flex;
   width: auto;
   padding: 8px 16px;
   border-radius: 24px;
-  color: #cf596b;
-  background: #fff2ec;
+  color: #6e8068;
+  background: #edf2e9;
   font-size: 22px;
 }
 

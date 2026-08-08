@@ -50,6 +50,53 @@ def delete_dish(db: Session, dish_id: int):
     db.commit()
 
 
+def list_favorite_dishes(db: Session, customer_id: str):
+    return (
+        db.query(models.Dish)
+        .join(models.FavoriteDish, models.FavoriteDish.dish_id == models.Dish.id)
+        .filter(
+            models.FavoriteDish.customer_id == customer_id,
+            models.Dish.is_active.is_(True),
+        )
+        .order_by(models.FavoriteDish.created_at.desc())
+        .all()
+    )
+
+
+def add_favorite_dish(db: Session, customer_id: str, dish_id: int):
+    dish = get_dish(db, dish_id)
+    existing = (
+        db.query(models.FavoriteDish)
+        .filter(
+            models.FavoriteDish.customer_id == customer_id,
+            models.FavoriteDish.dish_id == dish_id,
+        )
+        .first()
+    )
+    if existing:
+        return dish
+    db.add(models.FavoriteDish(customer_id=customer_id, dish_id=dish_id))
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+    return dish
+
+
+def remove_favorite_dish(db: Session, customer_id: str, dish_id: int):
+    favorite = (
+        db.query(models.FavoriteDish)
+        .filter(
+            models.FavoriteDish.customer_id == customer_id,
+            models.FavoriteDish.dish_id == dish_id,
+        )
+        .first()
+    )
+    if favorite:
+        db.delete(favorite)
+        db.commit()
+
+
 def create_order(db: Session, data: schemas.OrderCreate):
     dish_ids = {item.dish_id for item in data.items}
     dishes = (

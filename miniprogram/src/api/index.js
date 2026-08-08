@@ -72,6 +72,23 @@ export const getDishes = (category) =>
 
 export const getDish = (id) => request(`/dishes/${id}`);
 
+const customerHeader = (customerId) => ({ "X-Customer-Id": customerId });
+
+export const getFavorites = (customerId) =>
+  request("/favorites", { header: customerHeader(customerId) });
+
+export const addFavorite = (dishId, customerId) =>
+  request(`/favorites/${dishId}`, {
+    method: "POST",
+    header: customerHeader(customerId)
+  });
+
+export const removeFavorite = (dishId, customerId) =>
+  request(`/favorites/${dishId}`, {
+    method: "DELETE",
+    header: customerHeader(customerId)
+  });
+
 export const createOrder = (data) =>
   request("/orders", {
     method: "POST",
@@ -86,7 +103,7 @@ export const getOrder = (id) => request(`/orders/${id}`);
 export const repeatOrder = (orderId, customerId) =>
   request(`/orders/repeat/${orderId}`, {
     method: "POST",
-    header: { "X-Customer-Id": customerId }
+    header: customerHeader(customerId)
   });
 
 export const createReview = (orderId, data) =>

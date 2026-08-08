@@ -2,10 +2,11 @@ import { useMemo, useState } from "react";
 import Taro, { useDidShow } from "@tarojs/taro";
 import { Input, ScrollView, Text, View } from "@tarojs/components";
 
-import { getDishes } from "../../api";
+import { addFavorite, getDishes, getFavorites, removeFavorite } from "../../api";
 import DishCard from "../../components/DishCard";
 import { addToCart, getCart } from "../../utils/cart";
 import { ensureInvitePassed } from "../../utils/invite";
+import { getCustomerId } from "../../utils/customer";
 import "./index.css";
 
 /** Full menu owns search and category filtering after the V2 home split. */
@@ -16,13 +17,21 @@ export default function MenuPage() {
   const [cartCount, setCartCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [favoriteIds, setFavoriteIds] = useState([]);
 
   const load = () => {
     if (!ensureInvitePassed()) return;
     setCartCount(getCart().reduce((total, item) => total + item.quantity, 0));
     setLoading(true);
-    getDishes()
-      .then((next) => { setDishes(next); setError(""); })
+    Promise.all([
+      getDishes(),
+      getFavorites(getCustomerId()).catch(() => [])
+    ])
+      .then(([nextDishes, favorites]) => {
+        setDishes(nextDishes);
+        setFavoriteIds(favorites.map((dish) => dish.id));
+        setError("");
+      })
       .catch((requestError) => setError(requestError.message || "菜单加载失败"))
       .finally(() => setLoading(false));
   };
@@ -46,6 +55,20 @@ export default function MenuPage() {
     Taro.showToast({ title: "已放进点菜单", icon: "success" });
   };
 
+  const toggleFavorite = async (dish) => {
+    const customerId = getCustomerId();
+    const isFavorite = favoriteIds.includes(dish.id);
+    setFavoriteIds((current) => isFavorite ? current.filter((id) => id !== dish.id) : [...current, dish.id]);
+    try {
+      if (isFavorite) await removeFavorite(dish.id, customerId);
+      else await addFavorite(dish.id, customerId);
+      Taro.showToast({ title: isFavorite ? "已取消收藏" : "已收藏", icon: "success" });
+    } catch (requestError) {
+      setFavoriteIds((current) => isFavorite ? [...current, dish.id] : current.filter((id) => id !== dish.id));
+      Taro.showToast({ title: requestError.message || "收藏操作失败", icon: "none" });
+    }
+  };
+
   return (
     <View className="page v2-menu-page">
       <View className="v2-menu-heading">
@@ -67,8 +90,10 @@ export default function MenuPage() {
           <DishCard
             key={dish.id}
             dish={dish}
+            favorite={favoriteIds.includes(dish.id)}
             onOpen={() => Taro.navigateTo({ url: `/pages/detail/index?id=${dish.id}` })}
             onAdd={addDish}
+            onToggleFavorite={toggleFavorite}
           />
         ))}
       </View>

@@ -7,6 +7,10 @@
 .v2-profile-grid text:first-child { color: var(--text-main); font-size: 27px; font-weight: 900; }
 .v2-profile-grid text:last-child { display: block; margin-top: 8px; color: var(--text-muted); font-size: 20px; line-height: 1.5; }
 .v2-profile-grid .is-muted { background: #f4f2ec; }
+.v2-profile-favorites { margin-top: 24px; padding: 24px; border: 2px solid var(--border-soft); border-radius: 28px; background: var(--surface); }
+.v2-profile-favorites > text { color: var(--text-main); font-size: 27px; font-weight: 900; }
+.v2-profile-favorites > view { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.v2-profile-favorites > view text { padding: 11px 15px; border-radius: 18px; color: #6d7f66; background: #edf2e9; font-size: 21px; }
 .v2-profile-admin { min-height: 108px; display: flex; align-items: center; justify-content: space-between; margin-top: 38px; padding: 0 24px; border-top: 2px solid var(--border-soft); border-bottom: 2px solid var(--border-soft); color: var(--text-muted); }
 .v2-profile-admin > view text:first-child { display: block; color: var(--text-main); font-size: 25px; font-weight: 800; }
 .v2-profile-admin > view text:last-child { display: block; margin-top: 5px; font-size: 20px; }

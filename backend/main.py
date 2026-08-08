@@ -266,6 +266,33 @@ def dish_detail(dish_id: int, db: Session = Depends(get_db)):
     return crud.get_dish(db, dish_id)
 
 
+@app.get("/api/favorites", response_model=list[schemas.DishOut])
+def favorite_dishes(
+    customer_id: str = Depends(get_customer_id),
+    db: Session = Depends(get_db),
+):
+    return crud.list_favorite_dishes(db, customer_id)
+
+
+@app.post("/api/favorites/{dish_id}", response_model=schemas.DishOut)
+def add_favorite(
+    dish_id: int,
+    customer_id: str = Depends(get_customer_id),
+    db: Session = Depends(get_db),
+):
+    return crud.add_favorite_dish(db, customer_id, dish_id)
+
+
+@app.delete("/api/favorites/{dish_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_favorite(
+    dish_id: int,
+    customer_id: str = Depends(get_customer_id),
+    db: Session = Depends(get_db),
+):
+    crud.remove_favorite_dish(db, customer_id, dish_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @app.post(
     "/api/dishes",
     response_model=schemas.DishOut,
