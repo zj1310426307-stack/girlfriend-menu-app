@@ -3,7 +3,7 @@ import Taro, { useDidShow } from "@tarojs/taro";
 import { Image, Input, Text, Textarea, View } from "@tarojs/components";
 
 import { createOrder, resolveImageUrl } from "../../api";
-import { clearCart, getCart, setCartItemQuantity } from "../../utils/cart";
+import { clearCart, getCart, getRepeatDraft, setCartItemQuantity } from "../../utils/cart";
 import { getCustomerId } from "../../utils/customer";
 import { ensureInvitePassed } from "../../utils/invite";
 import "./index.css";
@@ -17,6 +17,8 @@ export default function Cart() {
   useDidShow(() => {
     if (!ensureInvitePassed()) return;
     setCart(getCart());
+    const repeatDraft = getRepeatDraft();
+    if (repeatDraft?.note && !note) setNote(repeatDraft.note);
   });
 
   const total = cart.reduce((sum, item) => sum + Number(item.price) * item.quantity, 0);
@@ -33,7 +35,8 @@ export default function Cart() {
         items: cart.map((item) => ({ dish_id: item.id, quantity: item.quantity })),
         note,
         desired_time: desiredTime,
-        customer_id: getCustomerId()
+        customer_id: getCustomerId(),
+        source_order_id: getRepeatDraft()?.source_order_id || null
       });
       clearCart();
       setCart([]);
@@ -50,7 +53,7 @@ export default function Cart() {
         <View className="empty-icon">🥣</View>
         <Text className="empty-title">点菜清单还是空的</Text>
         <Text className="empty-desc">去挑几道今天想吃的吧。</Text>
-        <View className="primary-button" onClick={() => Taro.reLaunch({ url: "/pages/index/index" })}>
+        <View className="primary-button" onClick={() => Taro.switchTab({ url: "/pages/menu/index" })}>
           <Text>看看菜单</Text>
         </View>
       </View>
@@ -60,6 +63,9 @@ export default function Cart() {
   return (
     <View className="page cart-page">
       <Text className="section-title">我的点菜清单</Text>
+      {getRepeatDraft()?.source_order_id && (
+        <View className="repeat-draft-hint"><Text>已从订单 #{getRepeatDraft().source_order_id} 复制，可以继续增减菜品再提交。</Text></View>
+      )}
       <View className="cart-list card">
         {cart.map((item) => (
           <View className="cart-item" key={item.id}>

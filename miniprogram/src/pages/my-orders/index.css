@@ -126,3 +126,13 @@
 .order-foot .reviewed {
   color: #cf596b;
 }
+
+.order-card-actions { display: flex; align-items: center; gap: 10px; }
+.repeat-order-button { min-height: 58px; display: flex; align-items: center; justify-content: center; padding: 0 18px; border: 2px solid #d7dfd2; border-radius: 22px; color: #6c7d65; background: #f7faf5; font-size: 21px; font-weight: 800; }
+.repeat-order-button text { line-height: 1; }
+
+@media (max-width: 360px) {
+  .order-foot { align-items: flex-start; flex-direction: column; }
+  .order-card-actions { width: 100%; }
+  .order-card-actions > view { flex: 1; }
+}

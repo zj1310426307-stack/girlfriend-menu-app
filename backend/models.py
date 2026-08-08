@@ -27,6 +27,7 @@ class Order(Base):
     note = Column(Text, default="")
     desired_time = Column(String(50), default="")
     customer_id = Column(String(100), nullable=True, index=True)
+    source_order_id = Column(Integer, ForeignKey("orders.id"), nullable=True, index=True)
     created_at = Column(DateTime, default=datetime.now, nullable=False, index=True)
 
     items = relationship(

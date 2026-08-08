@@ -134,3 +134,12 @@
 .checkout-button {
   width: 260px;
 }
+.repeat-draft-hint {
+  margin: -4px 0 20px;
+  padding: 18px 20px;
+  border-radius: 22px;
+  color: #68755f;
+  background: #e9efe5;
+  font-size: 22px;
+  line-height: 1.55;
+}

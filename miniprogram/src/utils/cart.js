@@ -1,6 +1,7 @@
 import Taro from "@tarojs/taro";
 
 const CART_KEY = "gf_menu_cart";
+const REPEAT_DRAFT_KEY = "gf_repeat_order_draft";
 
 export function getCart() {
   return Taro.getStorageSync(CART_KEY) || [];
@@ -8,6 +9,19 @@ export function getCart() {
 
 export function saveCart(cart) {
   Taro.setStorageSync(CART_KEY, cart);
+}
+
+export function replaceCart(cart) {
+  saveCart(cart);
+  return cart;
+}
+
+export function saveRepeatDraft(draft) {
+  Taro.setStorageSync(REPEAT_DRAFT_KEY, draft);
+}
+
+export function getRepeatDraft() {
+  return Taro.getStorageSync(REPEAT_DRAFT_KEY) || null;
 }
 
 export function addToCart(dish) {
@@ -34,4 +48,5 @@ export function setCartItemQuantity(id, quantity) {
 
 export function clearCart() {
   Taro.removeStorageSync(CART_KEY);
+  Taro.removeStorageSync(REPEAT_DRAFT_KEY);
 }

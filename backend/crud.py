@@ -52,16 +52,26 @@ def delete_dish(db: Session, dish_id: int):
 
 def create_order(db: Session, data: schemas.OrderCreate):
     dish_ids = {item.dish_id for item in data.items}
-    dishes = db.query(models.Dish).filter(models.Dish.id.in_(dish_ids)).all()
+    dishes = (
+        db.query(models.Dish)
+        .filter(models.Dish.id.in_(dish_ids), models.Dish.is_active.is_(True))
+        .all()
+    )
     dish_map = {dish.id: dish for dish in dishes}
     missing = dish_ids - dish_map.keys()
     if missing:
-        raise HTTPException(status_code=400, detail=f"菜品不存在：{sorted(missing)}")
+        raise HTTPException(status_code=400, detail=f"菜品不存在或已经下架：{sorted(missing)}")
+
+    if data.source_order_id:
+        source_order = get_order(db, data.source_order_id)
+        if not data.customer_id or source_order.customer_id != data.customer_id:
+            raise HTTPException(status_code=403, detail="不能再次点其他人的订单")
 
     order = models.Order(
         note=data.note,
         desired_time=data.desired_time,
         customer_id=data.customer_id,
+        source_order_id=data.source_order_id,
     )
     db.add(order)
     db.flush()
@@ -78,6 +88,42 @@ def create_order(db: Session, data: schemas.OrderCreate):
     db.commit()
     db.refresh(order)
     return order
+
+
+def repeat_order_draft(db: Session, order_id: int, customer_id: str):
+    """Build an editable cart draft without creating a submitted order."""
+    order = get_order(db, order_id)
+    if not order.customer_id or order.customer_id != customer_id:
+        raise HTTPException(status_code=403, detail="这张点菜单不属于当前设备")
+
+    dish_ids = {item.dish_id for item in order.items}
+    current_dishes = db.query(models.Dish).filter(models.Dish.id.in_(dish_ids)).all()
+    dish_map = {dish.id: dish for dish in current_dishes}
+    items = []
+    unavailable_names = []
+    for item in order.items:
+        dish = dish_map.get(item.dish_id)
+        available = bool(dish and dish.is_active)
+        if not available:
+            unavailable_names.append(item.dish_name)
+        items.append(
+            {
+                "dish_id": item.dish_id,
+                "name": dish.name if dish else item.dish_name,
+                "description": dish.description if dish else "",
+                "category": dish.category if dish else "",
+                "price": dish.price if dish else item.price,
+                "image_url": dish.image_url if dish else "",
+                "quantity": item.quantity,
+                "available": available,
+            }
+        )
+    return {
+        "source_order_id": order.id,
+        "note": order.note,
+        "items": items,
+        "unavailable_names": unavailable_names,
+    }
 
 
 def list_orders(db: Session):

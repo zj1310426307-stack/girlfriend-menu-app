@@ -57,6 +57,25 @@ class OrderCreate(BaseModel):
     note: str = Field(default="", max_length=500)
     desired_time: str = Field(default="", max_length=50)
     customer_id: str | None = Field(default=None, max_length=100)
+    source_order_id: int | None = Field(default=None, ge=1)
+
+
+class OrderRepeatItem(BaseModel):
+    dish_id: int
+    name: str
+    description: str = ""
+    category: str = ""
+    price: float
+    image_url: str = ""
+    quantity: int
+    available: bool
+
+
+class OrderRepeatDraft(BaseModel):
+    source_order_id: int
+    note: str = ""
+    items: list[OrderRepeatItem]
+    unavailable_names: list[str]
 
 
 class OrderItemOut(BaseModel):
@@ -91,6 +110,7 @@ class OrderOut(BaseModel):
     note: str
     desired_time: str
     customer_id: str | None = None
+    source_order_id: int | None = None
     created_at: datetime
     items: list[OrderItemOut]
     review: ReviewOut | None = None

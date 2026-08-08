@@ -64,11 +64,17 @@ def ensure_compatible_schema():
             )
 
         if "orders" in table_names:
+            order_columns = {column["name"] for column in inspector.get_columns("orders")}
+            if "source_order_id" not in order_columns:
+                connection.execute(text("ALTER TABLE orders ADD COLUMN source_order_id INTEGER"))
             connection.execute(
                 text("CREATE INDEX IF NOT EXISTS ix_orders_status ON orders (status)")
             )
             connection.execute(
                 text("CREATE INDEX IF NOT EXISTS ix_orders_created_at ON orders (created_at)")
+            )
+            connection.execute(
+                text("CREATE INDEX IF NOT EXISTS ix_orders_source_order_id ON orders (source_order_id)")
             )
 
 

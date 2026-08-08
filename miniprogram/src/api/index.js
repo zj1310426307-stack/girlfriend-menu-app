@@ -83,6 +83,12 @@ export const getMyOrders = (customerId) =>
 
 export const getOrder = (id) => request(`/orders/${id}`);
 
+export const repeatOrder = (orderId, customerId) =>
+  request(`/orders/repeat/${orderId}`, {
+    method: "POST",
+    header: { "X-Customer-Id": customerId }
+  });
+
 export const createReview = (orderId, data) =>
   request(`/orders/${orderId}/review`, {
     method: "POST",

@@ -105,6 +105,14 @@ def is_admin_token(token: str | None):
     return bool(token) and secrets.compare_digest(token, get_admin_token())
 
 
+def get_customer_id(x_customer_id: str | None = Header(default=None, alias="X-Customer-Id")):
+    """Read the current minimal-version device identity from a request header."""
+    value = (x_customer_id or "").strip()
+    if not value or len(value) > 100:
+        raise HTTPException(status_code=400, detail="缺少有效的 customer_id")
+    return value
+
+
 @app.get("/")
 def root():
     return {"message": "女朋友专属点菜小程序 API 正常运行"}
@@ -292,6 +300,15 @@ async def submit_order(data: schemas.OrderCreate, db: Session = Depends(get_db))
     order = crud.create_order(db, data)
     await order_event_hub.broadcast("order_created", order.id)
     return order
+
+
+@app.post("/api/orders/repeat/{order_id}", response_model=schemas.OrderRepeatDraft)
+def repeat_order(
+    order_id: int,
+    customer_id: str = Depends(get_customer_id),
+    db: Session = Depends(get_db),
+):
+    return crud.repeat_order_draft(db, order_id, customer_id)
 
 
 @app.get(
