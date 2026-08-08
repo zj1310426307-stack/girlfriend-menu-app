@@ -1,47 +1,80 @@
 # 女朋友专属点菜小程序
 
-这是一个只通过微信小程序访问的情侣私厨点菜系统。React/Vite 网页应用已在 `1.0.19` 中移除；用户端和管理端都位于同一个微信小程序，FastAPI 后端继续负责菜单、订单、评价、统计和实时对战数据，生产数据库使用 Neon PostgreSQL。`frontend/` 仅保留一张临时停用提示页，用于在 Render 静态服务彻底删除前阻止旧网页应用继续使用，不包含任何点菜功能。
+这是一个面向情侣私厨场景的微信点菜小程序：她负责选菜、提交点菜单和评价，你通过同一个小程序里的管理端查看订单、更新制作状态和维护菜单。
 
-## 当前功能
+当前产品界面只保留微信小程序。早期 React/Vite 网页端已停用；`frontend/` 仅保留 Render 旧静态服务的停用提示页，不再包含点菜功能。
+
+## 当前版本与线上状态
+
+- 微信小程序开发版本：`1.0.19`
+- AppID：`wx08cb090781c3e679`
+- 后端：FastAPI，部署于 Render
+- 生产数据库：Neon PostgreSQL
+- 生产 API：`https://girlfriend-menu-api.onrender.com`
+- 2026-08-08 验证结果：API 健康检查正常、数据库为 PostgreSQL、线上有 19 道启用菜品
+
+## 已实现功能
 
 女朋友端：
 
-- 邀请码进入小程序
-- 菜品列表、分类筛选和菜品详情
-- 点菜清单、备注、希望用餐时间和提交订单
-- “我的点菜单”、订单状态和爱心评价
-- 自定义转盘
-- 单机 3D 大话骰、AI 对局和双人实时房间
+- 邀请码进入
+- 菜品列表、分类筛选、菜品详情
+- 点菜清单、数量修改、备注、希望用餐时间、提交订单
+- “我的点菜单”、订单状态与历史记录
+- 已完成订单的 1～5 颗爱心评价
+- 自定义选项转盘
+- 单机 3D 大话骰（原生 WebGL 场景、AI 玩家、上滑开盅）
+- 双人实时大话骰房间、叫骰、开盅与计分板
 
 小程序管理端：
 
-- 首页点击“小厨房管理”进入
-- 管理密码登录和退出登录
-- 实时查看全部订单、备注和希望用餐时间
+- 管理密码登录与退出
+- 实时查看订单、备注和希望用餐时间
 - 修改订单状态：待接单、已接单、制作中、已完成、暂时做不了
 - 新增、编辑、下架菜品
-- 从相册/相机上传菜品图片，或手动填写图片链接
-- 总订单数、已完成数、最常点 Top 5、最近 10 次点菜
-- 平均评分、评分最高的菜品和评价记录
+- 上传菜品图片或手动填写图片链接
+- 总订单、已完成订单、最常点菜品、最近订单、平均评分和评价记录统计
 
-当前小程序开发版本：`1.0.19`。
+## 技术栈
+
+| 层级 | 技术 |
+| --- | --- |
+| 微信小程序 | Taro 4、React 18、微信原生 Canvas/WebGL |
+| 后端 API | Python 3.12、FastAPI、Pydantic 2 |
+| 数据访问 | SQLAlchemy 2 |
+| 生产数据库 | Neon PostgreSQL |
+| 本地数据库 | SQLite（未配置 `DATABASE_URL` 时） |
+| 实时通信 | FastAPI WebSocket（管理订单推送、双人骰子房间） |
+| 部署 | Render Blueprint + GitHub 自动部署 |
+| 自动化 | Pytest、GitHub Actions、微信开发者工具自动化冒烟脚本 |
 
 ## 项目结构
 
 ```text
 girlfriend-menu-app/
-├── backend/                  # FastAPI、SQLAlchemy、PostgreSQL/SQLite
-├── frontend/                 # 旧网址停用提示（不是应用，删除 Render 静态服务后可移除）
-├── miniprogram/              # Taro React 微信小程序（唯一界面）
-│   ├── config/
-│   ├── src/
-│   │   ├── api/
-│   │   ├── components/
-│   │   ├── pages/
-│   │   └── utils/
-│   ├── project.config.json
+├── .github/workflows/ci.yml     # 后端测试与小程序构建
+├── backend/                     # FastAPI、SQLAlchemy、实时房间
+│   ├── main.py                  # HTTP/WebSocket 路由、鉴权、生命周期
+│   ├── crud.py                  # 菜品、订单、评价、统计业务操作
+│   ├── database.py              # PostgreSQL/SQLite 连接与兼容升级
+│   ├── models.py                # SQLAlchemy 数据模型
+│   ├── schemas.py               # API 请求/响应模型
+│   ├── realtime.py              # 订单事件与双人骰子房间
+│   ├── seed.py                  # 19 道测试菜品
+│   ├── storage.py               # 本地图片存储
+│   └── tests/test_api.py        # 后端集成测试
+├── miniprogram/                 # Taro React 微信小程序（主产品）
+│   ├── config/                  # Taro 构建配置
+│   ├── scripts/smoke-test.cjs   # 微信开发者工具冒烟测试
+│   ├── src/api/                 # HTTP 与 WebSocket 客户端
+│   ├── src/components/          # 管理端共享导航
+│   ├── src/pages/               # 用户端、管理端、转盘、骰子页面
+│   ├── src/utils/               # 邀请码、购物车、设备身份、管理令牌
+│   ├── project.config.json      # 微信项目配置
 │   └── package.json
-├── render.yaml               # 只部署 FastAPI 服务
+├── frontend/                    # 旧网页端停用提示，不是当前产品
+├── docs/PROJECT_HANDOFF.md      # 完整产品、架构、数据和审计交接
+├── render.yaml                  # Render 后端部署蓝图
 └── README.md
 ```
 
@@ -49,25 +82,39 @@ girlfriend-menu-app/
 
 ### 1. 启动后端
 
+要求 Python 3.12。
+
 Windows CMD：
 
 ```bat
 cd /d D:\my-project\girlfriend-menu-app\backend
 python -m venv .venv
-.venv\Scripts\python.exe -m pip install -r requirements.txt
+.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 copy .env.example .env
 .venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-如果 `8000` 端口出现 `WinError 10013`，可换用：
+本地环境变量示例在 `backend/.env.example`。未配置 `DATABASE_URL` 时会使用 `backend/girlfriend_menu.db`。
+
+启动后检查：
+
+```text
+http://127.0.0.1:8000/api/health
+http://127.0.0.1:8000/api/ready
+http://127.0.0.1:8000/docs
+```
+
+如果 Windows 对 8000 端口报 `WinError 10013`，可改用 8010：
 
 ```bat
 .venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8010 --reload
 ```
 
-没有配置 `DATABASE_URL` 时，后端默认使用 `backend/girlfriend_menu.db`。启动后可访问 `http://127.0.0.1:8000/docs` 检查 API。
+小程序当前固定请求生产 API。若要联调本机后端，需要把 `miniprogram/src/api/index.js` 中的 API 地址临时改为手机或开发者工具能够访问的 HTTPS 地址；真机不能直接访问电脑的 `localhost`。
 
-### 2. 构建微信小程序
+### 2. 构建小程序
+
+要求 Node.js 22。
 
 ```bat
 cd /d D:\my-project\girlfriend-menu-app\miniprogram
@@ -75,55 +122,85 @@ npm install
 npm run build:weapp
 ```
 
-微信开发者工具导入目录：
+用微信开发者工具导入：
 
 ```text
 D:\my-project\girlfriend-menu-app\miniprogram
 ```
 
-项目 AppID 已配置为：
+`project.config.json` 已配置 AppID，并把小程序根目录指向 `dist/`。持续开发时可运行：
 
-```text
-wx08cb090781c3e679
+```bat
+npm run dev:weapp
 ```
 
-`project.config.json` 的 `miniprogramRoot` 指向 `dist/`。修改代码时可以运行 `npm run dev:weapp` 持续编译。
+## 自动测试
 
-> 小程序当前 API 地址在 `miniprogram/src/api/index.js` 中配置为生产后端。若要完全离线联调，需要把它临时改为本机可被手机访问的 HTTPS 地址；微信真机不能直接请求电脑的 `localhost`。
+后端：
+
+```bat
+cd /d D:\my-project\girlfriend-menu-app\backend
+.venv\Scripts\python.exe -m pytest -q
+```
+
+小程序编译：
+
+```bat
+cd /d D:\my-project\girlfriend-menu-app\miniprogram
+npm run build:weapp
+```
+
+微信开发者工具冒烟测试依赖本机开发者工具路径和已开启的服务端口；当前脚本入口为：
+
+```bat
+npm run test:smoke
+```
+
+2026-08-08 本地验证：后端 `4 passed`，小程序生产构建成功。
+
+## 数据库
+
+核心表：
+
+- `dishes`：菜品、分类、价格、图片、启用状态
+- `orders`：订单状态、备注、希望用餐时间、设备 `customer_id`
+- `order_items`：下单时的菜名和价格快照、数量
+- `reviews`：每个订单唯一的一条爱心评价
+
+程序启动时会创建缺少的表，并对旧数据库做少量幂等兼容升级，例如补充 `orders.customer_id`、`dishes.is_active` 和必要索引；不会重建或删除旧数据。
+
+完整字段和关系见 `docs/PROJECT_HANDOFF.md`。
 
 ## 生产部署
 
-### 后端：Render + Neon PostgreSQL
+### Render + Neon PostgreSQL
 
-Render 只部署 `backend/`，启动命令：
+Render 只部署 `backend/`，构建和启动命令已经写在 `render.yaml`：
 
 ```text
+pip install -r requirements.txt
 uvicorn main:app --host 0.0.0.0 --port $PORT
 ```
 
 生产环境必须配置：
 
-| 变量 | 说明 |
+| 变量 | 用途 |
 | --- | --- |
 | `DATABASE_URL` | Neon PostgreSQL 连接串 |
 | `ADMIN_PASSWORD` | 小程序管理端密码 |
-| `ADMIN_INVITE_CODE` | 管理接口邀请码，应与小程序邀请码保持一致 |
-| `ADMIN_SECRET` | 足够长的随机管理令牌密钥 |
+| `ADMIN_INVITE_CODE` | 管理登录和实时骰子房间使用的邀请码 |
+| `ADMIN_SECRET` | 生成管理令牌的长随机密钥 |
 
 可选变量：
 
-| 变量 | 说明 |
+| 变量 | 用途 |
 | --- | --- |
+| `FRONTEND_URL` | 未来获准浏览器客户端的 CORS 域名；微信小程序无需配置 |
 | `UPLOAD_PROVIDER` | 当前仅支持 `local` |
-| `FRONTEND_URL` | 仅为未来获准的浏览器客户端预留；微信小程序不需要配置 |
 
-部署后健康检查：
+不要把生产 `.env`、Neon 密码或管理密码提交到 GitHub 或放进项目压缩包。
 
-```text
-https://girlfriend-menu-api.onrender.com/api/health
-```
-
-### 微信公众平台合法域名
+### 微信公众平台服务器域名
 
 在“开发管理 → 开发设置 → 服务器域名”配置：
 
@@ -134,43 +211,35 @@ https://girlfriend-menu-api.onrender.com/api/health
 | uploadFile 合法域名 | `https://girlfriend-menu-api.onrender.com` |
 | downloadFile 合法域名 | `https://girlfriend-menu-api.onrender.com` |
 
-不要在域名末尾添加 `/api`、路径、端口或分号。
+域名末尾不要添加 `/api`、路径、端口或分号。
 
-### 构建、预览和上传
+## 预览、体验版和正式发布
 
 1. 在 `miniprogram/` 执行 `npm run build:weapp`。
-2. 微信开发者工具打开 `miniprogram/`。
-3. 点击“编译”，确认首页、点菜和管理端均可打开。
-4. 点击“预览”，使用真实手机完成一次完整测试。
-5. 点击“上传”，版本号填写 `1.0.19`。
-6. 微信公众平台进入“版本管理”，将开发版本设为体验版；确认无误后提交审核。
+2. 微信开发者工具打开 `miniprogram/` 并点击“编译”。
+3. 点击“预览”，用真机走完下方验收流程。
+4. 点击“上传”，版本号使用 `1.0.19` 或新的递增版本号。
+5. 微信公众平台进入“版本管理”，把开发版本选为体验版。
+6. 体验无误后提交微信审核；审核通过后再正式发布。
 
-## 完整测试流程
+## 核心验收流程
 
-1. 输入邀请码进入首页，确认菜单正常显示。
-2. 加入菜品、填写备注和希望用餐时间，提交订单。
-3. 关闭后重新打开小程序，从“我的点菜单”找到刚才的订单。
-4. 首页进入“小厨房管理”，输入管理密码。
-5. 在“订单”页确认能实时看到订单，并把状态改为“已完成”。
-6. 回到订单详情提交爱心评价，再次打开时应只显示评价结果。
-7. 在“统计”页确认总订单、Top 5、评分和最近记录正确。
-8. 在“菜品”页新增一条测试菜品、编辑后再下架，确认点菜页同步更新。
-9. 测试转盘、单机骰子和双人房间。
+1. 清理小程序缓存，输入邀请码进入首页，确认 19 道菜正常加载。
+2. 筛选分类、打开菜品详情、加入清单并调整数量。
+3. 填写备注和希望用餐时间，提交订单。
+4. 关闭后重新打开，从“我的点菜单”找到刚才的订单。
+5. 进入“小厨房管理”，输入管理密码，确认新订单实时出现。
+6. 把订单状态改为“已完成”。
+7. 回到订单详情提交爱心评价，再次进入时只能看到评价结果。
+8. 管理端检查菜品管理、统计和评价记录。
+9. 测试转盘、单机大话骰以及两台手机的实时对战。
 
-## 数据与边界说明
+## 当前边界
 
-- “我的点菜单”使用微信本地存储中的 `gf_customer_id` 识别当前设备。清空小程序缓存后，旧订单可能无法自动找回，管理端仍能看到全部订单。
-- 管理登录令牌保存在微信本地存储中；没有复杂用户系统或注册功能。
-- SQLite 旧库启动时会自动补充缺失字段和索引，不会重建或删除旧数据。
-- Render 本地磁盘是临时存储。当前图片上传接口可用，但服务重启或重新部署后，本地上传文件可能丢失；正式长期使用建议填写稳定的 HTTPS 图片链接，或后续接入 Cloudinary、腾讯云 COS、阿里云 OSS 等对象存储。
-- 后端和 Neon 数据库不能删除：它们是小程序保存菜品、订单、评价、统计和实时房间的服务，不属于已取消的网页端。
+- `gf_customer_id` 只保存在微信本地缓存。清缓存后，旧订单不会自动关联回当前设备，但管理端仍能看到。
+- 邀请码位于小程序包内，只能作为轻量入口，不是严格安全认证。
+- 实时骰子房间保存在单个后端进程内，服务重启后房间会消失。
+- Render 本地 `uploads/` 不是持久存储，正式长期使用应接入 Cloudinary、腾讯云 COS、阿里云 OSS 等对象存储。
+- 当前没有微信登录、OpenID、手机号、订阅消息、支付、库存或采购清单。
 
-## 常用命令
-
-```bat
-cd /d D:\my-project\girlfriend-menu-app\backend
-.venv\Scripts\python.exe -m pytest -q
-
-cd /d D:\my-project\girlfriend-menu-app\miniprogram
-npm run build:weapp
-```
+更完整的当前产品审计见 [项目交接文档](docs/PROJECT_HANDOFF.md)，未来目标架构和分阶段执行提示词见 [V2.0 产品与架构方案](docs/V2_PRODUCT_PLAN.md)。
