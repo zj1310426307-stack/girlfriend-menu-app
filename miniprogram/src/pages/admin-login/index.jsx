@@ -17,7 +17,7 @@ export default function AdminLoginPage() {
     const passed = ensureInvitePassed();
     setAllowed(passed);
     if (passed && getAdminToken()) {
-      Taro.redirectTo({ url: "/pages/admin-orders/index" });
+      Taro.redirectTo({ url: "/pages/admin-dashboard/index" });
     }
   }, []);
 
@@ -32,7 +32,7 @@ export default function AdminLoginPage() {
     try {
       const result = await adminLogin(password, INVITE_CODE);
       saveAdminToken(result.token);
-      Taro.redirectTo({ url: "/pages/admin-orders/index" });
+      Taro.redirectTo({ url: "/pages/admin-dashboard/index" });
     } catch (requestError) {
       setError(requestError.message || "登录失败，请检查密码");
     } finally {
@@ -60,7 +60,7 @@ export default function AdminLoginPage() {
         />
         {error && <Text className="mini-admin-error">{error}</Text>}
         <View className={`mini-admin-submit ${submitting ? "disabled" : ""}`} onClick={submit}>
-          <Text>{submitting ? "正在登录…" : "查看她的点菜单"}</Text>
+          <Text>{submitting ? "正在登录…" : "进入小程序管理端"}</Text>
         </View>
         <Text className="mini-admin-safe">管理密码只保存在本机登录状态中，不会显示在页面上。</Text>
       </View>

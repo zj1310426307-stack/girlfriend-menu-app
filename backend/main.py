@@ -51,10 +51,9 @@ app = FastAPI(title="女朋友专属点菜小程序 API", version="1.1.0", lifes
 
 
 def get_frontend_origins():
-    raw_urls = os.getenv(
-        "FRONTEND_URL",
-        "http://localhost:5173,http://127.0.0.1:5173",
-    )
+    # The product UI is now WeChat-only. CORS is kept optional for API
+    # diagnostics or a future approved browser client, but has no default web UI.
+    raw_urls = os.getenv("FRONTEND_URL", "")
     return [url.strip().rstrip("/") for url in raw_urls.split(",") if url.strip()]
 
 

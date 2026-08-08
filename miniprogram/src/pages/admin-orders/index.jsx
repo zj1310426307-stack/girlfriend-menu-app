@@ -4,6 +4,7 @@ import { Picker, Text, View } from "@tarojs/components";
 
 import { getAdminOrders, updateAdminOrderStatus } from "../../api";
 import { connectAdminOrders } from "../../api/adminSocket";
+import AdminNav from "../../components/AdminNav";
 import { clearAdminToken, getAdminToken } from "../../utils/admin";
 import { ensureInvitePassed } from "../../utils/invite";
 import "./index.css";
@@ -96,6 +97,7 @@ export default function AdminOrdersPage() {
 
   return (
     <View className="mini-admin-page">
+      <AdminNav active="orders" />
       <View className="mini-admin-head">
         <View>
           <Text className="mini-admin-kicker">LIVE KITCHEN BOARD</Text>
@@ -149,7 +151,7 @@ export default function AdminOrdersPage() {
 
       <View className="mini-admin-actions">
         <View onClick={() => load()}><Text>刷新订单</Text></View>
-        <View onClick={leaveToLogin}><Text>退出管理</Text></View>
+        <View onClick={() => Taro.redirectTo({ url: "/pages/admin-dashboard/index" })}><Text>返回总览</Text></View>
       </View>
     </View>
   );

@@ -8,9 +8,6 @@ backend/*.db
 backend/tests/*.db
 backend/uploads/*
 !backend/uploads/.gitkeep
-frontend/node_modules/
-frontend/dist/
-frontend/.env
 miniprogram/node_modules/
 miniprogram/dist/
 miniprogram/.swc/

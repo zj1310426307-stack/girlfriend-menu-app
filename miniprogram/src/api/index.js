@@ -112,3 +112,71 @@ export const updateAdminOrderStatus = (orderId, status, token) =>
     data: { status },
     header: { Authorization: `Bearer ${token}` }
   });
+
+export const createAdminDish = (data, token) =>
+  request("/dishes", {
+    method: "POST",
+    data,
+    header: { Authorization: `Bearer ${token}` }
+  });
+
+export const updateAdminDish = (dishId, data, token) =>
+  request(`/dishes/${dishId}`, {
+    method: "PUT",
+    data,
+    header: { Authorization: `Bearer ${token}` }
+  });
+
+export const deleteAdminDish = (dishId, token) =>
+  request(`/dishes/${dishId}`, {
+    method: "DELETE",
+    header: { Authorization: `Bearer ${token}` }
+  });
+
+export async function uploadAdminImage(filePath, token) {
+  let response;
+  try {
+    response = await Taro.uploadFile({
+      url: `${API_BASE_URL}/upload/image`,
+      filePath,
+      name: "file",
+      timeout: 60000,
+      header: { Authorization: `Bearer ${token}` }
+    });
+  } catch (error) {
+    throw new Error(/timeout/i.test(error?.errMsg || "")
+      ? "图片上传超时，请稍后重试"
+      : "图片上传失败，请检查网络");
+  }
+
+  let data = response.data;
+  if (typeof data === "string") {
+    try {
+      data = JSON.parse(data);
+    } catch {
+      data = {};
+    }
+  }
+  if (response.statusCode >= 200 && response.statusCode < 300 && data?.image_url) {
+    return data;
+  }
+  const detail = data?.detail || "图片上传失败";
+  const error = new Error(typeof detail === "string" ? detail : "图片上传失败");
+  error.statusCode = response.statusCode;
+  throw error;
+}
+
+export const getAdminStatsSummary = (token) =>
+  request("/stats/summary", {
+    header: { Authorization: `Bearer ${token}` }
+  });
+
+export const getAdminDishStats = (token) =>
+  request("/stats/dishes", {
+    header: { Authorization: `Bearer ${token}` }
+  });
+
+export const getAdminRecentOrders = (token) =>
+  request("/stats/recent", {
+    header: { Authorization: `Bearer ${token}` }
+  });

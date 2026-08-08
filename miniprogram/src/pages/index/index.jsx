@@ -70,7 +70,7 @@ export default function Index() {
       console.error("打开骰子模块失败", detail);
       Taro.showModal({
         title: "骰子模块没有打开",
-        content: `当前版本 v1.0.18\n${detail}`,
+        content: `当前版本 v1.0.19\n${detail}`,
         showCancel: false,
       });
     });
@@ -168,7 +168,7 @@ export default function Index() {
         </View>
         <View className="dice-entry-copy">
           <Text className="dice-entry-title">3D 大话骰 · 吹牛</Text>
-          <Text className="dice-entry-desc">原生酒吧桌面、上滑开盅和 AI 对局 · v1.0.18</Text>
+          <Text className="dice-entry-desc">原生酒吧桌面、上滑开盅和 AI 对局 · v1.0.19</Text>
         </View>
         <Text className="dice-entry-arrow">›</Text>
       </View>

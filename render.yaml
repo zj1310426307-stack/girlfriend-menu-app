@@ -20,20 +20,3 @@ services:
         sync: false
       - key: ADMIN_SECRET
         generateValue: true
-      - key: FRONTEND_URL
-        value: https://girlfriend-menu-app.vercel.app,https://girlfriend-menu-web-zj13104.onrender.com,http://localhost:5173
-
-  - type: web
-    name: girlfriend-menu-web-zj13104
-    runtime: static
-    rootDir: frontend
-    buildCommand: npm ci && npm run build
-    staticPublishPath: ./dist
-    autoDeploy: true
-    envVars:
-      - key: VITE_API_BASE_URL
-        value: https://girlfriend-menu-api.onrender.com/api
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html

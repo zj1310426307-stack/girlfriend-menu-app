@@ -1,0 +1,44 @@
+page { min-height: 100%; color: #57433f; background: #f8f2ef; }
+.admin-dishes-page { min-height: 100vh; padding: 30px 22px 80px; background: radial-gradient(circle at 92% 7%, rgba(112,159,190,.15), transparent 25%), linear-gradient(180deg, #fff9f5, #f7f0ed); }
+.dish-admin-head { padding: 10px 4px 24px; }
+.dish-admin-kicker { display: block; color: #d45a72; font-size: 18px; font-weight: 900; letter-spacing: 4px; }
+.dish-admin-title { display: block; margin-top: 10px; color: #55403c; font-size: 39px; font-weight: 900; }
+.dish-admin-desc { display: block; margin-top: 9px; color: #9d7d75; font-size: 22px; line-height: 1.6; }
+.dish-form-card { padding: 25px; border: 2px solid #eddcd7; border-radius: 30px; background: rgba(255,255,255,.98); box-shadow: 0 15px 36px rgba(97,63,56,.09); }
+.dish-form-title { display: flex; align-items: center; justify-content: space-between; margin-bottom: 19px; }
+.dish-form-title text:first-child { color: #57423d; font-size: 29px; font-weight: 900; }
+.dish-form-title text:last-child { color: #cb556d; font-size: 21px; }
+.dish-field-row { display: grid; grid-template-columns: 1.2fr .8fr; gap: 12px; }
+.dish-field { margin-bottom: 16px; }
+.dish-field > text { display: block; margin: 0 0 8px 5px; color: #856a63; font-size: 21px; font-weight: 800; }
+.dish-field input { height: 72px; padding: 0 18px; border: 2px solid #eadbd6; border-radius: 20px; color: #58443f; background: #fffaf8; font-size: 24px; }
+.dish-field textarea { box-sizing: border-box; width: 100%; height: 146px; padding: 17px 18px; border: 2px solid #eadbd6; border-radius: 20px; color: #58443f; background: #fffaf8; font-size: 24px; line-height: 1.5; }
+.dish-image-tools { display: flex; align-items: center; gap: 15px; margin: 4px 0 20px; }
+.dish-upload-button { min-height: 66px; flex: 1; display: flex; align-items: center; justify-content: center; border: 2px solid #dbbec4; border-radius: 34px; color: #c74f68; background: #fff5f6; font-size: 22px; font-weight: 800; }
+.dish-image-preview { flex: 0 0 auto; width: 86px; height: 86px; border: 2px solid #eadbd6; border-radius: 20px; background: #f3eae7; }
+.dish-save-button { min-height: 76px; display: flex; align-items: center; justify-content: center; border-radius: 40px; color: #fff; background: linear-gradient(135deg, #e8768d, #c9506a); box-shadow: 0 10px 22px rgba(202,79,105,.23); font-size: 26px; font-weight: 900; }
+.is-disabled { opacity: .55; }
+.dish-list-heading { display: flex; align-items: center; justify-content: space-between; padding: 30px 5px 16px; }
+.dish-list-heading text:first-child { color: #5a4540; font-size: 29px; font-weight: 900; }
+.dish-list-heading text:last-child { color: #a78880; font-size: 21px; }
+.dish-admin-state { padding: 48px 24px; border: 2px solid #eddfda; border-radius: 25px; color: #987a72; background: #fff; text-align: center; }
+.dish-admin-state text { display: block; font-size: 22px; line-height: 1.7; }
+.dish-admin-state.error { color: #b64051; background: #fff0f2; }
+.dish-admin-list { display: flex; flex-direction: column; gap: 16px; }
+.dish-admin-card { min-height: 210px; display: flex; overflow: hidden; border: 2px solid #eddfda; border-radius: 28px; background: #fff; box-shadow: 0 12px 30px rgba(98,65,58,.08); }
+.dish-admin-photo { flex: 0 0 auto; width: 210px; height: 210px; background: #f3e9e5; }
+.dish-admin-placeholder { display: flex; align-items: center; justify-content: center; color: #c76a7c; font-size: 46px; font-weight: 900; }
+.dish-admin-copy { min-width: 0; flex: 1; display: flex; flex-direction: column; padding: 18px; }
+.dish-admin-copy > view:first-child { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.dish-admin-copy > view:first-child text:first-child { min-width: 0; color: #56423d; font-size: 27px; font-weight: 900; }
+.dish-admin-copy > view:first-child text:last-child { flex: 0 0 auto; padding: 5px 9px; border-radius: 14px; color: #c5576e; background: #fff0f2; font-size: 18px; }
+.dish-admin-description { display: -webkit-box; margin-top: 8px; overflow: hidden; color: #9d7e76; font-size: 20px; line-height: 1.45; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.dish-admin-price { margin-top: auto; color: #cf536b; font-size: 27px; font-weight: 900; }
+.dish-admin-buttons { display: flex; gap: 8px; margin-top: 9px; }
+.dish-admin-buttons > view { min-height: 44px; flex: 1; display: flex; align-items: center; justify-content: center; border-radius: 22px; color: #80645d; background: #f7efec; font-size: 19px; font-weight: 800; }
+.dish-admin-buttons > view:last-child { color: #b34052; background: #fff0f2; }
+@media (max-width: 360px) {
+  .dish-field-row { grid-template-columns: 1fr; gap: 0; }
+  .dish-admin-photo { width: 176px; height: 220px; }
+  .dish-admin-card { min-height: 220px; }
+}
