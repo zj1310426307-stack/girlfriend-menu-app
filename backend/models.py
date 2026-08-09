@@ -112,3 +112,27 @@ class GameRoom(Base):
     status = Column(String(20), nullable=False, default="waiting", index=True)
     max_players = Column(Integer, nullable=False, default=2)
     created_at = Column(DateTime, default=datetime.now, nullable=False, index=True)
+
+
+class LoveScore(Base):
+    __tablename__ = "love_scores"
+    __table_args__ = (
+        UniqueConstraint(
+            "customer_id",
+            "type",
+            "related_id",
+            name="uq_love_score_source",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    customer_id = Column(String(100), nullable=False, index=True)
+    score = Column(Integer, nullable=False)
+    type = Column(String(50), nullable=False, index=True)
+    description = Column(Text, nullable=False, default="")
+    related_id = Column(Integer, nullable=True, index=True)
+    created_at = Column(DateTime, default=datetime.now, nullable=False, index=True)
+
+    @property
+    def time(self):
+        return self.created_at

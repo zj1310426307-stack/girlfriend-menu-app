@@ -23,6 +23,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 import crud
+import love_score
 import models
 import schemas
 from database import Base, SessionLocal, engine, ensure_compatible_schema, get_db
@@ -48,7 +49,7 @@ async def lifespan(_: FastAPI):
     yield
 
 
-app = FastAPI(title="情侣智能厨房管家 API", version="2.1.0", lifespan=lifespan)
+app = FastAPI(title="情侣智能厨房管家 API", version="2.2.0", lifespan=lifespan)
 
 
 def get_frontend_origins():
@@ -509,6 +510,43 @@ async def add_order_review(
 @app.get("/api/orders/{order_id}/review", response_model=schemas.ReviewOut)
 def order_review(order_id: int, db: Session = Depends(get_db)):
     return crud.get_review(db, order_id)
+
+
+@app.get("/api/couple/score", response_model=schemas.LoveScoreSummary)
+def couple_score(
+    customer_id: str = Depends(get_customer_id),
+    db: Session = Depends(get_db),
+):
+    return love_score.score_summary(db, customer_id)
+
+
+@app.get("/api/couple/score/history", response_model=list[schemas.LoveScoreOut])
+def couple_score_history(
+    customer_id: str = Depends(get_customer_id),
+    db: Session = Depends(get_db),
+):
+    return love_score.score_history(db, customer_id)
+
+
+@app.post(
+    "/api/couple/score/add",
+    response_model=schemas.LoveScoreOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(verify_admin_token)],
+)
+def add_couple_score(
+    data: schemas.LoveScoreCreate,
+    customer_id: str = Depends(get_customer_id),
+    db: Session = Depends(get_db),
+):
+    return love_score.record_score(
+        db,
+        customer_id,
+        data.type,
+        data.score,
+        data.description,
+        data.related_id,
+    )
 
 
 @app.get(

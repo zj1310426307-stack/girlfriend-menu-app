@@ -57,6 +57,53 @@ class GameRoomOut(BaseModel):
     created_at: datetime
 
 
+LoveScoreType = Literal[
+    "ORDER_COMPLETE",
+    "ORDER_REVIEW",
+    "GAME_WIN",
+    "GAME_PLAY",
+    "COOK_COMPLETE",
+    "SPECIAL_EVENT",
+]
+
+
+class LoveScoreCreate(BaseModel):
+    type: LoveScoreType
+    score: int = Field(ge=1, le=100)
+    description: str = Field(min_length=1, max_length=300)
+    related_id: int | None = Field(default=None, ge=1)
+
+
+class LoveScoreOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    score: int
+    type: LoveScoreType
+    description: str
+    related_id: int | None
+    time: datetime
+
+
+class LoveScoreBreakdown(BaseModel):
+    recent_interaction: int
+    shared_experience: int
+    satisfaction_feedback: int
+
+
+class LoveScoreSummary(BaseModel):
+    total: int
+    level: str
+    month_score: int
+    points_total: int
+    next_level_at: int | None
+    progress: int
+    month_meals: int
+    month_games: int
+    month_encouragement: int
+    breakdown: LoveScoreBreakdown
+
+
 class DishBase(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     description: str = Field(default="", max_length=1000)

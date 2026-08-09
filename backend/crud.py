@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 import models
 import schemas
+from love_score import record_score
 
 
 ROOM_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
@@ -204,6 +205,15 @@ def create_order(db: Session, data: schemas.OrderCreate):
         )
     db.commit()
     db.refresh(order)
+    if order.source_order_id and order.customer_id:
+        record_score(
+            db,
+            order.customer_id,
+            "SPECIAL_EVENT",
+            2,
+            "再次点了喜欢的菜单",
+            order.id,
+        )
     return order
 
 
@@ -268,6 +278,15 @@ def update_order_status(db: Session, order_id: int, status: str):
     order.status = status
     db.commit()
     db.refresh(order)
+    if status == "已完成" and order.customer_id:
+        record_score(
+            db,
+            order.customer_id,
+            "ORDER_COMPLETE",
+            10,
+            "完成一次晚餐制作",
+            order.id,
+        )
     return order
 
 
@@ -298,6 +317,15 @@ def create_review(db: Session, order_id: int, data: schemas.ReviewCreate):
         db.rollback()
         raise HTTPException(status_code=409, detail="该订单已经评价过了")
     db.refresh(review)
+    if review.rating == 5 and order.customer_id:
+        record_score(
+            db,
+            order.customer_id,
+            "ORDER_REVIEW",
+            5,
+            "完成一次五星评价",
+            order.id,
+        )
     return review
 
 
