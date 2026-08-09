@@ -6,7 +6,7 @@
 
 ## 当前版本与线上状态
 
-- 当前开发版本：`2.0.0`
+- 当前开发版本：`2.1.0`
 - AppID：`wx08cb090781c3e679`
 - 后端：FastAPI，部署于 Render
 - 生产数据库：Neon PostgreSQL
@@ -27,7 +27,9 @@
 - 已完成订单的 1～5 颗爱心评价
 - 自定义选项转盘
 - 单机 3D 大话骰（原生 WebGL 场景、AI 玩家、上滑开盅）
+- 统一游戏大厅、动态游戏目录和“即将上线”状态
 - 双人实时大话骰房间、叫骰、开盅与计分板
+- 通用 `/ws/game/{room_code}` 房间通信协议
 
 小程序管理端：
 
@@ -66,6 +68,7 @@ girlfriend-menu-app/
 │   ├── models.py                # SQLAlchemy 数据模型
 │   ├── schemas.py               # API 请求/响应模型
 │   ├── realtime.py              # 订单事件与双人骰子房间
+│   ├── alembic/versions/        # V2.0 与 V2.1 数据库版本
 │   ├── seed.py                  # 19 道测试菜品
 │   ├── storage.py               # 本地图片存储
 │   └── tests/test_api.py        # 后端集成测试
@@ -163,7 +166,7 @@ npm run build:weapp
 npm run test:smoke
 ```
 
-2026-08-08 本地验证：后端 `5 passed`、V2 迁移在全新 SQLite 数据库执行成功、小程序生产构建成功。
+2026-08-09 本地验证：后端 `6 passed`、V2.0 → V2.1 迁移在全新 SQLite 数据库执行成功、小程序生产构建成功。
 
 ## 数据库
 
@@ -174,6 +177,8 @@ npm run test:smoke
 - `order_items`：下单时的菜名和价格快照、数量
 - `reviews`：每个订单唯一的一条爱心评价
 - `favorite_dishes`：按 `customer_id + dish_id` 唯一保存收藏
+- `games`：游戏名称、图标、类型与开放状态
+- `game_rooms`：房间码、游戏类型、创建者、房间状态和最大人数
 
 V2.0 使用 Alembic 管理数据库版本。部署启动会先执行迁移，再启动 API；迁移只新增表、字段和索引，不删除或重建旧订单数据。程序内仍保留幂等兼容检查，方便旧的本地 SQLite 直接启动。
 
@@ -226,7 +231,7 @@ alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port $PORT
 1. 在 `miniprogram/` 执行 `npm run build:weapp`。
 2. 微信开发者工具打开 `miniprogram/` 并点击“编译”。
 3. 点击“预览”，用真机走完下方验收流程。
-4. 点击“上传”，V2 开发版本号使用 `2.0.0`。
+4. 点击“上传”，V2.1 开发版本号使用 `2.1.0`。
 5. 微信公众平台进入“版本管理”，把开发版本选为体验版。
 6. 体验无误后提交微信审核；审核通过后再正式发布。
 
@@ -242,6 +247,18 @@ alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port $PORT
 8. 返回首页，确认“她最喜欢”排行已根据当前设备数据更新。
 9. 管理端编辑菜品制作时间、难度、辣度和标签，并检查统计与评价记录。
 10. 通过“一起玩”测试转盘、单机大话骰以及两台手机的实时对战。
+
+## V2.1 统一游戏中心
+
+游戏大厅通过 `GET /api/games` 获取目录。只有 `status=available` 的游戏可以创建房间；五子棋、飞行棋、斗地主、斗兽棋和中国象棋目前只展示“即将上线”，没有伪造不可用玩法。
+
+新房间通过 `POST /api/games/rooms` 创建，实时连接统一使用：
+
+```text
+wss://girlfriend-menu-api.onrender.com/ws/game/{room_code}
+```
+
+现有 `/api/games/dice/rooms` 与 `/ws/games/dice/{room_code}` 保留兼容，已经上传的旧小程序不会因后端升级立即失效。协议细节见 [游戏中心通信协议](docs/GAME_CENTER_PROTOCOL.md)。
 
 ## 当前边界
 

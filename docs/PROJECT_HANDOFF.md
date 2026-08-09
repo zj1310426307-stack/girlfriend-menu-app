@@ -1,6 +1,6 @@
 # 项目交接与首次完整审计
 
-> 当前交付基线：V2.0 开发版本 `2.0.0`，日期 2026-08-08。历史审计基线为 1.0.19。
+> 当前交付基线：V2.1 开发版本 `2.1.0`，日期 2026-08-09。历史审计基线为 1.0.19。
 
 ## 1. 产品定位
 
@@ -17,15 +17,15 @@
 | 项目 | 当前状态 |
 | --- | --- |
 | 小程序技术 | Taro 4 + React 18 |
-| 小程序版本 | 2.0.0（待上传/体验验收） |
+| 小程序版本 | 2.1.0（待上传/体验验收） |
 | 后端 | FastAPI + SQLAlchemy 2 |
 | 生产数据库 | Neon PostgreSQL |
 | 本地数据库 | SQLite 回退 |
 | 生产 API | `https://girlfriend-menu-api.onrender.com` |
 | 2026-08-08 健康检查 | `/api/health` 正常；`/api/ready` 返回 PostgreSQL ready |
 | 线上启用菜品 | 19 道 |
-| 后端自动测试 | 5 项通过 |
-| 数据库迁移 | Alembic `20260808_01`，全新 SQLite 验证通过 |
+| 后端自动测试 | 6 项通过 |
+| 数据库迁移 | Alembic `20260809_02`，全新 SQLite 连续升级验证通过 |
 | 小程序构建 | `npm run build:weapp` 通过 |
 | 正式发布状态 | 代码无法证明；需在微信公众平台“版本管理”确认 |
 
@@ -57,7 +57,7 @@ flowchart LR
 | --- | --- | --- |
 | 首页/邀请码 | `pages/index/index` | 邀请码、智能推荐、最近常点、Top 5、今日菜单 |
 | 菜单 | `pages/menu/index` | 搜索、分类、收藏、加入清单 |
-| 一起玩 | `pages/games/index` | 统一收纳转盘、单机骰子和双人骰子 |
+| 一起玩 | `pages/games/index` | 动态游戏大厅、开放状态、转盘和大话骰入口 |
 | 我的 | `pages/profile/index` | 收藏、历史入口和低强调管理入口 |
 | 菜品详情 | `pages/detail/index` | 菜品信息与加入清单 |
 | 点菜清单 | `pages/cart/index` | 数量、备注、时间、提交订单 |
@@ -149,6 +149,12 @@ flowchart LR
 
 `customer_id + dish_id` 唯一，同一设备不会重复收藏。
 
+### games / game_rooms
+
+- `games`：游戏名称、文字图标、唯一 `type`、`available/coming_soon/maintenance` 状态。
+- `game_rooms`：唯一房间码、游戏类型、创建者、`waiting/playing/finished` 状态、最大人数和创建时间。
+- 房间元数据持久化，实时玩法状态仍在单进程内存中。
+
 关系：订单拥有多个明细和最多一条评价。菜品下架采用 `is_active = false`，不会破坏历史订单快照。
 
 ## 7. API 清单
@@ -161,6 +167,9 @@ flowchart LR
 | GET | `/api/ready` | 数据库就绪检查 |
 | GET | `/api/dishes` | 菜品列表/分类筛选 |
 | GET | `/api/dishes/{id}` | 菜品详情 |
+| GET | `/api/games` | 游戏大厅目录与开放状态 |
+| POST | `/api/games/rooms` | 为开放游戏创建统一房间 |
+| GET | `/api/games/rooms/{room_code}` | 查询房间元数据和状态 |
 | GET | `/api/favorites` | 当前设备收藏（`X-Customer-Id`） |
 | POST | `/api/favorites/{dish_id}` | 收藏菜品（`X-Customer-Id`） |
 | DELETE | `/api/favorites/{dish_id}` | 取消收藏（`X-Customer-Id`） |
@@ -194,6 +203,7 @@ WebSocket：
 | --- | --- |
 | `/ws/admin/orders` | 管理端新订单、状态和评价事件 |
 | `/ws/games/dice/{room_code}` | 双人骰子房间状态同步 |
+| `/ws/game/{room_code}` | V2.1 统一游戏房间协议（当前已接入大话骰） |
 
 ## 8. 关键业务状态
 

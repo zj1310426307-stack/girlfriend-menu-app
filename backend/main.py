@@ -48,7 +48,7 @@ async def lifespan(_: FastAPI):
     yield
 
 
-app = FastAPI(title="情侣智能厨房管家 API", version="2.0.0", lifespan=lifespan)
+app = FastAPI(title="情侣智能厨房管家 API", version="2.1.0", lifespan=lifespan)
 
 
 def get_frontend_origins():
