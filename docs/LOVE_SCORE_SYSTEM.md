@@ -30,8 +30,17 @@
 - `GAME_PLAY`
 - `COOK_COMPLETE`
 - `SPECIAL_EVENT`
+- `GAME_EVENT`
+- `DAILY_TASK`
+- `GAME_BONUS`
+- `ACHIEVEMENT`
+- `LOVE_TASK`
 
-V2.3 已把双人五子棋接入 `GAME_WIN` 与 `GAME_PLAY` 自动计分；当前大话骰对局仍只有进程内状态，不写游戏记录，也不自动计分。
+V2.4 已把双人五子棋和情侣飞行棋接入 `GAME_WIN` 与 `GAME_PLAY` 自动计分；飞行棋互动使用 `GAME_EVENT`，每日任务使用 `DAILY_TASK`。当前大话骰对局仍只有进程内状态，不写游戏记录，也不自动计分。
+
+V2.5 斗地主与斗兽棋复用同一结算：真人参与/获胜仍为 +1/+5，AI 或双人模式的附加奖励使用 `GAME_BONUS`；持久成就和斗地主局后约定分别使用 `ACHIEVEMENT`、`LOVE_TASK`。
+
+V2.6 中国象棋继续复用同一结算链路：完成对局、真人胜利、AI/双人附加奖励和象棋成就均以权威 `game_records.id` 防重复；排行榜和游戏记忆只消费完成事实，不允许前端补写积分。
 
 ## 自动计分规则
 
@@ -43,6 +52,15 @@ V2.3 已把双人五子棋接入 `GAME_WIN` 与 `GAME_PLAY` 自动计分；当�
 | 完成一局五子棋（双方） | +1 | `GAME_PLAY` |
 | 赢得一局五子棋（胜者） | +5 | `GAME_WIN` |
 | 连续第三场赢得五子棋（胜者） | +10 | `SPECIAL_EVENT` |
+| 完成一局情侣飞行棋（双方） | +1 | `GAME_PLAY` |
+| 赢得一局情侣飞行棋（胜者） | +5 | `GAME_WIN` |
+| 完成飞行棋随机互动 | 事件配置，默认 +3 | `GAME_EVENT` |
+| 完成每日夸奖任务 | +2 | `DAILY_TASK` |
+| 当天首次完成订单/游戏/五星评价任务 | +5/+3/+3 | `DAILY_TASK` |
+| 赢得简单/规则 AI 对局 | +2 | `GAME_BONUS` |
+| 赢得双人对战 | +10 | `GAME_BONUS` |
+| 解锁成就 | 定义配置 | `ACHIEVEMENT` |
+| 完成牌局后情侣约定 | +2 | `LOVE_TASK` |
 
 四星及以下评价仍正常保存，但不加五星奖励。重复提交评价由原有订单唯一评价规则阻止；重复把同一个订单改为“已完成”也不会重复加分。游戏积分使用持久化 `game_records.id` 作为来源编号；同一玩家、同一行为类型、同一局不会重复记账。
 
@@ -108,13 +126,14 @@ Content-Type: application/json
 - `pages/couple/score`：按日期分组的积分流水。
 - `pages/couple/records`：第一次点餐、完成次数、游戏次数和最爱菜品。
 - `pages/couple/game-records`：按当前设备查看五子棋局数、胜局、时长和最近结果。
-- `pages/couple/achievements`：根据已有数据即时计算的成就展示。
+- `pages/couple/tasks`：今日四项任务、进度、奖励与最近飞行棋互动。
+- `pages/couple/achievements`：读取持久化成就进度，并可完成斗地主局后约定。
 
-成就目前不单独建表，全部由积分、订单和评价数据派生，因此不会出现成就与业务数据不一致的问题。
+V2.5 成就定义保存在 `achievements`，设备解锁保存在 `user_achievements`；进度每次仍从权威 `game_records` 计算，避免客户端伪造。
 
 ## 迁移与验证
 
-V2.2 迁移 `20260809_03` 新增 `love_scores` 表和索引；V2.3 迁移 `20260809_04` 新增 `game_players`、`game_records` 和 `game_rooms.finished_at`，使五子棋结算有稳定且幂等的积分来源。Render 启动命令中的 `alembic upgrade head` 会自动升级 Neon PostgreSQL；旧数据不删除、不重建。
+V2.2 迁移 `20260809_03` 新增 `love_scores`；V2.3 `20260809_04` 新增游戏玩家与记录；V2.4 `20260809_05` 新增飞行棋、事件和每日任务；V2.5 `20260809_06` 新增统一游戏状态、成就和局后约定；V2.6 `20260809_07` 新增象棋棋谱、AI 目录、游戏统计和私人记忆。Render 启动命令中的 `alembic upgrade head` 会自动升级 Neon PostgreSQL；旧数据不删除、不重建。
 
 本地验证：
 

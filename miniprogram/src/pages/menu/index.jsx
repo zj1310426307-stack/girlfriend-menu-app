@@ -4,6 +4,7 @@ import { Input, ScrollView, Text, View } from "@tarojs/components";
 
 import { addFavorite, getDishes, getFavorites, removeFavorite } from "../../api";
 import DishCard from "../../components/DishCard";
+import AsyncState from "../../components/AsyncState";
 import { addToCart, getCart } from "../../utils/cart";
 import { ensureInvitePassed } from "../../utils/invite";
 import { getCustomerId } from "../../utils/customer";
@@ -82,9 +83,9 @@ export default function MenuPage() {
           <View key={item} className={category === item ? "active" : ""} onClick={() => setCategory(item)}><Text>{item}</Text></View>
         ))}
       </ScrollView>
-      {loading && <View className="state-box"><Text>正在翻开菜单…</Text></View>}
-      {error && <View className="state-box error" onClick={load}><Text>{error}，点这里重试</Text></View>}
-      {!loading && !error && visibleDishes.length === 0 && <View className="state-box"><Text>没有找到这道菜，换个词试试吧</Text></View>}
+      {loading && <AsyncState message="正在翻开菜单…" />}
+      {error && <AsyncState type="error" message={error} onRetry={load} />}
+      {!loading && !error && visibleDishes.length === 0 && <AsyncState type="empty" message="没有找到这道菜，换个词试试吧" />}
       <View className="v2-menu-list">
         {visibleDishes.map((dish) => (
           <DishCard

@@ -59,3 +59,14 @@ page { min-height: 100%; color: #57433f; background: #f8f2ef; }
 .stats-game-grid text:last-child { display: block; margin-top: 5px; color: #b9c4ba; font-size: 17px; }
 .stats-game-favorite { min-height: 77px; display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 10px; padding: 0 18px; border-radius: 20px; color: #b9c4ba; background: rgba(255,255,255,.07); font-size: 18px; }
 .stats-game-favorite text:last-child { color: #fff; font-size: 22px; font-weight: 900; }
+.stats-growth { margin-top: 10px; padding: 16px 17px 13px; border-radius: 20px; background: rgba(255,255,255,.07); }
+.stats-growth > view:first-child { display: flex; justify-content: space-between; color: #b9c4ba; font-size: 17px; }
+.stats-growth > view:first-child text:last-child { color: #e3c68c; font-weight: 900; }
+.stats-growth-bars { height: 105px; display: grid; grid-template-columns: repeat(7,1fr); align-items: end; gap: 7px; margin-top: 13px; }
+.stats-growth-bars > view { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 5px; }
+.stats-growth-bars > view > view { width: 65%; min-height: 5px; border-radius: 7px 7px 3px 3px; background: linear-gradient(180deg,#e6c887,#839a7d); }
+.stats-growth-bars text { color: #9eaa9f; font-size: 12px; transform: scale(.9); }
+.admin-live-dashboard { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-bottom:18px; padding:16px; border-radius:29px; color:#f7f5ec; background:#3f4d40; }
+.admin-live-dashboard > view { min-height:90px; display:flex; flex-direction:column; justify-content:center; padding:14px; border-radius:20px; background:rgba(255,255,255,.08); }
+.admin-live-dashboard > view:first-child { grid-column:1/-1; min-height:70px; flex-direction:row; align-items:center; justify-content:space-between; background:transparent; }
+.admin-live-dashboard text:first-child { font-size:25px; font-weight:900; }.admin-live-dashboard text:last-child { display:block; margin-top:5px; color:#c8d2c6; font-size:16px; }.admin-live-dashboard > view:first-child text:last-child { margin:0; color:#e8cb91; }

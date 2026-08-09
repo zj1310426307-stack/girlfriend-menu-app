@@ -1,0 +1,7 @@
+.animal-board { width: 100%; display: grid; grid-template-columns: repeat(7,1fr); overflow: hidden; border: 5px solid #6e4e2e; border-radius: 18px; background: #dbc48f; box-shadow: 0 14px 28px rgba(54,40,23,.24), inset 0 0 0 2px rgba(255,255,255,.28); }
+.animal-cell { position: relative; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(91,66,35,.32); background: linear-gradient(145deg,#e7d5a4,#d4bb7d); }
+.animal-cell.river { background: repeating-linear-gradient(135deg,#7fb1bb,#7fb1bb 8px,#8ec0c9 8px,#8ec0c9 15px); }
+.animal-cell.trap { background: #d8a76f; }
+.animal-cell.den { background: radial-gradient(circle,#b87952 0 34%,#d0a46e 36%); }
+.animal-cell > text { color: rgba(86,52,28,.54); font-size: 14px; font-weight: 900; }
+.animal-board.disabled { opacity: .83; }

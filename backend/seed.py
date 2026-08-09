@@ -142,10 +142,10 @@ SAMPLE_DISHES = [
 GAME_CATALOG = [
     {"name": "大话骰", "icon": "骰", "type": "dice", "status": "available"},
     {"name": "五子棋", "icon": "棋", "type": "gomoku", "status": "available"},
-    {"name": "飞行棋", "icon": "飞", "type": "aeroplane", "status": "coming_soon"},
-    {"name": "斗地主", "icon": "牌", "type": "landlord", "status": "coming_soon"},
-    {"name": "斗兽棋", "icon": "兽", "type": "jungle", "status": "coming_soon"},
-    {"name": "中国象棋", "icon": "象", "type": "chinese_chess", "status": "coming_soon"},
+    {"name": "飞行棋", "icon": "飞", "type": "aeroplane", "status": "available"},
+    {"name": "斗地主", "icon": "牌", "type": "landlord", "status": "available"},
+    {"name": "斗兽棋", "icon": "兽", "type": "jungle", "status": "available"},
+    {"name": "中国象棋", "icon": "象", "type": "chinese_chess", "status": "available"},
 ]
 
 
@@ -189,7 +189,81 @@ def seed_games(db: Session):
     if gomoku and gomoku.status != "available":
         gomoku.status = "available"
         changed = True
+    flight = db.query(models.Game).filter(models.Game.type == "aeroplane").first()
+    if flight and flight.status != "available":
+        flight.status = "available"
+        changed = True
+    for game_type in ("landlord", "jungle", "chinese_chess"):
+        game = db.query(models.Game).filter(models.Game.type == game_type).first()
+        if game and game.status != "available":
+            game.status = "available"
+            changed = True
     if changed:
+        db.commit()
+
+
+GAME_EVENT_CATALOG = [
+    ("LOVE", "夸对方三个优点", 3),
+    ("LOVE", "说一件最近最感谢对方的事", 3),
+    ("LOVE", "回忆第一次见面时最深刻的细节", 3),
+    ("FOOD", "一起决定明天最想吃的一道菜", 3),
+    ("FOOD", "今天的饭后水果由你准备", 3),
+    ("FOOD", "说出对方最喜欢的三道菜", 3),
+    ("FUN", "模仿对方最可爱的一个小动作", 3),
+    ("FUN", "给对方拍一张今天的开心照片", 3),
+    ("FUN", "一起哼十秒最喜欢的歌", 3),
+    ("TASK", "输的人负责洗碗", 3),
+    ("TASK", "给对方一个二十秒拥抱", 3),
+    ("TASK", "准备一个不花钱的小惊喜", 3),
+]
+
+
+def seed_game_events(db: Session):
+    existing = {
+        (event_type, content)
+        for event_type, content in db.query(models.GameEvent.type, models.GameEvent.content).all()
+    }
+    additions = [
+        models.GameEvent(type=event_type, content=content, score=score, enabled=True)
+        for event_type, content, score in GAME_EVENT_CATALOG
+        if (event_type, content) not in existing
+    ]
+    if additions:
+        db.add_all(additions)
+        db.commit()
+
+
+ACHIEVEMENT_CATALOG = [
+    ("first_game", "第一次并肩", "完成第一局游戏", 5, None, "plays", 1),
+    ("gomoku_master", "五子棋高手", "赢得 10 局五子棋", 50, "gomoku", "wins", 10),
+    ("game_couple", "游戏情侣", "共同完成 50 局游戏", 100, None, "plays", 50),
+    ("landlord_rookie", "牌桌初胜", "赢得第一局斗地主", 10, "landlord", "wins", 1),
+    ("jungle_explorer", "森林搭档", "完成第一局斗兽棋", 10, "jungle", "plays", 1),
+    ("gomoku_master_20", "五子棋达人", "累计赢得 20 局五子棋", 50, "gomoku", "wins", 20),
+    ("chess_first", "楚河初遇", "完成第一局中国象棋", 10, "chinese_chess", "plays", 1),
+    ("chess_couple_10", "棋逢知己", "共同完成 10 局中国象棋", 50, "chinese_chess", "plays", 10),
+]
+
+
+def seed_achievements(db: Session):
+    """Keep local create_all development aligned with Alembic production seeds."""
+    existing = {code for (code,) in db.query(models.Achievement.code).all()}
+    additions = [
+        models.Achievement(
+            code=code,
+            name=name,
+            description=description,
+            reward_score=reward,
+            game_type=game_type,
+            metric=metric,
+            threshold=threshold,
+            enabled=True,
+        )
+        for code, name, description, reward, game_type, metric, threshold in ACHIEVEMENT_CATALOG
+        if code not in existing
+    ]
+    if additions:
+        db.add_all(additions)
         db.commit()
 
 
@@ -200,4 +274,6 @@ if __name__ == "__main__":
     with SessionLocal() as session:
         seed_dishes(session)
         seed_games(session)
+        seed_game_events(session)
+        seed_achievements(session)
     print("测试菜品数据已准备好。")

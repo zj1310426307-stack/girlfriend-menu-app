@@ -1,0 +1,4 @@
+.ll-desk { min-height: 104px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 12px; border: 1px solid rgba(255,255,255,.1); border-radius: 24px; background: rgba(3,27,22,.34); box-shadow: inset 0 0 35px rgba(0,0,0,.18); }
+.ll-desk > text { color: #b9c9bd; font-size: 15px; }
+.ll-desk > view { display: flex; justify-content: center; margin-top: 8px; }
+.ll-desk .ll-card + .ll-card { margin-left: -9px; }

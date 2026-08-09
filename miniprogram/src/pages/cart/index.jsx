@@ -1,10 +1,9 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Taro, { useDidShow } from "@tarojs/taro";
 import { Image, Input, Text, Textarea, View } from "@tarojs/components";
 
 import { createOrder, resolveImageUrl } from "../../api";
 import { clearCart, getCart, getRepeatDraft, setCartItemQuantity } from "../../utils/cart";
-import { getCustomerId } from "../../utils/customer";
 import { ensureInvitePassed } from "../../utils/invite";
 import "./index.css";
 
@@ -13,6 +12,7 @@ export default function Cart() {
   const [desiredTime, setDesiredTime] = useState("");
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const idempotencyKey = useRef(`order_${Date.now()}_${Math.random().toString(36).slice(2, 12)}`);
 
   useDidShow(() => {
     if (!ensureInvitePassed()) return;
@@ -35,7 +35,7 @@ export default function Cart() {
         items: cart.map((item) => ({ dish_id: item.id, quantity: item.quantity })),
         note,
         desired_time: desiredTime,
-        customer_id: getCustomerId(),
+        idempotency_key: idempotencyKey.current,
         source_order_id: getRepeatDraft()?.source_order_id || null
       });
       clearCart();

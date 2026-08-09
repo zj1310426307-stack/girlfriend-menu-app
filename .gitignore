@@ -1,4 +1,7 @@
 backend/.venv/
+backend/.venv-v27/
+backups/
+backend/*backup_exercise*.db
 backend/.runtime312/
 backend/.env
 backend/__pycache__/

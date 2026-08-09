@@ -7,6 +7,7 @@ import { replaceCart, saveRepeatDraft } from "../../utils/cart";
 import { getCustomerId } from "../../utils/customer";
 import { ensureInvitePassed } from "../../utils/invite";
 import { formatTime, reviewHint, STATUS_TEXT } from "../../utils/status";
+import AsyncState from "../../components/AsyncState";
 import "./index.css";
 
 export default function MyOrders() {
@@ -64,14 +65,11 @@ export default function MyOrders() {
     }
   };
 
-  if (loading) return <View className="page"><View className="state-box">正在找回之前点过的菜…</View></View>;
+  if (loading) return <View className="page"><AsyncState message="正在找回之前点过的菜…" /></View>;
   if (error) {
     return (
       <View className="page">
-        <View className="state-box error">
-          <Text>{error}</Text>
-          <View className="retry-button" onClick={loadOrders}><Text>重新加载</Text></View>
-        </View>
+        <AsyncState type="error" message={error} onRetry={loadOrders} />
       </View>
     );
   }

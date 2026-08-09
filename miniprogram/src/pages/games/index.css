@@ -5,6 +5,11 @@
 .game-section-title { display: flex; align-items: flex-end; justify-content: space-between; margin: 22px 4px 15px; }
 .game-section-title text:first-child { color: var(--text-main); font-size: 30px; font-weight: 900; }
 .game-section-title text:last-child { color: var(--text-muted); font-size: 20px; }
+.continue-game-list { display:grid; gap:10px; }
+.continue-game-list > view { min-height:98px; display:flex; align-items:center; gap:14px; padding:16px 19px; border:2px solid #d9e1d5; border-radius:25px; background:#f8faf5; }
+.continue-game-list > view > view:first-child { width:56px; height:56px; display:flex; align-items:center; justify-content:center; flex:0 0 56px; border-radius:18px; color:#fff; background:#71886b; font-size:20px; font-weight:900; }
+.continue-game-list > view > view:nth-child(2) { min-width:0; flex:1; }.continue-game-list > view > view:nth-child(2) text { display:block; }.continue-game-list > view > view:nth-child(2) text:first-child { color:var(--text-main); font-size:22px; font-weight:900; }.continue-game-list > view > view:nth-child(2) text:last-child { margin-top:5px; color:var(--text-muted); font-size:16px; }
+.continue-game-list > view > text { color:#71886b; font-size:18px; font-weight:900; }
 .gomoku-feature-card { overflow: hidden; padding: 26px; border-radius: 32px; color: #f7f4ea; background: linear-gradient(145deg, #33463a, #17221b); box-shadow: 0 18px 40px rgba(32,50,38,.24); }
 .gomoku-feature-head { display: flex; align-items: center; gap: 16px; }
 .gomoku-feature-head > view:first-child { width: 76px; height: 76px; display: flex; align-items: center; justify-content: center; flex: 0 0 76px; border-radius: 24px; color: #253229; background: #d9b678; font-size: 30px; font-weight: 900; }
@@ -24,6 +29,19 @@
 .gomoku-quick-join input { min-width: 0; flex: 1; color: #fff; font-size: 22px; font-weight: 800; letter-spacing: 4px; }
 .gomoku-quick-join > view { height: 58px; min-width: 86px; display: flex; align-items: center; justify-content: center; border-radius: 17px; color: #2e4033; background: #e0c48f; font-size: 21px; font-weight: 900; }
 .game-feature-card { overflow: hidden; padding: 26px; border-radius: 32px; color: #f5f7fb; background: #121827; box-shadow: 0 16px 38px rgba(20,27,43,.22); }
+.flight-feature-card { overflow: hidden; padding: 25px; border-radius: 32px; color: #4a5247; background: linear-gradient(145deg,#fffaf0,#eef3e9); box-shadow: 0 15px 35px rgba(73,90,70,.13); }
+.flight-feature-copy { display: flex; align-items: center; gap: 15px; }
+.flight-feature-copy > view:first-child { width: 72px; height: 72px; display: flex; align-items: center; justify-content: center; flex: 0 0 72px; border-radius: 23px; color: #fff; background: #71886b; font-size: 29px; font-weight: 900; transform: rotate(-4deg); }
+.flight-feature-copy > view:nth-child(2) { min-width: 0; flex: 1; }
+.flight-feature-copy > view:nth-child(2) text:first-child { display: block; font-size: 29px; font-weight: 900; }
+.flight-feature-copy > view:nth-child(2) text:last-child { display: block; margin-top: 6px; color: #818a7d; font-size: 18px; line-height: 1.45; }
+.flight-feature-copy > text { padding: 6px 10px; border-radius: 14px; color: #fff; background: #df806f; font-size: 16px; font-weight: 900; }
+.flight-mini-route { display: flex; align-items: center; justify-content: space-between; gap: 4px; margin-top: 22px; }
+.flight-mini-route > view { width: 43px; height: 43px; display: flex; align-items: center; justify-content: center; border: 2px solid #dbe2d6; border-radius: 14px; color: #6e7b69; background: #fffdf7; font-size: 16px; font-weight: 900; }
+.flight-mini-route > view::after { content: ""; position: absolute; }
+.flight-mini-route > view.love { color: #fff; border-color: #df806f; background: #df806f; }
+.flight-feature-action { min-height: 67px; display: flex; align-items: center; justify-content: space-between; margin-top: 17px; padding: 0 18px; border-radius: 20px; color: #fff; background: #71886b; font-size: 20px; font-weight: 900; }
+.flight-feature-action text:last-child { color: #ebcf95; font-size: 34px; }
 .game-feature-top { display: flex; align-items: center; gap: 17px; }
 .game-feature-icon { width: 78px; height: 78px; display: flex; align-items: center; justify-content: center; flex: 0 0 78px; border-radius: 25px; background: #315b87; font-size: 30px; font-weight: 900; box-shadow: inset 0 1px 0 rgba(255,255,255,.18); }
 .game-feature-top > view:nth-child(2) { min-width: 0; flex: 1; }
@@ -42,6 +60,14 @@
 .game-coming-grid > view > text:nth-child(2) { display: block; margin-top: 14px; color: var(--text-main); font-size: 25px; font-weight: 900; }
 .game-coming-grid > view > text:nth-child(3) { display: block; height: 52px; margin-top: 6px; overflow: hidden; color: var(--text-muted); font-size: 18px; line-height: 1.45; }
 .game-coming-grid > view > text:last-child { position: absolute; top: 21px; right: 17px; color: #9a8970; font-size: 17px; }
+.game-coming-grid > .chess-feature-card { grid-column:1/-1; min-height:150px; display:grid; grid-template-columns:96px 1fr; align-items:center; gap:18px; color:#f8eddc; border:0; background:linear-gradient(145deg,#4b3024,#211813); }
+.game-coming-grid > .chess-feature-card > view:first-child { width:86px; height:86px; display:flex; align-items:center; justify-content:center; gap:3px; border-radius:50%; color:#a33d31; background:#e4b66f; }
+.game-coming-grid > .chess-feature-card > view:first-child text { width:35px; height:35px; display:flex; align-items:center; justify-content:center; border:2px solid currentColor; border-radius:50%; font-family:serif; font-weight:900; }
+.game-coming-grid > .chess-feature-card > view:nth-child(2) { width:auto; height:auto; display:block; color:inherit; background:transparent; }
+.game-coming-grid > .chess-feature-card > view:nth-child(2) text:first-child { display:block; color:#fff4e4; font-size:25px; font-weight:900; }
+.game-coming-grid > .chess-feature-card > view:nth-child(2) text:nth-child(2) { display:block; margin-top:7px; color:#c6b3a2; font-size:14px; line-height:1.5; }
+.game-coming-grid > .chess-feature-card > view:nth-child(2) text:last-child { display:block; margin-top:10px; color:#e2b46f; font-size:15px; font-weight:900; }
+.game-coming-grid > .game-data-card > view { background:#71886b; }.game-coming-grid > .game-data-card.companion > view { background:#a2684c; }
 .game-wheel-card { min-height: 132px; display: flex; align-items: center; gap: 18px; padding: 23px; border: 2px solid var(--border-soft); border-radius: 28px; background: var(--surface); box-shadow: var(--shadow-card); }
 .game-wheel-card > view:first-child { width: 67px; height: 67px; display: flex; align-items: center; justify-content: center; border-radius: 22px; color: #fff; background: var(--coral); font-size: 25px; font-weight: 900; }
 .game-wheel-card > view:nth-child(2) { min-width: 0; flex: 1; }
@@ -50,7 +76,19 @@
 .game-wheel-card > text { color: #8d9688; font-size: 42px; }
 .game-center-fallback { display: block; margin-top: 17px; color: #9b754b; font-size: 19px; text-align: center; }
 .game-center-note { margin-top: 22px; padding: 21px; border-radius: 23px; color: var(--text-muted); background: #ecefe8; font-size: 20px; line-height: 1.55; }
+.v25-game-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.v25-game-grid > view { min-width:0; padding:18px; border:2px solid #e7dfd2; border-radius:26px; background:#fffdf8; box-shadow:0 11px 25px rgba(70,74,65,.08); }
+.v25-game-grid > view > view { display:flex; align-items:center; justify-content:space-between; }
+.v25-game-grid > view > view text:first-child { width:48px; height:48px; display:flex; align-items:center; justify-content:center; border-radius:16px; color:#fff; font-size:22px; font-weight:900; }
+.v25-game-grid > view > view text:last-child { color:#a18c75; font-size:12px; font-weight:900; }
+.v25-game-grid > view > text:nth-child(2) { display:block; margin-top:13px; color:#4d5049; font-size:22px; font-weight:900; }
+.v25-game-grid > view > text:nth-child(3) { display:block; min-height:66px; margin-top:7px; color:#8c867c; font-size:14px; line-height:1.55; }
+.v25-game-grid > view > text:last-child { display:block; margin-top:12px; font-size:15px; font-weight:900; }
+.v25-game-grid .landlord-entry > view text:first-child { background:#b66d48; }
+.v25-game-grid .landlord-entry > text:last-child { color:#a65d3b; }
+.v25-game-grid .animal-entry > view text:first-child { background:#6e886b; }
+.v25-game-grid .animal-entry > text:last-child { color:#647d61; }
 @media (max-width: 360px) {
-  .game-feature-actions, .game-coming-grid, .gomoku-feature-actions { grid-template-columns: 1fr; }
+  .game-feature-actions, .game-coming-grid, .gomoku-feature-actions, .v25-game-grid { grid-template-columns: 1fr; }
   .game-coming-grid > view { min-height: 164px; }
 }

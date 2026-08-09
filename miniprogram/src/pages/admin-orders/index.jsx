@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Taro, { useDidShow, usePullDownRefresh } from "@tarojs/taro";
-import { Picker, Text, View } from "@tarojs/components";
+import { Input, Picker, Text, View } from "@tarojs/components";
 
-import { getAdminOrders, updateAdminOrderStatus } from "../../api";
+import { getAdminOrderPage, rollbackAdminOrderStatus, updateAdminOrderStatus } from "../../api";
 import { connectAdminOrders } from "../../api/adminSocket";
 import AdminNav from "../../components/AdminNav";
 import { clearAdminToken, getAdminToken } from "../../utils/admin";
@@ -10,6 +10,13 @@ import { ensureInvitePassed } from "../../utils/invite";
 import "./index.css";
 
 const STATUSES = ["待接单", "已接单", "制作中", "已完成", "暂时做不了"];
+const NEXT_STATUSES = {
+  "待接单": ["已接单", "暂时做不了"],
+  "已接单": ["制作中", "暂时做不了"],
+  "制作中": ["已完成", "暂时做不了"],
+  "已完成": [],
+  "暂时做不了": []
+};
 const STATUS_CLASS_NAMES = {
   "待接单": "pending",
   "已接单": "accepted",
@@ -29,6 +36,11 @@ export default function AdminOrdersPage() {
   const [error, setError] = useState("");
   const [liveStatus, setLiveStatus] = useState("connecting");
   const [updatingId, setUpdatingId] = useState(null);
+  const [nextCursor, setNextCursor] = useState(null);
+  const [statusFilter, setStatusFilter] = useState("");
+  const [keyword, setKeyword] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const token = getAdminToken();
 
   const leaveToLogin = useCallback(() => {
@@ -36,15 +48,23 @@ export default function AdminOrdersPage() {
     Taro.redirectTo({ url: "/pages/admin-login/index" });
   }, []);
 
-  const load = useCallback(async (silent = false) => {
+  const load = useCallback(async (silent = false, append = false) => {
     if (!token) {
       leaveToLogin();
       return;
     }
     if (!silent) setLoading(true);
     try {
-      const data = await getAdminOrders(token);
-      setOrders(data);
+      const data = await getAdminOrderPage(token, {
+        limit: 20,
+        ...(append && nextCursor ? { cursor: nextCursor } : {}),
+        ...(statusFilter ? { status: statusFilter } : {}),
+        ...(keyword.trim() ? { keyword: keyword.trim() } : {}),
+        ...(startDate ? { start_date: startDate } : {}),
+        ...(endDate ? { end_date: endDate } : {})
+      });
+      setOrders((current) => append ? [...current, ...(data.items || [])] : (data.items || []));
+      setNextCursor(data.next_cursor || null);
       setError("");
     } catch (requestError) {
       if (requestError.statusCode === 401) {
@@ -56,7 +76,7 @@ export default function AdminOrdersPage() {
       if (!silent) setLoading(false);
       Taro.stopPullDownRefresh();
     }
-  }, [leaveToLogin, token]);
+  }, [endDate, keyword, leaveToLogin, nextCursor, startDate, statusFilter, token]);
 
   useEffect(() => {
     if (!ensureInvitePassed() || !token) {
@@ -95,6 +115,26 @@ export default function AdminOrdersPage() {
     }
   };
 
+  const rollbackStatus = async (order) => {
+    if (updatingId || order.status === "已完成") return;
+    const confirmation = await Taro.showModal({
+      title: "撤回上一步？",
+      content: "撤回会写入状态记录；已完成订单不能撤回。",
+      confirmText: "确认撤回"
+    });
+    if (!confirmation.confirm) return;
+    setUpdatingId(order.id);
+    try {
+      const updated = await rollbackAdminOrderStatus(order.id, token);
+      setOrders((current) => current.map((item) => item.id === order.id ? updated : item));
+      Taro.showToast({ title: "已撤回上一步", icon: "success" });
+    } catch (requestError) {
+      Taro.showToast({ title: requestError.message || "撤回失败", icon: "none" });
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
   return (
     <View className="mini-admin-page">
       <AdminNav active="orders" />
@@ -111,6 +151,18 @@ export default function AdminOrdersPage() {
         <View><Text>全部订单</Text><Text>{orders.length}</Text></View>
         <View><Text>正在安排</Text><Text>{pendingCount}</Text></View>
         <View><Text>已经完成</Text><Text>{orders.filter((order) => order.status === "已完成").length}</Text></View>
+      </View>
+
+      <View className="mini-admin-summary">
+        <Picker mode="selector" range={["全部状态", ...STATUSES]} value={Math.max(0, ["", ...STATUSES].indexOf(statusFilter))} onChange={(event) => setStatusFilter(["", ...STATUSES][Number(event.detail.value)])}>
+          <View><Text>状态</Text><Text>{statusFilter || "全部状态"}</Text></View>
+        </Picker>
+        <Input value={keyword} placeholder="订单号或菜名" onInput={(event) => setKeyword(event.detail.value)} />
+        <View onClick={() => load()}><Text>筛选</Text><Text>查询</Text></View>
+      </View>
+      <View className="mini-admin-summary">
+        <Input value={startDate} placeholder="开始 YYYY-MM-DD" onInput={(event) => setStartDate(event.detail.value)} />
+        <Input value={endDate} placeholder="结束 YYYY-MM-DD" onInput={(event) => setEndDate(event.detail.value)} />
       </View>
 
       {loading && <View className="mini-admin-state"><Text>正在翻开她的点菜单…</Text></View>}
@@ -138,16 +190,22 @@ export default function AdminOrdersPage() {
             </View>
             <Picker
               mode="selector"
-              range={STATUSES}
-              value={Math.max(0, STATUSES.indexOf(order.status))}
-              disabled={updatingId === order.id}
-              onChange={(event) => changeStatus(order, STATUSES[Number(event.detail.value)])}
+              range={NEXT_STATUSES[order.status] || []}
+              value={0}
+              disabled={updatingId === order.id || !(NEXT_STATUSES[order.status] || []).length}
+              onChange={(event) => changeStatus(order, (NEXT_STATUSES[order.status] || [])[Number(event.detail.value)])}
             >
-              <View className="mini-status-picker"><Text>{updatingId === order.id ? "正在更新…" : `修改状态 · ${order.status}`}</Text><Text>⌄</Text></View>
+              <View className="mini-status-picker"><Text>{updatingId === order.id ? "正在更新…" : (NEXT_STATUSES[order.status] || []).length ? "推进订单状态" : `当前为${order.status}`}</Text><Text>⌄</Text></View>
             </Picker>
+            {order.status !== "待接单" && order.status !== "已完成" && (
+              <View className="mini-status-picker" onClick={() => rollbackStatus(order)}><Text>撤回上一步</Text><Text>↶</Text></View>
+            )}
           </View>
         ))}
       </View>
+      {nextCursor && !loading && (
+        <View className="secondary-button" onClick={() => load(true, true)}><Text>加载更多订单</Text></View>
+      )}
 
       <View className="mini-admin-actions">
         <View onClick={() => load()}><Text>刷新订单</Text></View>

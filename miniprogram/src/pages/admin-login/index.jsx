@@ -4,12 +4,13 @@ import { Input, Text, View } from "@tarojs/components";
 
 import { adminLogin } from "../../api";
 import { getAdminToken, saveAdminToken } from "../../utils/admin";
-import { ensureInvitePassed, INVITE_CODE } from "../../utils/invite";
+import { ensureInvitePassed } from "../../utils/invite";
 import "./index.css";
 
 export default function AdminLoginPage() {
   const [allowed, setAllowed] = useState(false);
   const [password, setPassword] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -23,15 +24,15 @@ export default function AdminLoginPage() {
 
   const submit = async () => {
     if (submitting) return;
-    if (!password.trim()) {
-      setError("请输入管理密码");
+    if (!password.trim() || !inviteCode.trim()) {
+      setError("请输入管理密码和管理邀请码");
       return;
     }
     setSubmitting(true);
     setError("");
     try {
-      const result = await adminLogin(password, INVITE_CODE);
-      saveAdminToken(result.token);
+      const result = await adminLogin(password, inviteCode);
+      saveAdminToken(result.token, result.expires_at);
       Taro.redirectTo({ url: "/pages/admin-dashboard/index" });
     } catch (requestError) {
       setError(requestError.message || "登录失败，请检查密码");
@@ -56,6 +57,15 @@ export default function AdminLoginPage() {
           placeholder="输入管理密码"
           confirmType="done"
           onInput={(event) => { setPassword(event.detail.value); setError(""); }}
+          onConfirm={submit}
+        />
+        <Input
+          className="mini-admin-password mini-admin-invite"
+          value={inviteCode}
+          password
+          placeholder="输入管理邀请码"
+          confirmType="done"
+          onInput={(event) => { setInviteCode(event.detail.value); setError(""); }}
           onConfirm={submit}
         />
         {error && <Text className="mini-admin-error">{error}</Text>}

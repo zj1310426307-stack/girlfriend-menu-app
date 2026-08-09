@@ -186,6 +186,14 @@ async function run() {
       assert(gomokuLobby, "五子棋大厅没有完整渲染");
       page = await miniProgram.navigateBack();
 
+      const flightEntry = await waitForElement(page, ".flight-feature-card", 4000);
+      assert(flightEntry, "一起玩页面没有渲染情侣飞行棋入口");
+      await flightEntry.tap();
+      page = await waitForCurrentPage(miniProgram, "pages/games/flight/index", page);
+      const flightLobby = await waitForElement(page, ".flight-lobby-card", 5000);
+      assert(flightLobby, "情侣飞行棋大厅没有完整渲染");
+      page = await miniProgram.navigateBack();
+
       const wheelEntry = await waitForElement(page, ".wheel-game-entry", 4000);
       assert(wheelEntry, "一起玩页面没有渲染今晚转盘入口");
       await wheelEntry.tap();
@@ -204,13 +212,20 @@ async function run() {
       page = await miniProgram.switchTab("/pages/couple/index");
       const scoreCard = await waitForElement(page, ".love-score-card", 4000);
       const adminEntry = await waitForElement(page, ".couple-admin-link", 4000);
+      const tasksEntry = await waitForElement(page, ".couple-tasks-entry", 4000);
       assert(scoreCard, "情侣中心没有渲染默契值卡片");
+      assert(tasksEntry, "情侣中心没有渲染今日任务入口");
       assert(adminEntry, "情侣中心没有渲染小厨房管理入口");
-      await adminEntry.tap();
+      await tasksEntry.tap();
+      page = await waitForCurrentPage(miniProgram, "pages/couple/tasks", page);
+      assert(await waitForElement(page, ".tasks-progress-card", 5000), "每日任务页面没有完整渲染");
+      page = await miniProgram.navigateBack();
+      const returnedAdminEntry = await waitForElement(page, ".couple-admin-link", 4000);
+      await returnedAdminEntry.tap();
       page = await waitForCurrentPage(miniProgram, "pages/admin-login/index", page);
       assert(await page.$(".mini-admin-password"), "小厨房登录页没有渲染密码框");
       page = await miniProgram.navigateBack();
-      console.log("[smoke] 五子棋大厅、转盘增项、情侣中心与管理登录页正常");
+      console.log("[smoke] 五子棋、飞行棋、转盘、每日任务、情侣中心与管理登录页正常");
     }
 
     console.log("[smoke] 进入原生 3D 骰子桌");

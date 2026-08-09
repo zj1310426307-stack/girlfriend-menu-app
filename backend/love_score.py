@@ -133,7 +133,15 @@ def score_summary(db: Session, customer_id: str):
     )
     month_games = sum(entry.type == "GAME_PLAY" for entry in month_entries)
     month_encouragement = sum(
-        entry.type in {"ORDER_REVIEW", "SPECIAL_EVENT"}
+        entry.type in {
+            "ORDER_REVIEW",
+            "SPECIAL_EVENT",
+            "GAME_EVENT",
+            "DAILY_TASK",
+            "GAME_BONUS",
+            "ACHIEVEMENT",
+            "LOVE_TASK",
+        }
         for entry in month_entries
     )
     return {

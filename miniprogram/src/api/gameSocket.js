@@ -1,6 +1,7 @@
 import Taro from "@tarojs/taro";
+import { WEBSOCKET_ORIGIN } from "../config/env";
+import { getCustomerToken } from "../utils/customer";
 
-const GAME_SOCKET_ORIGIN = "wss://girlfriend-menu-api.onrender.com";
 
 /** Connects every real-time game through the shared V2.1 wire protocol. */
 export function connectGameRoom({
@@ -20,7 +21,7 @@ export function connectGameRoom({
   let heartbeat;
   const pendingMessages = [];
   const connection = Taro.connectSocket({
-    url: `${GAME_SOCKET_ORIGIN}/ws/game/${encodeURIComponent(roomCode)}`,
+    url: `${WEBSOCKET_ORIGIN}/ws/game/${encodeURIComponent(roomCode)}`,
     timeout: 20000
   });
 
@@ -43,9 +44,8 @@ export function connectGameRoom({
         type: "join",
         game: gameType,
         data: {
-          player_id: playerId,
           name: playerName,
-          invite_code: inviteCode
+          customer_token: getCustomerToken()
         }
       });
       pendingMessages.splice(0).forEach(sendNow);
@@ -59,6 +59,9 @@ export function connectGameRoom({
       try {
         const message = JSON.parse(event.data);
         const messageType = String(message.type || "").toLowerCase();
+        if (messageType === "session" && message.data?.room_session_token) {
+          Taro.setStorageSync(`gf_room_session_${roomCode}`, message.data);
+        }
         onEvent?.({ ...message, type: messageType });
         if (
           messageType === "state"

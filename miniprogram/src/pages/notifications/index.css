@@ -1,0 +1,21 @@
+.notifications-page { padding-bottom:calc(50px + env(safe-area-inset-bottom)); }
+.notifications-head { padding:14px 4px 27px; }
+.notifications-head > text:nth-child(2) { display:block; margin-top:10px; color:var(--text-main); font-size:42px; font-weight:900; }
+.notifications-head > text:last-child { display:block; margin-top:10px; color:var(--text-muted); font-size:21px; line-height:1.6; }
+.notification-list { display:grid; gap:11px; }
+.notification-list > view { min-height:118px; display:flex; align-items:center; gap:15px; padding:19px; border:2px solid var(--border-soft); border-radius:25px; background:#fffdf8; }
+.notification-list > view.read { opacity:.7; }
+.notification-list > view.unread { border-color:#cbd8c6; box-shadow:0 10px 24px rgba(75,96,72,.1); }
+.notification-list > view > view:first-child { position:relative; width:57px; height:57px; display:flex; align-items:center; justify-content:center; flex:0 0 57px; border-radius:19px; color:#fff; background:#71886b; font-size:20px; font-weight:900; }
+.notification-list > view > view:first-child text:last-child { position:absolute; top:-2px; right:-2px; width:13px; height:13px; border:3px solid #fffdf8; border-radius:50%; background:#d87668; }
+.notification-list > view > view:nth-child(2) { min-width:0; flex:1; }
+.notification-list > view > view:nth-child(2) text { display:block; }
+.notification-list > view > view:nth-child(2) text:first-child { color:var(--text-main); font-size:22px; font-weight:900; }
+.notification-list > view > view:nth-child(2) text:nth-child(2) { margin-top:5px; color:var(--text-muted); font-size:17px; line-height:1.45; }
+.notification-list > view > view:nth-child(2) text:last-child { margin-top:7px; color:#aaa397; font-size:14px; }
+.notification-list > view > text { color:#a3aa9f; font-size:34px; }
+.notification-empty { padding:90px 30px; text-align:center; }
+.notification-empty text { display:block; color:var(--text-muted); font-size:19px; line-height:1.55; }
+.notification-empty text:first-child { color:var(--text-main); font-size:28px; font-weight:900; }
+.notification-loading { display:grid; gap:11px; }.notification-loading view { height:118px; border-radius:25px; background:#eeeae2; animation:notification-pulse 1.2s infinite alternate; }
+@keyframes notification-pulse { to { opacity:.45; } }

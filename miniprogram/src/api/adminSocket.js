@@ -1,12 +1,23 @@
 import Taro from "@tarojs/taro";
+import { WEBSOCKET_ORIGIN } from "../config/env";
 
-const ADMIN_SOCKET_URL = "wss://girlfriend-menu-api.onrender.com/ws/admin/orders";
+const ADMIN_SOCKET_URL = `${WEBSOCKET_ORIGIN}/ws/admin/orders`;
+const RETRY_DELAYS = [1000, 2000, 4000, 8000, 15000, 30000];
 
 export function connectAdminOrders({ token, onEvent, onStatus }) {
   let closed = false;
   let socket;
   let heartbeat;
   let reconnectTimer;
+  let retryIndex = 0;
+
+  const scheduleReconnect = () => {
+    if (closed) return;
+    const base = RETRY_DELAYS[Math.min(retryIndex, RETRY_DELAYS.length - 1)];
+    retryIndex += 1;
+    const jitter = Math.round(base * (Math.random() * 0.3 - 0.15));
+    reconnectTimer = setTimeout(open, Math.max(500, base + jitter));
+  };
 
   const open = () => {
     if (closed) return;
@@ -22,7 +33,11 @@ export function connectAdminOrders({ token, onEvent, onStatus }) {
     socket.onMessage((event) => {
       try {
         const message = JSON.parse(event.data);
-        if (message.type === "ready") onStatus?.("online");
+        if (message.type === "ready") {
+          retryIndex = 0;
+          onStatus?.("online");
+          onEvent?.(message); // caller refetches to recover events missed while offline
+        }
         if (["order_created", "order_status_changed", "order_reviewed"].includes(message.type)) {
           onEvent?.(message);
         }
@@ -34,7 +49,7 @@ export function connectAdminOrders({ token, onEvent, onStatus }) {
     socket.onClose(() => {
       clearInterval(heartbeat);
       onStatus?.("offline");
-      if (!closed) reconnectTimer = setTimeout(open, 3000);
+      scheduleReconnect();
     });
   };
 

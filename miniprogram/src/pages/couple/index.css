@@ -5,6 +5,15 @@
 .couple-hero > text:nth-child(2)::first-letter { color: var(--coral); }
 .couple-hero > text:last-child, .couple-subhead > text:last-child { display: block; margin-top: 10px; color: var(--text-muted); font-size: 23px; line-height: 1.6; }
 .couple-month-card { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin-top: 17px; overflow: hidden; border: 2px solid var(--border-soft); border-radius: 27px; background: var(--border-soft); }
+.couple-profile-card { display:grid; grid-template-columns:repeat(3,1fr); gap:1px; margin-top:17px; overflow:hidden; border-radius:28px; color:#f8f5eb; background:#39483a; box-shadow:0 15px 34px rgba(56,72,57,.18); }
+.couple-profile-card > view { min-width:0; min-height:122px; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:12px 8px; border-right:1px solid rgba(255,255,255,.1); text-align:center; }
+.couple-profile-card > view:last-child { border:0; }
+.couple-profile-card text:first-child { color:#efd39b; font-size:32px; font-weight:900; }
+.couple-profile-card text:last-child { display:block; max-width:100%; margin-top:6px; overflow:hidden; color:#cbd3c8; font-size:15px; text-overflow:ellipsis; white-space:nowrap; }
+.couple-message-entry { min-height:86px; display:flex; align-items:center; gap:12px; margin-top:13px; padding:17px 20px; border:2px solid var(--border-soft); border-radius:24px; background:var(--surface); }
+.couple-message-entry > view { min-width:0; flex:1; }.couple-message-entry > view text { display:block; }.couple-message-entry > view text:first-child { color:var(--text-main); font-size:21px; font-weight:900; }.couple-message-entry > view text:last-child { margin-top:4px; color:var(--text-muted); font-size:16px; }
+.couple-message-entry > text:nth-last-child(2) { min-width:35px; height:35px; display:flex; align-items:center; justify-content:center; border-radius:18px; color:#fff; background:#d87668; font-size:14px; font-weight:900; }
+.couple-message-entry > text:last-child { color:#9da69a; font-size:33px; }
 .couple-month-card > view { min-height: 122px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--surface); }
 .couple-month-card text:first-child { color: var(--text-main); font-size: 34px; font-weight: 900; }
 .couple-month-card text:last-child { display: block; margin-top: 7px; color: var(--text-muted); font-size: 19px; }
@@ -12,6 +21,14 @@
 .couple-section-heading text:first-child { color: var(--text-main); font-size: 29px; font-weight: 900; }
 .couple-section-heading text:last-child { color: var(--text-muted); font-size: 19px; }
 .couple-latest-card { min-height: 116px; display: flex; align-items: center; gap: 20px; padding: 23px; border: 2px solid var(--border-soft); border-radius: 27px; background: var(--surface); box-shadow: var(--shadow-card); }
+.couple-tasks-entry { min-height: 105px; display: flex; align-items: center; gap: 16px; margin-bottom: 12px; padding: 19px 21px; border-radius: 27px; color: #fff; background: linear-gradient(145deg,#71886b,#52684f); box-shadow: 0 12px 28px rgba(75,96,72,.18); }
+.couple-tasks-entry > view:first-child { width: 70px; text-align: center; }
+.couple-tasks-entry > view:first-child text:first-child { display: block; color: #edcd8d; font-size: 28px; font-weight: 900; }
+.couple-tasks-entry > view:first-child text:last-child { display: block; margin-top: 2px; color: rgba(255,255,255,.7); font-size: 15px; }
+.couple-tasks-entry > view:nth-child(2) { min-width: 0; flex: 1; }
+.couple-tasks-entry > view:nth-child(2) text:first-child { display: block; font-size: 22px; font-weight: 900; }
+.couple-tasks-entry > view:nth-child(2) text:last-child { display: block; margin-top: 5px; color: rgba(255,255,255,.7); font-size: 16px; }
+.couple-tasks-entry > text { color: #edcd8d; font-size: 38px; }
 .couple-latest-card > text { width: 68px; color: var(--coral); font-size: 35px; font-weight: 900; text-align: center; }
 .couple-latest-card > view { min-width: 0; flex: 1; }
 .couple-latest-card > view text:first-child { display: block; color: var(--text-main); font-size: 24px; font-weight: 900; }

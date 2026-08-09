@@ -1,0 +1,11 @@
+.ll-card { position: relative; flex: 0 0 58px; width: 58px; height: 88px; padding: 7px 6px; overflow: hidden; border: 1px solid rgba(34,42,45,.18); border-radius: 10px; background: linear-gradient(145deg,#fff,#f4f0e8); box-shadow: 0 5px 10px rgba(0,0,0,.22), inset 0 1px 0 #fff; transition: transform .16s ease; }
+.ll-card.selected { transform: translateY(-17px); box-shadow: 0 10px 16px rgba(228,123,108,.32), 0 0 0 2px #ef9a83; }
+.ll-card > text:first-child { display: block; font-size: 18px; font-weight: 900; line-height: 1; }
+.ll-card > text:nth-child(2) { display: block; margin-top: 4px; font-size: 17px; line-height: 1; }
+.ll-card > text:last-child { position: absolute; right: 5px; bottom: 5px; font-size: 26px; opacity: .88; }
+.ll-card.red { color: #c53d3d; }
+.ll-card.black { color: #1c2730; }
+.ll-card.compact { flex-basis: 40px; width: 40px; height: 60px; padding: 5px; border-radius: 8px; }
+.ll-card.compact > text:first-child { font-size: 13px; }
+.ll-card.compact > text:nth-child(2) { font-size: 12px; }
+.ll-card.compact > text:last-child { font-size: 17px; }

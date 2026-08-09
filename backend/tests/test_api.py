@@ -10,6 +10,8 @@ os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB.as_posix()}"
 os.environ["ADMIN_PASSWORD"] = "test-password"
 os.environ["ADMIN_INVITE_CODE"] = "test-invite"
 os.environ["ADMIN_SECRET"] = "test-secret-with-enough-entropy"
+os.environ["ALLOW_LEGACY_CUSTOMER_HEADER"] = "true"
+os.environ["APP_ENV"] = "test"
 
 from fastapi.testclient import TestClient  # noqa: E402
 import pytest  # noqa: E402
@@ -82,11 +84,12 @@ def test_order_review_and_safe_dish_removal():
         )
         assert too_early.status_code == 400
 
-        completed = client.patch(
-            f"/api/orders/{order_id}/status",
-            headers=headers,
-            json={"status": "已完成"},
-        )
+        for next_status in ("已接单", "制作中", "已完成"):
+            completed = client.patch(
+                f"/api/orders/{order_id}/status",
+                headers=headers,
+                json={"status": next_status},
+            )
         assert completed.status_code == 200
         reviewed = client.post(
             f"/api/orders/{order_id}/review",
@@ -151,7 +154,7 @@ def test_v2_favorites_repeat_dish_metadata_and_ranking():
         assert dish["cook_time"] == 45
         assert dish["tags"] == ["下饭", "暖胃"]
 
-        assert client.get("/api/favorites").status_code == 400
+        assert client.get("/api/favorites").status_code == 401
         assert client.post(
             f"/api/favorites/{dish_id}", headers=customer_headers
         ).status_code == 200
@@ -172,7 +175,7 @@ def test_v2_favorites_repeat_dish_metadata_and_ranking():
         assert client.post(
             f"/api/orders/repeat/{first_order_id}",
             headers={"X-Customer-Id": "gf_someone_else"},
-        ).status_code == 403
+        ).status_code == 404
         draft = client.post(
             f"/api/orders/repeat/{first_order_id}", headers=customer_headers
         )
@@ -191,11 +194,12 @@ def test_v2_favorites_repeat_dish_metadata_and_ranking():
         assert repeated_order.status_code == 201
         assert repeated_order.json()["source_order_id"] == first_order_id
 
-        client.patch(
-            f"/api/orders/{first_order_id}/status",
-            headers=headers,
-            json={"status": "已完成"},
-        )
+        for next_status in ("已接单", "制作中", "已完成"):
+            client.patch(
+                f"/api/orders/{first_order_id}/status",
+                headers=headers,
+                json={"status": next_status},
+            )
         client.post(
             f"/api/orders/{first_order_id}/review",
             json={"rating": 5, "want_again": "想吃", "comment": "暖暖的"},
@@ -248,7 +252,8 @@ def test_two_player_dice_room_privacy_and_challenge():
                 first.send_json({"type": "roll", "values": [1, 2, 3, 4, 5]})
                 first_rolled = first.receive_json()
                 second_sees_first = second.receive_json()
-                assert first_rolled["my_dice"] == [1, 2, 3, 4, 5]
+                assert len(first_rolled["my_dice"]) == 5
+                assert all(1 <= value <= 6 for value in first_rolled["my_dice"])
                 assert second_sees_first["my_dice"] is None
                 assert second_sees_first["all_dice"] is None
 
@@ -266,7 +271,9 @@ def test_two_player_dice_room_privacy_and_challenge():
                 first_finished = first.receive_json()
                 second_finished = second.receive_json()
                 assert first_finished["phase"] == second_finished["phase"] == "finished"
-                assert first_finished["outcome"]["actual_count"] == 4
+                revealed = [value for values in first_finished["all_dice"].values() for value in values]
+                expected_count = sum(value in {1, 2} for value in revealed)
+                assert first_finished["outcome"]["actual_count"] == expected_count
                 assert set(first_finished["all_dice"]) == {"gf_first", "gf_second"}
                 assert next(
                     player["score"]
@@ -293,6 +300,7 @@ def test_unified_game_catalog_room_and_websocket_protocol():
         catalog = {game["type"]: game for game in games.json()}
         assert catalog["dice"]["status"] == "available"
         assert catalog["gomoku"]["status"] == "available"
+        assert catalog["aeroplane"]["status"] == "available"
         assert client.post(
             "/api/games/rooms",
             json={
@@ -364,5 +372,7 @@ def test_unified_game_catalog_room_and_websocket_protocol():
                 first_finished = first.receive_json()
                 second_finished = second.receive_json()
                 assert first_finished["data"]["phase"] == "finished"
-                assert second_finished["data"]["outcome"]["actual_count"] == 4
+                revealed = [value for values in second_finished["data"]["all_dice"].values() for value in values]
+                expected_count = sum(value in {1, 2} for value in revealed)
+                assert second_finished["data"]["outcome"]["actual_count"] == expected_count
                 assert client.get(f"/api/games/rooms/{room_code}").json()["status"] == "finished"

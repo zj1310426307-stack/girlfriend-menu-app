@@ -121,8 +121,8 @@ def test_gomoku_online_round_records_scores_and_rematch():
                     "/api/couple/score",
                     headers={"X-Customer-Id": second_id},
                 ).json()
-                assert winner_score["points_total"] == 6
-                assert loser_score["points_total"] == 1
+                assert winner_score["points_total"] == 9
+                assert loser_score["points_total"] == 4
                 assert winner_score["month_games"] == 1
 
                 first.send_json({"type": "REMATCH", "game": "gomoku", "data": {}})
@@ -193,7 +193,7 @@ def test_three_consecutive_wins_award_once_and_settlement_is_idempotent():
             )
             game_score_change = crud.game_stats(db)["love_score_change"]
 
-        assert winner_points == 28
-        assert opponent_points == 3
+        assert winner_points == 31
+        assert opponent_points == 6
         assert streak_awards == 1
         assert game_score_change >= winner_points + opponent_points

@@ -1,4 +1,22 @@
 page {
+  --color-bg: #faf7f2;
+  --color-surface: #fffdf8;
+  --color-primary: #8fb996;
+  --color-primary-pressed: #729d7a;
+  --color-accent: #e8b86d;
+  --color-text: #333633;
+  --color-text-secondary: #777d73;
+  --color-border: #e7e2d9;
+  --color-success: #5e9568;
+  --color-warning: #c48a36;
+  --color-danger: #b9504f;
+  --radius-button: 44px;
+  --radius-container: 34px;
+  --space-xs: 8px;
+  --space-sm: 16px;
+  --space-md: 24px;
+  --space-lg: 32px;
+  --space-xl: 48px;
   --bg-cream: #faf7f2;
   --surface: #fffdf8;
   --text-main: #333633;
@@ -83,14 +101,14 @@ button::after {
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  min-height: 76px;
+  min-height: 88px;
   padding: 0 32px;
   border-radius: 44px;
   color: #fff;
   background: var(--sage);
   font-size: 28px;
   font-weight: 700;
-  line-height: 76px;
+  line-height: 88px;
   text-align: center;
 }
 
@@ -114,10 +132,10 @@ button::after {
 }
 
 .small-button {
-  min-height: 58px;
+  min-height: 88px;
   padding: 0 24px;
   font-size: 24px;
-  line-height: 58px;
+  line-height: 88px;
 }
 
 .state-box {
@@ -139,7 +157,7 @@ button::after {
   align-items: center;
   justify-content: center;
   width: 260px;
-  min-height: 68px;
+  min-height: 88px;
   margin: 24px auto 0;
   padding: 0 28px;
   border: 2px solid #eabfc5;

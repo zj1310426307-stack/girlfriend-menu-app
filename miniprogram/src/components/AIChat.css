@@ -1,0 +1,5 @@
+.ai-chat-card { display:flex; gap:14px; padding:20px; border:2px solid #e7dfd2; border-radius:25px; background:#fffdf8; box-shadow:0 10px 25px rgba(70,74,65,.08); }
+.ai-avatar { width:48px; height:48px; display:flex; align-items:center; justify-content:center; flex:0 0 48px; border-radius:17px; color:#fff; background:#71886b; font-size:20px; font-weight:900; }
+.ai-chat-card > view:last-child { min-width:0; flex:1; }
+.ai-chat-card > view:last-child text:first-child { display:block; color:#4d5049; font-size:17px; font-weight:800; line-height:1.55; }
+.ai-chat-card > view:last-child text:last-child { display:block; margin-top:9px; padding:10px 12px; border-radius:14px; color:#966c43; background:#f7eddd; font-size:14px; line-height:1.5; }

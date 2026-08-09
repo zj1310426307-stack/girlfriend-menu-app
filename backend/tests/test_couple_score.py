@@ -12,7 +12,7 @@ def test_love_score_permissions_automatic_triggers_and_persistence():
         assert empty.status_code == 200
         assert empty.json()["points_total"] == 0
         assert empty.json()["level"] == "初识"
-        assert client.get("/api/couple/score").status_code == 400
+        assert client.get("/api/couple/score").status_code == 401
 
         manual_payload = {
             "type": "SPECIAL_EVENT",
@@ -53,11 +53,13 @@ def test_love_score_permissions_automatic_triggers_and_persistence():
         ).json()
         order_id = order["id"]
 
-        completed = client.patch(
-            f"/api/orders/{order_id}/status",
-            headers=admin_headers(client),
-            json={"status": "已完成"},
-        )
+        admin = admin_headers(client)
+        for next_status in ("已接单", "制作中", "已完成"):
+            completed = client.patch(
+                f"/api/orders/{order_id}/status",
+                headers=admin,
+                json={"status": next_status},
+            )
         assert completed.status_code == 200
         # Repeating the same status transition must not award another +10.
         assert client.patch(
@@ -87,20 +89,21 @@ def test_love_score_permissions_automatic_triggers_and_persistence():
         )
         assert history.status_code == 200
         rows = history.json()
-        assert len(rows) == 4
-        assert sum(row["score"] for row in rows) == 37
+        assert len(rows) == 6
+        assert sum(row["score"] for row in rows) == 45
         assert {row["type"] for row in rows} == {
             "ORDER_COMPLETE",
             "ORDER_REVIEW",
             "SPECIAL_EVENT",
+            "DAILY_TASK",
         }
         assert all(row["time"] for row in rows)
 
         summary = client.get("/api/couple/score", headers=customer_headers).json()
-        assert summary["points_total"] == 37
-        assert summary["month_score"] == 37
+        assert summary["points_total"] == 45
+        assert summary["month_score"] == 45
         assert summary["month_meals"] == 1
-        assert summary["month_encouragement"] == 3
+        assert summary["month_encouragement"] == 5
         assert summary["total"] > 0
         assert sum(summary["breakdown"].values()) > 0
 
@@ -108,4 +111,4 @@ def test_love_score_permissions_automatic_triggers_and_persistence():
     with TestClient(app) as client:
         persisted = client.get("/api/couple/score", headers=customer_headers)
         assert persisted.status_code == 200
-        assert persisted.json()["points_total"] == 37
+        assert persisted.json()["points_total"] == 45

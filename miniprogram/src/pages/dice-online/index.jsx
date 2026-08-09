@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import Taro, { useDidHide, useDidShow } from "@tarojs/taro";
+import Taro, { useDidHide, useDidShow, useRouter } from "@tarojs/taro";
 import { Canvas, Input, Text, View } from "@tarojs/components";
 
 import { createGameRoom } from "../../api";
 import { connectDiceRoom } from "../../api/diceSocket";
 import { getCustomerId } from "../../utils/customer";
-import { ensureInvitePassed, INVITE_CODE } from "../../utils/invite";
+import { ensureInvitePassed } from "../../utils/invite";
+import { ensureGameRecovery } from "../../utils/gameRecovery";
 import { createNativeDiceScene } from "../dice/nativeScene";
 import "./index.css";
 
@@ -53,6 +54,7 @@ function DiceRow({ values, hidden = false }) {
 }
 
 export default function DiceOnline() {
+  const router = useRouter();
   const [allowed, setAllowed] = useState(false);
   const [playerName, setPlayerName] = useState("我");
   const [joinCode, setJoinCode] = useState("");
@@ -77,6 +79,10 @@ export default function DiceOnline() {
   const loser = room.players.find((player) => player.id === room.outcome?.loser_id);
   const quickBids = useMemo(() => nextBidOptions(room.current_bid), [room.current_bid]);
   const canSubmitBid = isMyTurn && isHigherBid(room.current_bid, bidQuantity, bidFace);
+
+  useEffect(() => {
+    if (activeRoomCode && connectionStatus === "online") ensureGameRecovery(playerIdRef.current, activeRoomCode);
+  }, [activeRoomCode, connectionStatus]);
 
   const roomMessage = useMemo(() => {
     if (connectionStatus !== "online") return "正在连接实时房间…";
@@ -163,18 +169,22 @@ export default function DiceOnline() {
       roomCode: normalized,
       playerId: playerIdRef.current,
       playerName: playerName.trim() || "玩家",
-      inviteCode: INVITE_CODE,
+      inviteCode: "",
       onState: setRoom,
       onStatus: setConnectionStatus,
       onError: (message) => Taro.showToast({ title: message, icon: "none" }),
     });
   };
 
+  useEffect(() => {
+    if (allowed && router.params?.room && !activeRoomCode) connectToRoom(router.params.room);
+  }, [activeRoomCode, allowed, router.params?.room]);
+
   const makeRoom = async () => {
     if (creating) return;
     setCreating(true);
     try {
-      const result = await createGameRoom("dice", playerIdRef.current, INVITE_CODE);
+      const result = await createGameRoom("dice", playerIdRef.current, "");
       connectToRoom(result.room_code);
     } catch (error) {
       Taro.showToast({ title: error.message || "创建房间失败", icon: "none" });

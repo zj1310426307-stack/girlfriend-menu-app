@@ -1,0 +1,9 @@
+.flight-event-mask { position: fixed; inset: 0; z-index: 90; display: flex; align-items: center; justify-content: center; padding: 32px; background: rgba(31,39,33,.65); backdrop-filter: blur(7px); }
+.flight-event-card { width: 100%; max-width: 570px; padding: 35px 30px 28px; border-radius: 35px; background: #fffaf2; box-shadow: 0 24px 70px rgba(16,22,18,.38); text-align: center; }
+.flight-event-mark { width: 68px; height: 68px; display: flex; align-items: center; justify-content: center; margin: 0 auto; border-radius: 24px; color: #fff; background: #df786c; font-size: 33px; }
+.flight-event-label { display: block; margin-top: 18px; color: #9b7669; font-size: 19px; font-weight: 900; letter-spacing: 3px; }
+.flight-event-title { display: block; margin-top: 13px; color: #453f39; font-size: 31px; font-weight: 900; line-height: 1.45; }
+.flight-event-reward { display: block; margin-top: 12px; color: #71836b; font-size: 21px; font-weight: 800; }
+.flight-event-card > view { min-height: 84px; display: flex; align-items: center; justify-content: center; margin-top: 25px; border-radius: 25px; color: #fff; background: #71886b; font-size: 24px; font-weight: 900; }
+.flight-event-card > view.disabled { opacity: .55; }
+.flight-event-note { display: block; margin-top: 14px; color: #a2988c; font-size: 16px; line-height: 1.5; }

@@ -6,7 +6,8 @@ import { createGameRoom } from "../../../api";
 import { connectGomokuRoom } from "../../../api/gomokuSocket";
 import GomokuBoard from "../../../components/GomokuBoard";
 import { getCustomerId } from "../../../utils/customer";
-import { ensureInvitePassed, INVITE_CODE } from "../../../utils/invite";
+import { ensureInvitePassed } from "../../../utils/invite";
+import { ensureGameRecovery } from "../../../utils/gameRecovery";
 import "./index.css";
 
 const ROOM_CODE_PATTERN = /^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{6}$/;
@@ -65,6 +66,10 @@ export default function GomokuPage() {
   const [moving, setMoving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
+  useEffect(() => {
+    if (activeRoomCode && connectionStatus === "online") ensureGameRecovery(playerIdRef.current, activeRoomCode);
+  }, [activeRoomCode, connectionStatus]);
+
   const players = Array.isArray(room.players) ? room.players : [];
   const meIndex = players.findIndex((player) => playerIdOf(player) === playerIdRef.current);
   const me = players[meIndex];
@@ -118,7 +123,7 @@ export default function GomokuPage() {
       roomCode: normalized,
       playerId: playerIdRef.current,
       playerName: nameOverride.trim() || playerName.trim() || "玩家",
-      inviteCode: INVITE_CODE,
+      inviteCode: "",
       onState: (nextState) => {
         setRoom((previous) => ({ ...previous, ...nextState, board: nextState.board || previous.board || EMPTY_BOARD }));
         setMoving(false);
@@ -161,7 +166,7 @@ export default function GomokuPage() {
     if (creating) return;
     setCreating(true);
     try {
-      const result = await createGameRoom("gomoku", playerIdRef.current, INVITE_CODE);
+      const result = await createGameRoom("gomoku", playerIdRef.current, "");
       connectToRoom(result.room_code);
     } catch (error) {
       Taro.showToast({ title: error.message || "创建房间失败", icon: "none" });

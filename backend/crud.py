@@ -1,5 +1,5 @@
 import secrets
-from datetime import datetime
+from datetime import date, datetime, time as datetime_time, timedelta, timezone
 
 from fastapi import HTTPException
 from sqlalchemy import and_, func, or_
@@ -8,17 +8,27 @@ from sqlalchemy.orm import Session, selectinload
 
 import models
 import schemas
+from auth import hash_token
 from love_score import record_score
+from task_service import complete_task_type
 
 
 ROOM_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
 GAME_MAX_PLAYERS = {
     "dice": 2,
     "gomoku": 2,
-    "aeroplane": 4,
+    "aeroplane": 2,
     "landlord": 3,
     "jungle": 2,
     "chinese_chess": 2,
+}
+
+ORDER_STATUS_TRANSITIONS = {
+    "待接单": {"已接单", "暂时做不了"},
+    "已接单": {"制作中", "暂时做不了"},
+    "制作中": {"已完成", "暂时做不了"},
+    "已完成": set(),
+    "暂时做不了": set(),
 }
 
 
@@ -75,14 +85,17 @@ def get_game_room(db: Session, room_code: str):
 
 def update_game_room_status(db: Session, room_code: str, room_status: str):
     room = get_game_room(db, room_code)
+    room.last_activity_at = datetime.now(timezone.utc)
+    room.state_version = int(room.state_version or 0) + 1
+    room.expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
     if room.status != room_status:
         room.status = room_status
         if room_status == "finished":
             room.finished_at = datetime.now()
         elif room_status == "playing":
             room.finished_at = None
-        db.commit()
-        db.refresh(room)
+    db.commit()
+    db.refresh(room)
     return room
 
 
@@ -115,6 +128,11 @@ def join_game_room(db: Session, room_code: str, player_id: str):
         .first()
     )
     if existing:
+        existing.last_activity_at = datetime.now(timezone.utc)
+        existing.disconnected_at = None
+        existing.expires_at = None
+        room.last_activity_at = datetime.now(timezone.utc)
+        db.commit()
         return existing
     if room.status == "finished":
         raise HTTPException(status_code=409, detail="本房间对局已经结束")
@@ -131,11 +149,13 @@ def join_game_room(db: Session, room_code: str, player_id: str):
         room_id=room.id,
         player_id=player_id,
         seat=available_seat,
+        last_activity_at=datetime.now(timezone.utc),
     )
     db.add(player)
     if len(occupied_seats) + 1 >= room.max_players:
         room.status = "playing"
         room.finished_at = None
+    room.last_activity_at = datetime.now(timezone.utc)
     try:
         db.commit()
     except IntegrityError:
@@ -152,7 +172,83 @@ def join_game_room(db: Session, room_code: str, player_id: str):
             return existing
         raise HTTPException(status_code=409, detail="房间座位刚刚被其他玩家占用")
     db.refresh(player)
+    if player_id != room.creator and room.creator != "legacy_client":
+        # Import locally to keep the persistence layer free of a module cycle.
+        from notification_service import create_notification
+
+        create_notification(
+            db,
+            room.creator,
+            "GAME_JOINED",
+            "对方已经加入游戏",
+            f"房间 {room.room_code} 已经可以开始。",
+            room.id,
+        )
+        create_notification(
+            db,
+            player_id,
+            "GAME_STARTED",
+            "双人房间准备好了",
+            f"房间 {room.room_code} 等你一起玩。",
+            room.id,
+        )
     return player
+
+
+def issue_room_session_token(db: Session, player: models.GamePlayer) -> tuple[str, datetime]:
+    token = f"gfr_{secrets.token_urlsafe(36)}"
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
+    player.room_session_token_hash = hash_token(token)
+    player.last_activity_at = datetime.now(timezone.utc)
+    player.disconnected_at = None
+    player.expires_at = expires_at
+    player.room.last_activity_at = datetime.now(timezone.utc)
+    player.room.expires_at = expires_at
+    db.commit()
+    return token, expires_at
+
+
+def mark_game_player_disconnected(db: Session, room_code: str, player_id: str) -> None:
+    room = get_game_room(db, room_code)
+    player = (
+        db.query(models.GamePlayer)
+        .filter(models.GamePlayer.room_id == room.id, models.GamePlayer.player_id == player_id)
+        .first()
+    )
+    if not player:
+        return
+    now = datetime.now(timezone.utc)
+    player.disconnected_at = now
+    player.expires_at = now + timedelta(seconds=60)
+    room.last_activity_at = now
+    room.expires_at = now + timedelta(minutes=15)
+    db.commit()
+
+
+def expire_stale_game_rooms(db: Session) -> list[str]:
+    """Close inactive live rooms while retaining players and completed history."""
+    now = datetime.now(timezone.utc)
+    rooms = (
+        db.query(models.GameRoom)
+        .filter(
+            models.GameRoom.status.in_(["waiting", "playing"]),
+            models.GameRoom.expires_at.isnot(None),
+            models.GameRoom.expires_at < now,
+        )
+        .all()
+    )
+    codes = []
+    for room in rooms:
+        room.status = "finished"
+        room.finished_at = now
+        room.state_version = int(room.state_version or 0) + 1
+        codes.append(room.room_code)
+        for player in room.players:
+            player.room_session_token_hash = None
+            player.expires_at = now
+    if rooms:
+        db.commit()
+    return codes
 
 
 def _game_record_query(db: Session):
@@ -189,7 +285,9 @@ def finish_game_room(
         return existing
 
     player_ids = {player.player_id for player in room.players}
-    if winner is not None and winner not in player_ids:
+    # V2.5 games may persist an AI winner for honest statistics. AI identities
+    # never occupy a human seat and are excluded from Love Score settlement.
+    if winner is not None and winner not in player_ids and not winner.startswith("ai_"):
         raise HTTPException(status_code=400, detail="获胜者不是本房间玩家")
 
     record = models.GameRecord(
@@ -234,25 +332,76 @@ def finish_game_room(
 
 def list_game_records(db: Session, customer_id: str, limit: int = 50):
     safe_limit = max(1, min(int(limit), 100))
-    return (
+    records = (
         _game_record_query(db)
         .join(models.GameRoom, models.GameRecord.room_id == models.GameRoom.id)
         .join(models.GamePlayer, models.GamePlayer.room_id == models.GameRoom.id)
         .filter(models.GamePlayer.player_id == customer_id)
         .order_by(models.GameRecord.created_at.desc(), models.GameRecord.id.desc())
-        .limit(safe_limit)
+        .limit(min(safe_limit * 2, 200))
         .all()
     )
+    # A WebSocket round is visible only after its score/task settlement has
+    # completed. Older V2.3 records have no marker and remain fully compatible.
+    return [
+        record
+        for record in records
+        if (record.result or {}).get("_settlement") != "pending"
+    ][:safe_limit]
 
 
 def game_stats(db: Session):
     total_games = db.query(func.count(models.GameRecord.id)).scalar() or 0
+    dice_games = (
+        db.query(func.count(models.GameRecord.id))
+        .filter(models.GameRecord.game_type == "dice")
+        .scalar()
+        or 0
+    )
     gomoku_games = (
         db.query(func.count(models.GameRecord.id))
         .filter(models.GameRecord.game_type == "gomoku")
         .scalar()
         or 0
     )
+    flight_games = (
+        db.query(func.count(models.GameRecord.id))
+        .filter(models.GameRecord.game_type == "aeroplane")
+        .scalar()
+        or 0
+    )
+    landlord_games = (
+        db.query(func.count(models.GameRecord.id))
+        .filter(models.GameRecord.game_type == "landlord")
+        .scalar()
+        or 0
+    )
+    animal_games = (
+        db.query(func.count(models.GameRecord.id))
+        .filter(models.GameRecord.game_type == "jungle")
+        .scalar()
+        or 0
+    )
+    chess_games = (
+        db.query(func.count(models.GameRecord.id))
+        .filter(models.GameRecord.game_type == "chinese_chess")
+        .scalar()
+        or 0
+    )
+    today_start = datetime.combine(datetime.now().date(), datetime.min.time())
+    today_games = (
+        db.query(func.count(models.GameRecord.id))
+        .filter(models.GameRecord.created_at >= today_start)
+        .scalar()
+        or 0
+    )
+    all_records = db.query(models.GameRecord).all()
+    ai_games = sum(
+        record.game_type == "landlord"
+        or (record.game_type in {"jungle", "chinese_chess"} and (record.result or {}).get("mode") == "ai")
+        for record in all_records
+    )
+    human_wins = sum(bool(record.winner) and not record.winner.startswith("ai_") for record in all_records)
     creator_gomoku_wins = (
         db.query(func.count(models.GameRecord.id))
         .join(models.GameRoom, models.GameRoom.id == models.GameRecord.room_id)
@@ -276,12 +425,27 @@ def game_stats(db: Session):
     if most_played:
         game = db.query(models.Game).filter(models.Game.type == most_played.game_type).first()
         most_played_game = game.name if game else most_played.game_type
+    game_names = {game.type: game.name for game in db.query(models.Game).all()}
+    popular_games = [
+        {
+            "game_type": game_type,
+            "name": game_names.get(game_type, game_type),
+            "count": int(count),
+        }
+        for game_type, count in (
+            db.query(models.GameRecord.game_type, func.count(models.GameRecord.id))
+            .group_by(models.GameRecord.game_type)
+            .order_by(func.count(models.GameRecord.id).desc(), models.GameRecord.game_type)
+            .limit(5)
+            .all()
+        )
+    ]
 
     love_score_change = (
         db.query(func.sum(models.LoveScore.score))
         .filter(
             or_(
-                models.LoveScore.type.in_(("GAME_PLAY", "GAME_WIN")),
+                models.LoveScore.type.in_(("GAME_PLAY", "GAME_WIN", "GAME_EVENT", "GAME_BONUS", "ACHIEVEMENT", "LOVE_TASK")),
                 and_(
                     models.LoveScore.type == "SPECIAL_EVENT",
                     models.LoveScore.description == "五子棋三连胜",
@@ -291,17 +455,56 @@ def game_stats(db: Session):
         .scalar()
         or 0
     )
+    interaction_count = (
+        db.query(func.count(models.GameEventLog.id))
+        .filter(models.GameEventLog.status == "completed")
+        .scalar()
+        or 0
+    )
+    completed_tasks = (
+        db.query(func.count(models.DailyTask.id))
+        .filter(models.DailyTask.status == "completed")
+        .scalar()
+        or 0
+    )
+    achievement_unlocks = db.query(func.count(models.UserAchievement.id)).scalar() or 0
+    today = datetime.now().date()
+    growth_start = datetime.combine(today - timedelta(days=6), datetime.min.time())
+    growth_entries = (
+        db.query(models.LoveScore.created_at, models.LoveScore.score)
+        .filter(models.LoveScore.created_at >= growth_start)
+        .all()
+    )
+    growth_by_day = {today - timedelta(days=offset): 0 for offset in range(6, -1, -1)}
+    for created_at, score in growth_entries:
+        growth_by_day[created_at.date()] = growth_by_day.get(created_at.date(), 0) + int(score)
     return {
         "total_games": int(total_games),
+        "dice_games": int(dice_games),
         "gomoku_games": int(gomoku_games),
+        "flight_games": int(flight_games),
+        "landlord_games": int(landlord_games),
+        "animal_games": int(animal_games),
+        "chess_games": int(chess_games),
+        "today_games": int(today_games),
+        "ai_games": int(ai_games),
         "gomoku_win_rate": round(
             creator_gomoku_wins * 100 / gomoku_games,
             1,
         )
         if gomoku_games
         else 0.0,
+        "player_win_rate": round(human_wins * 100 / total_games, 1) if total_games else 0.0,
         "most_played_game": most_played_game,
+        "popular_games": popular_games,
         "love_score_change": int(love_score_change),
+        "interaction_count": int(interaction_count),
+        "completed_tasks": int(completed_tasks),
+        "achievement_unlocks": int(achievement_unlocks),
+        "love_score_growth": [
+            {"date": day.isoformat(), "score": score}
+            for day, score in sorted(growth_by_day.items())
+        ],
     }
 
 
@@ -396,6 +599,16 @@ def remove_favorite_dish(db: Session, customer_id: str, dish_id: int):
 
 
 def create_order(db: Session, data: schemas.OrderCreate):
+    if data.idempotency_key:
+        existing = (
+            db.query(models.Order)
+            .filter(models.Order.idempotency_key == data.idempotency_key)
+            .first()
+        )
+        if existing:
+            if existing.customer_id != data.customer_id:
+                raise HTTPException(status_code=409, detail="提交标识已经被使用")
+            return existing
     dish_ids = {item.dish_id for item in data.items}
     dishes = (
         db.query(models.Dish)
@@ -410,13 +623,20 @@ def create_order(db: Session, data: schemas.OrderCreate):
     if data.source_order_id:
         source_order = get_order(db, data.source_order_id)
         if not data.customer_id or source_order.customer_id != data.customer_id:
-            raise HTTPException(status_code=403, detail="不能再次点其他人的订单")
+            raise HTTPException(status_code=404, detail="订单不存在")
 
     order = models.Order(
         note=data.note,
         desired_time=data.desired_time,
+        desired_at=(
+            data.desired_at.replace(tzinfo=timezone.utc)
+            if data.desired_at and data.desired_at.tzinfo is None
+            else data.desired_at.astimezone(timezone.utc) if data.desired_at else None
+        ),
         customer_id=data.customer_id,
         source_order_id=data.source_order_id,
+        idempotency_key=data.idempotency_key,
+        status_updated_at=datetime.now(timezone.utc),
     )
     db.add(order)
     db.flush()
@@ -448,7 +668,7 @@ def repeat_order_draft(db: Session, order_id: int, customer_id: str):
     """Build an editable cart draft without creating a submitted order."""
     order = get_order(db, order_id)
     if not order.customer_id or order.customer_id != customer_id:
-        raise HTTPException(status_code=403, detail="这张点菜单不属于当前设备")
+        raise HTTPException(status_code=404, detail="订单不存在")
 
     dish_ids = {item.dish_id for item in order.items}
     current_dishes = db.query(models.Dish).filter(models.Dish.id.in_(dish_ids)).all()
@@ -484,6 +704,46 @@ def list_orders(db: Session):
     return db.query(models.Order).order_by(models.Order.created_at.desc()).all()
 
 
+def list_admin_orders(
+    db: Session,
+    status: str | None = None,
+    cursor: int | None = None,
+    limit: int = 20,
+    keyword: str | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
+):
+    safe_limit = max(1, min(int(limit), 50))
+    query = db.query(models.Order)
+    count_query = db.query(func.count(models.Order.id))
+    filters = []
+    if status:
+        filters.append(models.Order.status == status)
+    if cursor:
+        filters.append(models.Order.id < cursor)
+    if start_date:
+        filters.append(models.Order.created_at >= datetime.combine(start_date, datetime_time.min))
+    if end_date:
+        filters.append(models.Order.created_at < datetime.combine(end_date + timedelta(days=1), datetime_time.min))
+    if keyword and keyword.strip():
+        value = keyword.strip()
+        keyword_filter = models.Order.items.any(models.OrderItem.dish_name.ilike(f"%{value}%"))
+        if value.isdigit():
+            keyword_filter = or_(models.Order.id == int(value), keyword_filter)
+        filters.append(keyword_filter)
+    if filters:
+        query = query.filter(*filters)
+        count_query = count_query.filter(*filters)
+    items = query.order_by(models.Order.id.desc()).limit(safe_limit + 1).all()
+    has_more = len(items) > safe_limit
+    visible = items[:safe_limit]
+    return {
+        "items": visible,
+        "next_cursor": visible[-1].id if has_more and visible else None,
+        "total_estimate": count_query.scalar() or 0,
+    }
+
+
 def list_customer_orders(db: Session, customer_id: str):
     return (
         db.query(models.Order)
@@ -500,9 +760,22 @@ def get_order(db: Session, order_id: int):
     return order
 
 
-def update_order_status(db: Session, order_id: int, status: str):
+def update_order_status(db: Session, order_id: int, status: str, actor_id: str = "admin"):
     order = get_order(db, order_id)
+    if status == order.status:
+        return order
+    if status not in ORDER_STATUS_TRANSITIONS.get(order.status, set()):
+        raise HTTPException(status_code=409, detail=f"订单不能从“{order.status}”直接变为“{status}”")
+    previous = order.status
     order.status = status
+    order.status_updated_at = datetime.now(timezone.utc)
+    db.add(models.OrderStatusEvent(
+        order_id=order.id,
+        from_status=previous,
+        to_status=status,
+        actor_type="ADMIN",
+        actor_id=actor_id,
+    ))
     db.commit()
     db.refresh(order)
     if status == "已完成" and order.customer_id:
@@ -514,6 +787,34 @@ def update_order_status(db: Session, order_id: int, status: str):
             "完成一次晚餐制作",
             order.id,
         )
+        complete_task_type(db, order.customer_id, "MEAL")
+    return order
+
+
+def rollback_order_status(db: Session, order_id: int, actor_id: str = "admin"):
+    order = get_order(db, order_id)
+    if order.status == "已完成":
+        raise HTTPException(status_code=409, detail="已完成订单禁止回退，原评价会被完整保留")
+    event = (
+        db.query(models.OrderStatusEvent)
+        .filter(models.OrderStatusEvent.order_id == order.id)
+        .order_by(models.OrderStatusEvent.id.desc())
+        .first()
+    )
+    if not event or not event.from_status:
+        raise HTTPException(status_code=409, detail="没有可以撤回的上一步")
+    previous = order.status
+    order.status = event.from_status
+    order.status_updated_at = datetime.now(timezone.utc)
+    db.add(models.OrderStatusEvent(
+        order_id=order.id,
+        from_status=previous,
+        to_status=order.status,
+        actor_type="ADMIN_ROLLBACK",
+        actor_id=actor_id,
+    ))
+    db.commit()
+    db.refresh(order)
     return order
 
 
@@ -553,6 +854,7 @@ def create_review(db: Session, order_id: int, data: schemas.ReviewCreate):
             "完成一次五星评价",
             order.id,
         )
+        complete_task_type(db, order.customer_id, "REVIEW")
     return review
 
 

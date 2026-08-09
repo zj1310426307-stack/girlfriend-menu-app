@@ -1,0 +1,4 @@
+.animal-piece { width: 31px; height: 31px; display: flex; align-items: center; justify-content: center; border: 2px solid; border-radius: 50%; font-size: 17px; font-weight: 900; box-shadow: 0 4px 7px rgba(43,38,25,.24), inset 0 2px 1px rgba(255,255,255,.6); }
+.animal-piece.blue { color: #274b78; border-color: #385f8d; background: linear-gradient(145deg,#f7f1df,#d5e4ef); }
+.animal-piece.red { color: #9c3d35; border-color: #ab5046; background: linear-gradient(145deg,#fff4df,#efc8bb); }
+.animal-piece.selected { transform: translateY(-3px) scale(1.12); box-shadow: 0 0 0 3px rgba(232,184,109,.6), 0 7px 10px rgba(43,38,25,.28); }

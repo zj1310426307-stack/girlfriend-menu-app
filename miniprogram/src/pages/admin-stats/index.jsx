@@ -4,6 +4,7 @@ import { Text, View } from "@tarojs/components";
 
 import {
   getAdminDishStats,
+  getAdminDashboard,
   getAdminGameStats,
   getAdminOrders,
   getAdminRecentOrders,
@@ -25,6 +26,7 @@ export default function AdminStatsPage() {
   const [recentOrders, setRecentOrders] = useState([]);
   const [orders, setOrders] = useState([]);
   const [gameStats, setGameStats] = useState(null);
+  const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const token = getAdminToken();
@@ -38,18 +40,20 @@ export default function AdminStatsPage() {
     if (!token) return leaveToLogin();
     setLoading(true);
     try {
-      const [nextSummary, nextDishStats, nextRecent, nextOrders, nextGameStats] = await Promise.all([
+      const [nextSummary, nextDishStats, nextRecent, nextOrders, nextGameStats, nextDashboard] = await Promise.all([
         getAdminStatsSummary(token),
         getAdminDishStats(token),
         getAdminRecentOrders(token),
         getAdminOrders(token),
-        getAdminGameStats(token).catch(() => null)
+        getAdminGameStats(token).catch(() => null),
+        getAdminDashboard(token).catch(() => null)
       ]);
       setSummary(nextSummary);
       setDishStats(nextDishStats);
       setRecentOrders(nextRecent);
       setOrders(nextOrders);
       setGameStats(nextGameStats);
+      setDashboard(nextDashboard);
       setError("");
     } catch (requestError) {
       if (requestError.statusCode === 401) return leaveToLogin();
@@ -109,6 +113,7 @@ export default function AdminStatsPage() {
 
       {!loading && !error && (
         <>
+          {dashboard && <View className="admin-live-dashboard"><View><Text>今日小厨房</Text><Text>{dashboard.redis === "ready" ? "实时服务正常" : "数据库稳定模式"}</Text></View><View><Text>{dashboard.today_orders}</Text><Text>今日订单</Text></View><View><Text>{dashboard.today_games}</Text><Text>今日游戏</Text></View><View><Text>+{dashboard.today_score}</Text><Text>今日默契</Text></View><View><Text>{dashboard.popular_dish || "等待第一单"}</Text><Text>热门菜</Text></View><View><Text>{dashboard.popular_game || "等待第一局"}</Text><Text>热门游戏</Text></View></View>}
           <View className="stats-summary-grid">
             <View><Text>{summary?.total_orders || 0}</Text><Text>总点菜次数</Text></View>
             <View><Text>{summary?.completed_orders || 0}</Text><Text>已完成订单</Text></View>
@@ -135,14 +140,34 @@ export default function AdminStatsPage() {
           </View>
 
           <View className="stats-section stats-game-section">
-            <View className="stats-section-title"><Text>情侣游戏统计</Text><Text>V2.3 实时记录</Text></View>
+            <View className="stats-section-title"><Text>情侣互动统计</Text><Text>V2.5 游戏、AI 与成就</Text></View>
             <View className="stats-game-grid">
               <View><Text>{gameStats?.total_games ?? gameStats?.total ?? 0}</Text><Text>总游戏次数</Text></View>
+              <View><Text>{gameStats?.dice_games ?? 0}</Text><Text>大话骰对局</Text></View>
               <View><Text>{gameStats?.gomoku_games ?? gameStats?.gomoku?.total ?? 0}</Text><Text>五子棋对局</Text></View>
-              <View><Text>{gameStats?.gomoku_win_rate != null ? `${Number(gameStats.gomoku_win_rate).toFixed(0)}%` : "—"}</Text><Text>五子棋胜率</Text></View>
+              <View><Text>{gameStats?.flight_games ?? 0}</Text><Text>飞行棋对局</Text></View>
+              <View><Text>{gameStats?.landlord_games ?? 0}</Text><Text>斗地主对局</Text></View>
+              <View><Text>{gameStats?.animal_games ?? 0}</Text><Text>斗兽棋对局</Text></View>
+              <View><Text>{gameStats?.chess_games ?? 0}</Text><Text>中国象棋对局</Text></View>
+              <View><Text>{gameStats?.today_games ?? 0}</Text><Text>今日游戏</Text></View>
+              <View><Text>{gameStats?.ai_games ?? 0}</Text><Text>AI 对局</Text></View>
+              <View><Text>{gameStats?.player_win_rate ?? 0}%</Text><Text>真人胜率</Text></View>
+              <View><Text>{gameStats?.achievement_unlocks ?? 0}</Text><Text>成就解锁</Text></View>
+              <View><Text>{gameStats?.interaction_count ?? 0}</Text><Text>互动完成</Text></View>
+              <View><Text>{gameStats?.completed_tasks ?? 0}</Text><Text>任务完成</Text></View>
               <View><Text>{gameStats?.love_score_change ?? gameStats?.score_change ?? 0}</Text><Text>游戏积分变化</Text></View>
             </View>
             <View className="stats-game-favorite"><Text>最常玩的游戏</Text><Text>{gameStats?.most_played_game?.name || gameStats?.most_played_game || "还没有游戏记录"}</Text></View>
+            {(gameStats?.popular_games || []).length > 0 && <View className="stats-game-favorite"><Text>游戏热度排行</Text><Text>{gameStats.popular_games.map((item) => `${item.name} ${item.count}`).join(" · ")}</Text></View>}
+            <View className="stats-growth">
+              <View><Text>近 7 天默契增长</Text><Text>{(gameStats?.love_score_growth || []).reduce((sum, item) => sum + Number(item.score || 0), 0)} 分</Text></View>
+              <View className="stats-growth-bars">
+                {(gameStats?.love_score_growth || []).map((item) => {
+                  const maxScore = Math.max(1, ...(gameStats?.love_score_growth || []).map((entry) => Number(entry.score || 0)));
+                  return <View key={item.date}><View style={{ height: `${Math.max(7, Number(item.score || 0) / maxScore * 100)}%` }} /><Text>{String(item.date).slice(5)}</Text></View>;
+                })}
+              </View>
+            </View>
           </View>
 
           <View className="stats-section">

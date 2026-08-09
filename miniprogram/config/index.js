@@ -1,3 +1,12 @@
+const environmentName = process.env.TARO_APP_ENV_NAME || (process.env.NODE_ENV === "development" ? "development" : "production");
+const apiOrigin = (process.env.TARO_APP_API_ORIGIN || "").replace(/\/$/, "");
+if (!apiOrigin) {
+  throw new Error(`Missing TARO_APP_API_ORIGIN for ${environmentName} build`);
+}
+if (environmentName === "production" && !apiOrigin.startsWith("https://")) {
+  throw new Error("Production TARO_APP_API_ORIGIN must use HTTPS");
+}
+
 const config = {
   projectName: "girlfriend-menu-miniprogram",
   date: "2026-07-14",
@@ -10,7 +19,11 @@ const config = {
   sourceRoot: "src",
   outputRoot: "dist",
   plugins: [],
-  defineConstants: {},
+  defineConstants: {
+    __APP_ENV_NAME__: JSON.stringify(environmentName),
+    __API_ORIGIN__: JSON.stringify(apiOrigin),
+    __DEBUG_LOGS__: JSON.stringify(environmentName !== "production")
+  },
   copy: {
     patterns: [],
     options: {}

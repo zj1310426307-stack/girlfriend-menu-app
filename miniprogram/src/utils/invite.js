@@ -1,6 +1,6 @@
 import Taro from "@tarojs/taro";
+import { hasCustomerSession } from "./customer";
 
-export const INVITE_CODE = "love2026";
 const INVITE_PASSED_KEY = "gf_invite_passed";
 
 // Read the invite state defensively so a damaged storage cache cannot blank the app.
@@ -33,7 +33,7 @@ export function clearInvite() {
 
 // Redirect protected pages to the home-page invite gate.
 export function ensureInvitePassed() {
-  if (!hasInvitePassed()) {
+  if (!hasInvitePassed() || !hasCustomerSession()) {
     Taro.reLaunch({ url: "/pages/index/index" }).catch((error) => {
       console.error("返回邀请码页失败", error);
     });

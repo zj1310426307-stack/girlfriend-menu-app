@@ -1,0 +1,5 @@
+.ll-player { width: 90px; padding: 8px 5px; border-radius: 18px; text-align: center; opacity: .68; }
+.ll-player.active { opacity: 1; background: rgba(232,184,109,.12); box-shadow: 0 0 0 1px rgba(232,184,109,.32); }
+.ll-player > view { width: 43px; height: 43px; display: flex; align-items: center; justify-content: center; margin: 0 auto 5px; border: 2px solid #d3ae6e; border-radius: 50%; color: #f7e7c7; background: #314b3c; font-size: 15px; font-weight: 900; }
+.ll-player > text:nth-child(2) { display: block; color: #f4ead8; font-size: 13px; font-weight: 800; white-space: nowrap; }
+.ll-player > text:last-child { display: block; margin-top: 3px; color: #aebdb1; font-size: 12px; }

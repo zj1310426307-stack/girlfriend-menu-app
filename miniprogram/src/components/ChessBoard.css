@@ -1,0 +1,12 @@
+.chess-board { position:relative; width:100%; overflow:hidden; border:9px solid #70472c; border-radius:15px; background:#d6a25d; box-shadow:0 18px 34px rgba(41,27,18,.28),inset 0 0 28px rgba(99,53,21,.22); box-sizing:border-box; }
+.chess-grid { position:relative; z-index:2; display:grid; grid-template-columns:repeat(9,1fr); }
+.chess-cell { position:relative; aspect-ratio:1; box-sizing:border-box; border-right:1px solid rgba(74,43,22,.7); border-bottom:1px solid rgba(74,43,22,.7); }
+.chess-cell:nth-child(9n) { border-right:0; }
+.chess-cell.row-9 { border-bottom:0; }
+.chess-board.disabled { filter:saturate(.88); }
+.chess-river { position:absolute; z-index:1; top:45%; left:0; right:0; height:10%; display:flex; align-items:center; justify-content:space-around; border-top:1px solid rgba(74,43,22,.7); border-bottom:1px solid rgba(74,43,22,.7); background:#d9aa67; }
+.chess-river text { color:rgba(66,40,22,.82); font-family:serif; font-size:19px; font-weight:900; letter-spacing:7px; }
+.chess-palace { position:absolute; z-index:1; left:39%; width:22%; height:20%; background:linear-gradient(45deg,transparent 49%,rgba(74,43,22,.65) 50%,transparent 51%),linear-gradient(-45deg,transparent 49%,rgba(74,43,22,.65) 50%,transparent 51%); }
+.chess-palace.top { top:0; }
+.chess-palace.bottom { bottom:0; }
+@media (max-width:360px) { .chess-piece text { font-size:18px; } .chess-river text { font-size:16px; } }

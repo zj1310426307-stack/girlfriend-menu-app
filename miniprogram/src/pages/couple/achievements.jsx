@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { useDidShow } from "@tarojs/taro";
+import Taro, { useDidShow } from "@tarojs/taro";
 import { Text, View } from "@tarojs/components";
 
-import { getCoupleScore, getCoupleScoreHistory, getMyOrders } from "../../api";
+import { completeGameLoveTask, getCoupleScore, getCoupleScoreHistory, getGameAchievements, getMyGameLoveTasks, getMyOrders } from "../../api";
 import { getCustomerId } from "../../utils/customer";
 import { ensureInvitePassed } from "../../utils/invite";
 import { EMPTY_COUPLE_SCORE } from "./helpers";
@@ -13,6 +13,8 @@ export default function CoupleAchievementsPage() {
   const [completedMeals, setCompletedMeals] = useState(0);
   const [gamePlays, setGamePlays] = useState(0);
   const [reviewCount, setReviewCount] = useState(0);
+  const [serverAchievements, setServerAchievements] = useState([]);
+  const [loveTasks, setLoveTasks] = useState([]);
 
   useDidShow(() => {
     if (!ensureInvitePassed()) return;
@@ -20,31 +22,51 @@ export default function CoupleAchievementsPage() {
     Promise.allSettled([
       getCoupleScore(customerId),
       getMyOrders(customerId),
-      getCoupleScoreHistory(customerId)
-    ]).then(([scoreResult, ordersResult, historyResult]) => {
+      getCoupleScoreHistory(customerId),
+      getGameAchievements(customerId),
+      getMyGameLoveTasks(customerId)
+    ]).then(([scoreResult, ordersResult, historyResult, achievementResult, taskResult]) => {
       const history = historyResult.status === "fulfilled" ? historyResult.value : [];
       const orders = ordersResult.status === "fulfilled" ? ordersResult.value : [];
       if (scoreResult.status === "fulfilled") setSummary(scoreResult.value);
       setCompletedMeals(orders.filter((order) => order.status === "已完成").length);
       setGamePlays(history.filter((entry) => entry.type === "GAME_PLAY").length);
       setReviewCount(history.filter((entry) => entry.type === "ORDER_REVIEW").length);
+      if (achievementResult.status === "fulfilled") setServerAchievements(achievementResult.value || []);
+      if (taskResult.status === "fulfilled") setLoveTasks(taskResult.value || []);
     });
   });
 
-  const achievements = [
+  const localAchievements = [
     { icon: "餐", title: "第一顿饭", desc: "完成第一次晚餐", value: completedMeals, target: 1 },
     { icon: "厨", title: "厨房新人", desc: "完成 10 次做饭", value: completedMeals, target: 10 },
     { icon: "伴", title: "甜蜜搭档", desc: "累计获得 100 积分", value: summary.points_total, target: 100 },
     { icon: "评", title: "五星鼓励", desc: "留下 5 次五星评价", value: reviewCount, target: 5 },
     { icon: "玩", title: "游戏情侣", desc: "一起完成 20 次游戏", value: gamePlays, target: 20 }
   ];
+  const achievements = serverAchievements.length
+    ? serverAchievements.map((item) => ({
+        icon: "奖", title: item.name, desc: `${item.description} · +${item.reward_score}`,
+        value: item.progress, target: item.threshold, unlocked: item.unlocked
+      }))
+    : localAchievements;
+  const completePromise = async (task) => {
+    if (task.status === "completed") return;
+    try {
+      const completed = await completeGameLoveTask(getCustomerId(), task.id);
+      setLoveTasks((items) => items.map((item) => item.id === completed.id ? completed : item));
+      Taro.showToast({ title: "约定完成，默契 +2", icon: "success" });
+    } catch (error) {
+      Taro.showToast({ title: error.message || "暂时无法完成", icon: "none" });
+    }
+  };
 
   return (
     <View className="page couple-subpage">
       <View className="couple-subhead"><Text className="eyebrow">ACHIEVEMENTS</Text><Text>我们的成就</Text><Text>不用着急解锁，认真生活就会慢慢亮起来。</Text></View>
       <View className="couple-achievement-list">
         {achievements.map((item) => {
-          const unlocked = item.value >= item.target;
+          const unlocked = item.unlocked ?? item.value >= item.target;
           const progress = Math.min(100, Math.round(item.value / item.target * 100));
           return (
             <View key={item.title} className={unlocked ? "unlocked" : ""}>
@@ -54,6 +76,14 @@ export default function CoupleAchievementsPage() {
           );
         })}
       </View>
+      {loveTasks.length > 0 && (
+        <View className="couple-achievement-list">
+          <View className="unlocked" onClick={() => completePromise(loveTasks[0])}>
+            <View><Text>牌</Text></View>
+            <View><Text>牌局后的约定</Text><Text>{loveTasks[0].title}</Text><Text>{loveTasks[0].status === "completed" ? "已经完成" : "完成后点这里 · +2"}</Text></View>
+          </View>
+        </View>
+      )}
     </View>
   );
 }

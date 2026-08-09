@@ -6,7 +6,7 @@
 
 ## 当前版本与线上状态
 
-- 当前开发版本：`2.3.0`
+- 当前体验版本：`2.9.0`
 - AppID：`wx08cb090781c3e679`
 - 后端：FastAPI，部署于 Render
 - 生产数据库：Neon PostgreSQL
@@ -30,6 +30,21 @@
 - 统一游戏大厅、动态游戏目录和“即将上线”状态
 - 双人实时大话骰房间、叫骰、开盅与计分板
 - 15×15 双人实时五子棋、服务端落子校验、五连胜负判定和双方再来一局
+- 双人情侣飞行棋、服务端掷骰、四棋子移动、碰撞、精确到达与持久棋局状态
+- 飞行棋爱心/厨房/快乐/挑战随机事件，完成后自动记录互动与默契积分
+- 每日情侣任务、完成进度、自动触发与最近互动记录
+- 情侣斗地主：两位真人 + AI、服务端洗牌发牌、私有手牌、叫地主与完整出牌校验
+- 斗兽棋：标准 7×9 棋盘、情侣房间、单人 AI、河流/陷阱/兽穴规则
+- V2.5 游戏统一核心、持久 `game_sessions`、乐观版本锁和房间聊天状态
+- 持久成就目录、解锁奖励与斗地主局后情侣约定
+- 中国象棋双人/AI 对局：标准 9×10 棋盘、服务端规则、将军与棋谱回放
+- 游戏数据中心：个人战绩、共同房间月榜、AI 角色目录和私人游戏记忆
+- 统一用户档案：旧 `customer_id` 自动映射，不要求重新登录、不丢历史
+- 订单、游戏加入/完成和纪念日站内通知
+- “我们的故事”时间轴、手写共同记忆、纪念日与提前提醒
+- 未完成游戏发现、哈希重连凭证和通用对局回放
+- Redis 可选热状态与在线标记；未配置时 PostgreSQL 核心流程继续运行
+- 可解释的每日陪伴小结：只使用真实点菜、游戏与默契数据
 - 通用 `/ws/game/{room_code}` 房间通信协议
 - “我们”情侣中心、默契值、积分流水、共同记录和成就展示
 - “我们的游戏记录”按设备查看五子棋历史、胜负、局数和时长
@@ -45,7 +60,8 @@
 - 维护制作时间、难度、辣度和菜品标签
 - 上传菜品图片或手动填写图片链接
 - 总订单、已完成订单、最常点菜品、最近订单、平均评分和评价记录统计
-- 总游戏次数、五子棋对局、创建者胜率、最常玩游戏和游戏积分变化统计
+- 总游戏次数、五子棋/飞行棋/斗地主/斗兽棋、AI 对局、真人胜率、成就和近 7 天默契增长统计
+- 今日订单、今日游戏、默契增长、热门菜与热门游戏驾驶舱
 
 ## 技术栈
 
@@ -57,6 +73,7 @@
 | 生产数据库 | Neon PostgreSQL |
 | 本地数据库 | SQLite（未配置 `DATABASE_URL` 时） |
 | 实时通信 | FastAPI WebSocket（管理订单推送、大话骰与五子棋双人房间） |
+| 热状态缓存 | Redis（可选；未配置时自动降级） |
 | 部署 | Render Blueprint + GitHub 自动部署 |
 | 自动化 | Pytest、GitHub Actions、微信开发者工具自动化冒烟脚本 |
 
@@ -74,8 +91,20 @@ girlfriend-menu-app/
 │   ├── models.py                # SQLAlchemy 数据模型
 │   ├── schemas.py               # API 请求/响应模型
 │   ├── realtime.py              # 订单事件与统一双人游戏房间
+│   ├── core/cache.py             # 可选 Redis 热状态与在线 TTL
+│   ├── user_service.py           # 兼容旧 customer_id 的统一身份
+│   ├── notification_service.py   # 订单、游戏、纪念日消息
+│   ├── couple_profile_service.py # 时间轴、纪念日与情侣统计
+│   ├── game_recovery_service.py  # 重连令牌、继续游戏与回放
 │   ├── gomoku.py                # 服务端权威五子棋规则引擎
-│   ├── alembic/versions/        # V2.0～V2.3 数据库版本
+│   ├── flight.py                # 可测试的飞行棋规则引擎
+│   ├── flight_service.py        # 飞行棋持久化、事件与结算编排
+│   ├── games/core/              # V2.5 统一引擎、玩家、房间与版本状态
+│   ├── games/landlord/          # 斗地主牌组、牌型、发牌、AI 与引擎
+│   ├── games/animal/            # 斗兽棋棋盘、规则、AI 与引擎
+│   ├── ai/                      # 可替换 random/rule/strategy AI 协议
+│   ├── task_service.py          # 每日任务生成和防重复奖励
+│   ├── alembic/versions/        # V2.0～V2.5 数据库版本
 │   ├── seed.py                  # 19 道测试菜品
 │   ├── storage.py               # 本地图片存储
 │   └── tests/                   # 后端主流程、游戏与情侣积分测试
@@ -83,8 +112,8 @@ girlfriend-menu-app/
 │   ├── config/                  # Taro 构建配置
 │   ├── scripts/smoke-test.cjs   # 微信开发者工具冒烟测试
 │   ├── src/api/                 # HTTP 与 WebSocket 客户端
-│   ├── src/components/          # 共享导航、默契值与五子棋棋盘组件
-│   ├── src/pages/               # 用户端、管理端、转盘、骰子与五子棋页面
+│   ├── src/components/          # 共享导航、棋盘、牌桌与游戏组件
+│   ├── src/pages/               # 用户端、管理端与全部游戏页面
 │   ├── src/utils/               # 邀请码、购物车、设备身份、管理令牌
 │   ├── project.config.json      # 微信项目配置
 │   └── package.json
@@ -171,9 +200,13 @@ npm run build:weapp
 
 ```bat
 npm run test:smoke
+npm run test:v24
+npm run test:v25
+npm run test:v26
+npm run test:v27
 ```
 
-2026-08-09 本地验证：后端 `19 passed`、V2.0 → V2.3 迁移升级/降级/再升级成功、小程序生产构建成功。
+2026-08-09 本地验证：后端 `47 passed`、V2.0 → V2.7 迁移升级/降级/再升级成功、小程序生产构建通过。V2.7 微信开发者工具冒烟入口为 `npm run test:v27`。
 
 ## 数据库
 
@@ -187,12 +220,25 @@ npm run test:smoke
 - `games`：游戏名称、图标、类型与开放状态
 - `game_rooms`：房间码、游戏类型、创建者、房间状态、最大人数和完成时间
 - `game_players`：每个房间的持久玩家席位、设备标识、局分和加入时间
+- `game_states`：飞行棋进行中的权威 JSONB/JSON 状态
+- `game_sessions`：斗地主和斗兽棋的权威 JSONB/JSON 状态、当前回合与版本
+- `game_events` / `game_event_logs`：随机互动目录和实际完成记录
+- `daily_tasks`：按设备、日期和任务类型唯一的今日任务
 - `game_records`：每个房间每一局的胜者、时长和服务端结果快照
+- `achievements` / `user_achievements`：成就定义和按设备的解锁记录
+- `love_tasks`：斗地主完成后生成的情侣约定
 - `love_scores`：按设备记录积分、行为类型、描述、关联业务编号和发生时间
+- `users`：统一的客户、管理员和 AI 身份映射
+- `notifications`：订单、游戏与纪念日站内通知
+- `couple_memories` / `couple_dates`：共同时间轴和纪念日
+- `game_reconnect_tokens`：只保存哈希的过期重连凭证
+- `game_replays`：跨游戏的服务端结果和步骤快照
 
 V2.0 使用 Alembic 管理数据库版本。部署启动会先执行迁移，再启动 API；迁移只新增表、字段和索引，不删除或重建旧订单数据。程序内仍保留幂等兼容检查，方便旧的本地 SQLite 直接启动。
 
 完整字段和关系见 `docs/PROJECT_HANDOFF.md`。
+
+V2.7 架构、API、Redis 降级边界和部署说明见 `docs/V27_STABILITY_COUPLE_PROFILE.md`。
 
 ## 生产部署
 
@@ -241,7 +287,7 @@ alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port $PORT
 1. 在 `miniprogram/` 执行 `npm run build:weapp`。
 2. 微信开发者工具打开 `miniprogram/` 并点击“编译”。
 3. 点击“预览”，用真机走完下方验收流程。
-4. 点击“上传”，V2.3 开发版本号使用 `2.3.0`。
+4. 点击“上传”，V2.6 开发版本号使用 `2.6.0`。
 5. 微信公众平台进入“版本管理”，把开发版本选为体验版。
 6. 体验无误后提交微信审核；审核通过后再正式发布。
 
@@ -256,13 +302,16 @@ alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port $PORT
 7. 回到订单详情提交爱心评价，再次进入时只能看到评价结果。
 8. 返回首页，确认“她最喜欢”排行已根据当前设备数据更新。
 9. 管理端编辑菜品制作时间、难度、辣度和标签，并检查统计与评价记录。
-10. 通过“一起玩”测试转盘、单机大话骰、双人大话骰和两台手机的实时五子棋；检查非法抢走回合、重复落子都被服务端拒绝。
+10. 通过“一起玩”测试转盘、单机/双人大话骰、两台手机的实时五子棋和情侣飞行棋；检查飞行棋骰子由服务端生成、断开页面后状态仍能恢复。
 11. 完成订单后检查情侣积分增加 10 分；提交五星评价后再增加 5 分，并确认重复修改状态不会重复计分。
-12. 完成一局五子棋后，双方各增加 1 分，胜者再增加 5 分；同一玩家连续赢得第三局时再增加 10 分，并在“我们的游戏记录”和管理统计中看到结果。
+12. 完成一局五子棋或飞行棋后，双方各增加 1 分，胜者再增加 5 分；首次完成当天游戏还会点亮每日任务并增加 3 分。
+13. 进入“我们 → 每日任务”，手动完成夸奖任务；再完成订单、五星评价和双人游戏，确认其余任务由后端自动点亮且不会重复加分。
+14. 两台设备创建/加入斗地主，确认彼此看不到手牌、AI 自动行动、过期操作不会覆盖牌局；结束后检查成就和情侣约定。
+15. 分别测试斗兽棋情侣房间与 AI 模式，确认普通棋子不能下水、狮虎可跳河、进入对方兽穴结束。
 
 ## V2.1 统一游戏中心
 
-游戏大厅通过 `GET /api/games` 获取目录。只有 `status=available` 的游戏可以创建房间；当前大话骰和五子棋可用，飞行棋、斗地主、斗兽棋和中国象棋仍只展示“即将上线”，没有伪造不可用玩法。
+游戏大厅通过 `GET /api/games` 获取目录。只有 `status=available` 的游戏可以创建房间；当前大话骰、五子棋、飞行棋、斗地主、斗兽棋和中国象棋均已开放。
 
 新房间通过 `POST /api/games/rooms` 创建，实时连接统一使用：
 
@@ -303,12 +352,87 @@ wss://girlfriend-menu-api.onrender.com/ws/game/{room_code}
 
 数据库迁移 `20260809_04` 新增 `game_players`、`game_records` 和 `game_rooms.finished_at`，并把五子棋目录状态调整为可用；旧的大话骰 HTTP/WebSocket 入口继续兼容。协议见 [游戏中心通信协议](docs/GAME_CENTER_PROTOCOL.md)，五子棋规则、状态和持久化边界见 [五子棋系统说明](docs/GOMOKU_SYSTEM.md)。
 
+## V2.4 情侣飞行棋与每日任务
+
+飞行棋复用统一游戏目录和房间表，但采用服务端权威 HTTP 动作接口与 PostgreSQL `game_states` 持久状态。房主创建后自动入座，第二台设备凭 6 位房间码加入；每人四颗棋子，掷出 6 才能起飞，公共航线可碰撞，必须精确到达终点。所有骰子点数都由后端 `secrets` 生成，客户端不能提交点数。页面每 2.2 秒同步一次，关闭页面或 Render 进程重启后仍能从数据库恢复棋局。
+
+公共航线和回家跑道设有 LOVE、FOOD、FUN、TASK 事件格。落地时后端从 `game_events` 选择一条启用事件，写入 `game_event_logs`；当前玩家确认完成后获得事件分。同一个事件日志只能结算一次。
+
+“我们 → 每日任务”每天按当前设备生成四项任务：夸奖 +2、完成一顿饭 +5、一起完成一局游戏 +3、五星评价 +3。只有夸奖任务允许手动确认，其余三项必须由订单完成、游戏结算或五星评价在后端自动触发。任务积分以任务 ID 作为唯一来源，重复请求不会重复增加。
+
+迁移 `20260809_05` 新增 `game_states`、`game_events`、`game_event_logs` 和 `daily_tasks`，并把飞行棋目录改为可用；PostgreSQL 使用 JSONB，本地 SQLite 自动使用 JSON。完整规则、API 和状态结构见 [飞行棋与任务系统说明](docs/FLIGHT_TASK_SYSTEM.md)。
+
+## V2.5 斗地主、斗兽棋与游戏 AI
+
+斗地主采用“两位真人 + 一位 AI”：第二位真人加入后由服务端洗牌并发出 17/17/17 + 3 张底牌；其他玩家只能看到手牌数量。牌型、比较、回合、AI 行动和胜负均由后端判断。斗兽棋提供情侣双人和单人 AI 两种模式，使用标准 7×9 地形与动物等级规则。
+
+两款游戏共用 `game_sessions`。每次动作携带 `expected_version`，另一端先行动时旧请求会收到 409 并刷新，不会覆盖已保存棋局。完成记录继续写入 `game_records` 并自动触发参与、胜利、AI/双人奖励、每日游戏任务和持久成就；斗地主还生成一个可完成的局后情侣约定。
+
+迁移 `20260809_06` 只新增 `game_sessions`、`achievements`、`user_achievements`、`love_tasks` 和索引，并将斗地主、斗兽棋目录切换为可用。完整规则与接口见 [V2.5 游戏与 AI 系统](docs/V25_GAME_AI_SYSTEM.md)。
+
+## V2.6 中国象棋、排行榜与 AI 陪伴
+
+中国象棋复用 V2.5 服务端权威状态和乐观版本锁。情侣模式由两台设备加入红黑席位；AI 模式由服务端生成合法应手。客户端只提交 `a1-i10` 起止坐标，不能直接提交棋盘、结果或 AI 决策。每一步同时写入 `chess_moves`，结束后复用 `game_records`、情侣积分、成就和每日任务结算。
+
+游戏数据中心从完成对局重建 `game_statistics`，月榜范围仅限当前设备参加过的共同房间，并脱敏显示搭档。`game_memories` 记录第一局象棋和近期结果。每日陪伴小结是可解释的本地规则摘要，不调用外部大模型。数据库迁移 `20260809_07` 只新增表、索引与种子数据。完整状态、接口和隐私边界见 [V2.6 中国象棋与游戏数据说明](docs/V26_CHESS_DATA_AI.md)。
+
 ## 当前边界
 
-- `gf_customer_id` 只保存在微信本地缓存。清缓存后，旧订单不会自动关联回当前设备，但管理端仍能看到。
-- 邀请码位于小程序包内，只能作为轻量入口，不是严格安全认证。
-- 实时大话骰状态和进行中的五子棋棋盘保存在单个后端进程内，服务重启后不能恢复未完成的一局；五子棋玩家席位、已完成记录和情侣积分已经持久化。
-- Render 本地 `uploads/` 不是持久存储，正式长期使用应接入 Cloudinary、腾讯云 COS、阿里云 OSS 等对象存储。
-- 当前没有微信登录、OpenID、手机号、订阅消息、支付、库存或采购清单。
+- V2.8 使用后端设备会话和 Bearer token；数据库只保存 token 哈希。旧 `gf_customer_id` 可用邀请码认领一次，清缓存前应确保新令牌已保存。
+- 邀请码仅发送到后端验证，不再编译进小程序包；它仍是私人应用的设备准入方式，不等同于微信账号登录。
+- 实时热状态默认保存在单进程内存并可选镜像到 Redis；房间元数据和完成记录持久化。进程重启后能否完整恢复取决于具体游戏状态实现，不能承诺所有进行中对局无缝恢复。
+- 生产图片必须配置 S3-compatible 对象存储。`/api/ready` 会把缺失配置标记为 `release-blocked`；Render 本地 `uploads/` 只允许开发使用。
+- 当前没有微信 OpenID、手机号、订阅消息、支付、库存或采购清单。
 
 更完整的当前产品审计见 [项目交接文档](docs/PROJECT_HANDOFF.md)，未来目标架构和分阶段执行提示词见 [V2.0 产品与架构方案](docs/V2_PRODUCT_PLAN.md)。
+
+## V2.8 Release Candidate
+
+V2.8 RC 已完成设备身份、订单归属、12 小时管理令牌、订单状态审计和分页、生产存储抽象、实时重连加固、环境配置集中化及备份恢复工具；当前体验版本在此基础上冻结为 `2.9.0`。真实能力与未验证边界见 [能力矩阵](docs/CAPABILITY_MATRIX.md)。
+
+小程序三套构建配置位于：
+
+```text
+miniprogram/.env.development
+miniprogram/.env.staging
+miniprogram/.env.production
+```
+
+每套至少配置 `TARO_APP_ENV_NAME` 和 `TARO_APP_API_ORIGIN`。WebSocket 地址由 API Origin 自动派生；生产地址必须为 HTTPS，缺失时构建直接失败。生产域名可以通过部署平台或 CI 环境变量覆盖，不要在业务源码重复硬编码。
+
+后端正式环境必须配置：
+
+```text
+APP_ENV=production
+DATABASE_URL
+CUSTOMER_INVITE_CODE
+ADMIN_PASSWORD
+ADMIN_INVITE_CODE
+ADMIN_SECRET
+ALLOW_LEGACY_CUSTOMER_HEADER=false
+UPLOAD_PROVIDER=s3
+S3_ENDPOINT
+S3_REGION
+S3_BUCKET
+S3_ACCESS_KEY_ID
+S3_SECRET_ACCESS_KEY
+S3_PUBLIC_BASE_URL
+```
+
+`REDIS_URL` 可选；当前私人单实例部署不强制 Redis。正式启动命令先执行 `alembic upgrade head`，生产应用进程不再自动建表或运行手写 `ALTER TABLE`。
+
+发布前依次执行：
+
+```powershell
+cd backend
+.venv-v27\Scripts\python.exe -m pytest -q
+
+cd ..\miniprogram
+cmd /c npm run build:weapp
+
+cd ..
+python scripts/check_secrets.py
+python scripts/check_release_config.py
+```
+
+完整步骤见 [V2.8 发布清单](docs/RELEASE_CHECKLIST_V2_8.md)、[备份与恢复](docs/BACKUP_AND_RESTORE.md)和[回滚手册](docs/ROLLBACK_V2_8.md)。双真机、Neon 临时库恢复和真实 S3 上传完成前，不得把版本改为 `2.8.0`。

@@ -1,6 +1,6 @@
 # 项目交接与首次完整审计
 
-> 当前交付基线：V2.3 开发版本 `2.3.0`，日期 2026-08-09。历史审计基线为 1.0.19。
+> 当前交付基线：V2.9 体验版本 `2.9.0`，日期 2026-08-10。正式发布证据仍以微信公众平台和线上健康检查为准。
 
 ## 1. 产品定位
 
@@ -17,17 +17,26 @@
 | 项目 | 当前状态 |
 | --- | --- |
 | 小程序技术 | Taro 4 + React 18 |
-| 小程序版本 | 2.3.0（待上传/体验验收） |
+| 小程序版本 | 2.9.0（准备上传体验版） |
 | 后端 | FastAPI + SQLAlchemy 2 |
 | 生产数据库 | Neon PostgreSQL |
 | 本地数据库 | SQLite 回退 |
 | 生产 API | `https://girlfriend-menu-api.onrender.com` |
 | 2026-08-08 健康检查 | `/api/health` 正常；`/api/ready` 返回 PostgreSQL ready |
 | 线上启用菜品 | 19 道 |
-| 后端自动测试 | 19 项通过 |
-| 数据库迁移 | Alembic `20260809_04`，全新 SQLite 升级/降级/再升级验证通过 |
+| 后端自动测试 | 56 项通过 |
+| 数据库迁移 | Alembic `20260809_09`；空库、V2.0 基线升级及末级降级/再升级通过 |
 | 小程序构建 | `npm run build:weapp` 通过 |
 | 正式发布状态 | 代码无法证明；需在微信公众平台“版本管理”确认 |
+
+### V2.8 安全与发布边界
+
+- 普通端由 `/api/customers/session` 建立设备会话，业务接口使用 Bearer token；旧 `gf_customer_id` 通过 `/api/customers/claim-legacy` 一次性认领。
+- 管理端令牌为 12 小时 HMAC 签名载荷。修改 `ADMIN_SECRET` 或 `ADMIN_TOKEN_VERSION` 可整体撤销已有令牌。
+- 生产启动必须先执行 Alembic；应用内 `create_all` 和旧 SQLite 兼容检查仅在 development/test 运行。
+- 图片生产存储为 S3-compatible provider。缺少配置时核心 API 仍可运行，但 `/api/ready` 标记 `release-blocked`，禁止正式发布。
+- 当前自动化验证不覆盖微信双真机、Render 冷启动、Neon 恢复演练或真实对象存储，因此版本保持 RC。
+- 以 [V2.8 能力矩阵](CAPABILITY_MATRIX.md)、[发布清单](RELEASE_CHECKLIST_V2_8.md)、[备份恢复](BACKUP_AND_RESTORE.md)和[回滚手册](ROLLBACK_V2_8.md)作为后续交接入口。
 
 ## 3. 系统架构
 
@@ -37,9 +46,14 @@ flowchart LR
   A["小厨房管理端"] --> MP
   MP -->|"HTTPS JSON"| API["Render / FastAPI"]
   MP <-->|"WSS"| RT["订单推送 / 大话骰 / 五子棋房间"]
+  MP -->|"HTTPS 轮询"| FL["持久飞行棋 / 每日任务"]
+  MP -->|"HTTPS + version"| GE["斗地主 / 斗兽棋统一游戏核心"]
   API --> DB["Neon PostgreSQL"]
+  FL --> DB
+  GE --> DB
   API --> FS["Render 本地 uploads（临时）"]
-  RT --> MEM["单进程内存状态"]
+  RT --> REDIS["可选 Redis 热状态"]
+  REDIS --> DB
   GH["GitHub main"] -->|"自动部署"| API
 ```
 
@@ -47,8 +61,8 @@ flowchart LR
 
 - 用户端与管理端都在同一个微信小程序包里。
 - HTTP 数据通过 `miniprogram/src/api/index.js` 访问，订单推送和统一游戏协议分别由对应 WebSocket 客户端封装。
-- 订单、菜品、评价、游戏玩家、完成对局、情侣积分和统计持久化到 PostgreSQL。
-- 实时连接、大话骰状态和进行中的五子棋棋盘只保存在后端进程内存；服务重启不会恢复未完成的一局。
+- 订单、菜品、评价、游戏玩家、完成对局、飞行棋状态、V2.5 版本棋局、互动、任务、成就、情侣积分和统计持久化到 PostgreSQL。
+- 实时连接保留在进程内存；大话骰和五子棋热状态可镜像到 Redis 并在进程重启后恢复。Redis 未配置时自动退回单进程模式，PostgreSQL 业务不受影响。
 - 旧 React/Vite 网页端已退休，不应再作为功能入口。
 
 ## 4. 页面地图
@@ -71,6 +85,12 @@ flowchart LR
 | 单机大话骰 | `pages/dice/index` | 原生 WebGL 骰子、AI 对局 |
 | 双人大话骰 | `pages/dice-online/index` | 房间、实时叫骰、开盅、计分 |
 | 双人五子棋 | `pages/games/gomoku/index` | 15×15 实时棋盘、轮次、结算和再来一局 |
+| 情侣飞行棋 | `pages/games/flight/index` | 服务端骰子、四棋子、互动事件和持久棋局 |
+| 情侣斗地主 | `pages/games/landlord/index` | 两位真人 + AI、私有手牌、服务端牌型和结算 |
+| 情侣斗兽棋 | `pages/games/animal/index` | 7×9 棋盘、双人房间或单人 AI |
+| 每日任务 | `pages/couple/tasks` | 今日进度、自动触发任务和最近互动 |
+| 我们的故事 | `pages/couple/timeline` | 共同时间轴、手写记录和纪念日提醒 |
+| 消息 | `pages/notifications/index` | 订单进度、游戏与纪念日消息 |
 | 管理登录 | `pages/admin-login/index` | 管理密码登录 |
 | 管理总览 | `pages/admin-dashboard/index` | 订单、菜品、统计入口 |
 | 管理订单 | `pages/admin-orders/index` | 全部订单、实时刷新、改状态 |
@@ -87,8 +107,11 @@ flowchart LR
 | `gf_repeat_order_draft` | 再次点单的来源和备注 | 草稿来源信息丢失 |
 | `gf_admin_token` | 管理登录令牌 | 需要重新登录管理端 |
 | `gf_wheel_items` | 自定义转盘选项 | 转盘恢复默认值 |
+| `gf_game_reconnect_{ROOM}` | 单房间重连原始令牌 | 仍能从“继续游戏”发现房间，但需重新签发令牌 |
 
 `customer_id` 不是微信账号，也不是 OpenID。它只解决最小版本里“同一台设备再次打开还能找到订单”的需求。
+
+V2.7 的 `users.user_code` 对旧 `customer_id` 做兼容映射，不改变现有 key。清空微信缓存仍会生成新设备身份；本版本没有冒充微信账号或跨设备账号找回能力。
 
 ## 6. 数据模型
 
@@ -294,7 +317,7 @@ waiting → playing → finished → 双方 rematch/playing
 3. 分类、历史和统计缺少搜索、分页和筛选。
 4. 价格在私厨场景是否有价值尚未验证，可考虑改成“难度/准备时间/辣度”。
 5. `desired_time` 是自由文本，无法可靠排序或做提醒。
-6. 五子棋棋盘在进程重启后会丢失；页面需要进一步明确“当前局已中断”，避免把重连后的空棋盘误认为恢复成功。
+6. 五子棋棋盘在进程重启后会丢失；飞行棋已改为数据库持久状态，后续可将同一机制推广到五子棋。
 
 ## 11. UI/UX 方向
 
@@ -373,7 +396,9 @@ waiting → playing → finished → 双方 rematch/playing
 8. 单机骰子开盅前/后
 9. 双人大话骰房间与计分板
 10. 双人五子棋等待、对局、结算与再来一局
-11. “我们的游戏记录”页面
+11. 情侣飞行棋等待、双人移动、随机事件和结算
+12. 每日任务进度、手动夸奖与自动任务
+13. “我们的游戏记录”页面
 
 管理端：
 

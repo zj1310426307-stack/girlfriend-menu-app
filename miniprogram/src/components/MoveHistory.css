@@ -1,0 +1,8 @@
+.move-history-card { margin-top:16px; padding:17px; border-radius:22px; background:#fffaf0; box-shadow:0 9px 22px rgba(70,55,39,.08); }
+.move-history-card > view:first-child { display:flex; align-items:center; justify-content:space-between; color:#544a3d; font-size:17px; font-weight:900; }
+.move-history-card > view:first-child text:last-child { color:#9a8670; font-size:13px; }
+.move-history-list { height:132px; margin-top:10px; }
+.move-history-list view { min-height:34px; display:grid; grid-template-columns:28px 60px 1fr 24px; align-items:center; border-bottom:1px solid #eee4d4; color:#766a5b; font-size:13px; }
+.move-history-list view text:first-child { color:#b3936f; font-weight:900; }
+.move-history-list view text:last-child { color:#b54f3f; font-weight:900; }
+.move-history-empty { display:block; padding:28px 0; color:#a29687; text-align:center; font-size:14px; }

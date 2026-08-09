@@ -2,12 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import Taro from "@tarojs/taro";
 import { Input, ScrollView, Text, View } from "@tarojs/components";
 
-import { getCoupleScore, getDishes, getFavoriteRanking } from "../../api";
+import { establishCustomerSession, getCoupleScore, getDishes, getFavoriteRanking } from "../../api";
 import DishCard from "../../components/DishCard";
 import LoveScoreCard from "../../components/LoveScoreCard";
+import AsyncState from "../../components/AsyncState";
 import { addToCart } from "../../utils/cart";
-import { getCustomerId } from "../../utils/customer";
-import { hasInvitePassed, INVITE_CODE, passInvite } from "../../utils/invite";
+import { getCustomerId, hasCustomerSession } from "../../utils/customer";
+import { hasInvitePassed, passInvite } from "../../utils/invite";
 import "./index.css";
 
 /** Home focuses on a fast decision instead of exposing every product module. */
@@ -16,6 +17,7 @@ export default function Index() {
   const [invitePassed, setInvitePassed] = useState(false);
   const [inviteCode, setInviteCode] = useState("");
   const [inviteError, setInviteError] = useState("");
+  const [inviteSubmitting, setInviteSubmitting] = useState(false);
   const [dishes, setDishes] = useState([]);
   const [ranking, setRanking] = useState([]);
   const [coupleScore, setCoupleScore] = useState(null);
@@ -44,7 +46,7 @@ export default function Index() {
   };
 
   useEffect(() => {
-    setInvitePassed(hasInvitePassed());
+    setInvitePassed(hasInvitePassed() && hasCustomerSession());
     setInviteChecked(true);
   }, []);
 
@@ -52,12 +54,21 @@ export default function Index() {
     if (inviteChecked && invitePassed) loadDishes();
   }, [inviteChecked, invitePassed]);
 
-  const submitInvite = () => {
+  const submitInvite = async () => {
     const value = inviteCode.trim();
     if (!value) return setInviteError("先输入邀请码哦");
-    if (value !== INVITE_CODE) return setInviteError("邀请码不对，再确认一下");
-    passInvite();
-    setInvitePassed(true);
+    if (inviteSubmitting) return;
+    setInviteSubmitting(true);
+    setInviteError("");
+    try {
+      await establishCustomerSession(value);
+      passInvite();
+      setInvitePassed(true);
+    } catch (requestError) {
+      setInviteError(requestError.message || "验证暂时失败，请稍后再试");
+    } finally {
+      setInviteSubmitting(false);
+    }
   };
 
   const rankedDishes = useMemo(
@@ -102,7 +113,9 @@ export default function Index() {
             onConfirm={submitInvite}
           />
           {inviteError && <Text className="invite-error">{inviteError}</Text>}
-          <View className="invite-button" onClick={submitInvite}><Text>进入小厨房</Text></View>
+          <View className={`invite-button ${inviteSubmitting ? "disabled" : ""}`} onClick={submitInvite}>
+            <Text>{inviteSubmitting ? "正在验证…" : "进入小厨房"}</Text>
+          </View>
         </View>
       </View>
     );
@@ -129,15 +142,15 @@ export default function Index() {
         />
       )}
 
-      {loading && <View className="state-box"><Text>正在准备今天的菜单…</Text></View>}
-      {error && <View className="state-box error" onClick={loadDishes}><Text>{error}，点这里重试</Text></View>}
+      {loading && <AsyncState message="正在准备今天的菜单…" />}
+      {error && <AsyncState type="error" message={error} onRetry={loadDishes} />}
 
       {!loading && !error && (
         <>
           <View className="v2-section-heading"><View><Text>智能推荐</Text><Text>先从今天最值得期待的开始</Text></View></View>
           {recommendations[0] ? (
             <DishCard dish={recommendations[0]} onOpen={openDish} onAdd={addDish} />
-          ) : <View className="state-box"><Text>还没有可推荐的菜</Text></View>}
+          ) : <AsyncState type="empty" message="还没有可推荐的菜" />}
 
           <View className="v2-section-heading"><View><Text>最近常点</Text><Text>熟悉的味道，选择更快</Text></View></View>
           <ScrollView className="v2-recent-scroll" scrollX enhanced showScrollbar={false}>

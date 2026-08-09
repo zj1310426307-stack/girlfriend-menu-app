@@ -110,6 +110,7 @@ class GomokuGame:
         self.winner_id: str | None = None
         self.last_move: dict[str, Any] | None = None
         self.move_count = 0
+        self.move_history: list[dict[str, Any]] = []
         self.round = 1
         self.is_draw = False
 
@@ -181,6 +182,7 @@ class GomokuGame:
             "x": x,
             "y": y,
         }
+        self.move_history.append({**self.last_move, "number": self.move_count})
 
         if self._has_five(x, y, color):
             self.phase = "finished"
@@ -211,6 +213,7 @@ class GomokuGame:
         self.winner_id = None
         self.last_move = None
         self.move_count = 0
+        self.move_history = []
         self.is_draw = False
         self.round += 1
         if len(self.players) == 2:
@@ -240,6 +243,7 @@ class GomokuGame:
             "winner_color": winner_color,
             "last_move": dict(self.last_move) if self.last_move else None,
             "move_count": self.move_count,
+            "move_history": [dict(item) for item in self.move_history],
             "is_draw": self.is_draw,
             "round": self.round,
         }
