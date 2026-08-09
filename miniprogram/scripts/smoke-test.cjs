@@ -176,7 +176,7 @@ async function run() {
           : "菜单接口完成后没有渲染菜品"
       );
 
-      console.log("[smoke] 验证一起玩 Tab 与小程序管理入口");
+      console.log("[smoke] 验证一起玩 Tab、情侣中心与小程序管理入口");
       page = await miniProgram.switchTab("/pages/games/index");
       const wheelEntry = await waitForElement(page, ".wheel-game-entry", 4000);
       assert(wheelEntry, "一起玩页面没有渲染今晚转盘入口");
@@ -193,14 +193,16 @@ async function run() {
       assert(wheelOptionsAfter.length === wheelOptionsBefore.length + 1, "添加转盘分区失败");
       page = await miniProgram.navigateBack();
 
-      page = await miniProgram.switchTab("/pages/profile/index");
-      const adminEntry = await waitForElement(page, ".v2-profile-admin", 4000);
-      assert(adminEntry, "我的页面没有渲染小厨房管理入口");
+      page = await miniProgram.switchTab("/pages/couple/index");
+      const scoreCard = await waitForElement(page, ".love-score-card", 4000);
+      const adminEntry = await waitForElement(page, ".couple-admin-link", 4000);
+      assert(scoreCard, "情侣中心没有渲染默契值卡片");
+      assert(adminEntry, "情侣中心没有渲染小厨房管理入口");
       await adminEntry.tap();
       page = await waitForCurrentPage(miniProgram, "pages/admin-login/index", page);
       assert(await page.$(".mini-admin-password"), "小厨房登录页没有渲染密码框");
       page = await miniProgram.navigateBack();
-      console.log("[smoke] 转盘增项与管理登录页正常");
+      console.log("[smoke] 转盘增项、情侣中心与管理登录页正常");
     }
 
     console.log("[smoke] 进入原生 3D 骰子桌");

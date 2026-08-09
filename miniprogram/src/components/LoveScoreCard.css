@@ -1,0 +1,15 @@
+.love-score-card { padding: 27px; border: 2px solid #e0ded4; border-radius: 30px; background: #fffdf8; box-shadow: var(--shadow-card); }
+.love-score-heading, .love-score-heading > view, .love-score-foot { display: flex; align-items: center; }
+.love-score-heading { justify-content: space-between; gap: 16px; }
+.love-score-heading > view { gap: 9px; color: var(--text-main); font-size: 24px; font-weight: 900; }
+.love-score-heading > view text:first-child { color: var(--coral); font-size: 28px; }
+.love-score-heading > text { padding: 6px 12px; border-radius: 16px; color: #66745f; background: #eaf0e6; font-size: 19px; font-weight: 800; }
+.love-score-main { margin-top: 19px; }
+.love-score-main > text { color: var(--text-main); font-size: 66px; font-weight: 900; line-height: 1; }
+.love-score-main > view { height: 15px; margin-top: 19px; overflow: hidden; border-radius: 9px; background: #e9e7df; }
+.love-score-main > view > view { height: 100%; border-radius: 9px; background: var(--sage); transition: width .35s ease; }
+.love-score-foot { justify-content: space-between; gap: 15px; margin-top: 15px; color: var(--text-muted); font-size: 19px; }
+.love-score-card.is-compact { padding: 22px 24px; }
+.love-score-card.is-compact .love-score-main { display: flex; align-items: center; gap: 20px; margin-top: 15px; }
+.love-score-card.is-compact .love-score-main > text { font-size: 49px; }
+.love-score-card.is-compact .love-score-main > view { flex: 1; margin-top: 0; }

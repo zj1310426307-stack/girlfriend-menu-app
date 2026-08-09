@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import Taro from "@tarojs/taro";
 import { Input, ScrollView, Text, View } from "@tarojs/components";
 
-import { getDishes, getFavoriteRanking } from "../../api";
+import { getCoupleScore, getDishes, getFavoriteRanking } from "../../api";
 import DishCard from "../../components/DishCard";
+import LoveScoreCard from "../../components/LoveScoreCard";
 import { addToCart } from "../../utils/cart";
 import { getCustomerId } from "../../utils/customer";
 import { hasInvitePassed, INVITE_CODE, passInvite } from "../../utils/invite";
@@ -17,6 +18,7 @@ export default function Index() {
   const [inviteError, setInviteError] = useState("");
   const [dishes, setDishes] = useState([]);
   const [ranking, setRanking] = useState([]);
+  const [coupleScore, setCoupleScore] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -24,13 +26,16 @@ export default function Index() {
     setLoading(true);
     setError("");
     try {
-      const [dishResult, rankingResult] = await Promise.allSettled([
+      const customerId = getCustomerId();
+      const [dishResult, rankingResult, scoreResult] = await Promise.allSettled([
         getDishes(),
-        getFavoriteRanking(getCustomerId())
+        getFavoriteRanking(customerId),
+        getCoupleScore(customerId)
       ]);
       if (dishResult.status === "rejected") throw dishResult.reason;
       setDishes(dishResult.value);
       setRanking(rankingResult.status === "fulfilled" ? rankingResult.value : []);
+      setCoupleScore(scoreResult.status === "fulfilled" ? scoreResult.value : null);
     } catch (requestError) {
       setError(requestError.message || "菜单暂时走丢了");
     } finally {
@@ -114,6 +119,15 @@ export default function Index() {
           <View onClick={() => Taro.switchTab({ url: "/pages/my-orders/index" })}><Text>我的点菜单</Text></View>
         </View>
       </View>
+
+      {coupleScore && (
+        <LoveScoreCard
+          className="v2-home-love-score"
+          summary={coupleScore}
+          compact
+          onOpen={() => Taro.switchTab({ url: "/pages/couple/index" })}
+        />
+      )}
 
       {loading && <View className="state-box"><Text>正在准备今天的菜单…</Text></View>}
       {error && <View className="state-box error" onClick={loadDishes}><Text>{error}，点这里重试</Text></View>}

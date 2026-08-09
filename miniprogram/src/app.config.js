@@ -4,6 +4,10 @@ export default defineAppConfig({
     "pages/menu/index",
     "pages/my-orders/index",
     "pages/games/index",
+    "pages/couple/index",
+    "pages/couple/score",
+    "pages/couple/records",
+    "pages/couple/achievements",
     "pages/profile/index",
     "pages/wheel/index",
     "pages/dice/index",
@@ -27,7 +31,7 @@ export default defineAppConfig({
       { pagePath: "pages/menu/index", text: "菜单" },
       { pagePath: "pages/my-orders/index", text: "点菜单" },
       { pagePath: "pages/games/index", text: "一起玩" },
-      { pagePath: "pages/profile/index", text: "我的" }
+      { pagePath: "pages/couple/index", text: "我们" }
     ]
   },
   window: {

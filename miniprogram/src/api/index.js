@@ -138,6 +138,22 @@ export const createGameRoom = (gameType, creator, inviteCode) =>
 export const getGameRoom = (roomCode) =>
   request(`/games/rooms/${encodeURIComponent(roomCode)}`);
 
+export const getCoupleScore = (customerId) =>
+  request("/couple/score", { header: customerHeader(customerId) });
+
+export const getCoupleScoreHistory = (customerId) =>
+  request("/couple/score/history", { header: customerHeader(customerId) });
+
+export const addAdminCoupleScore = (data, customerId, token) =>
+  request("/couple/score/add", {
+    method: "POST",
+    data,
+    header: {
+      ...customerHeader(customerId),
+      Authorization: `Bearer ${token}`
+    }
+  });
+
 export const adminLogin = (password, inviteCode) =>
   request("/admin/login", {
     method: "POST",
