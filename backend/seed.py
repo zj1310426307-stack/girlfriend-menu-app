@@ -139,6 +139,15 @@ SAMPLE_DISHES = [
     },
 ]
 
+GAME_CATALOG = [
+    {"name": "大话骰", "icon": "骰", "type": "dice", "status": "available"},
+    {"name": "五子棋", "icon": "棋", "type": "gomoku", "status": "coming_soon"},
+    {"name": "飞行棋", "icon": "飞", "type": "aeroplane", "status": "coming_soon"},
+    {"name": "斗地主", "icon": "牌", "type": "landlord", "status": "coming_soon"},
+    {"name": "斗兽棋", "icon": "兽", "type": "jungle", "status": "coming_soon"},
+    {"name": "中国象棋", "icon": "象", "type": "chinese_chess", "status": "coming_soon"},
+]
+
 
 def seed_dishes(db: Session):
     existing_names = {name for (name,) in db.query(models.Dish.name).all()}
@@ -166,10 +175,23 @@ def seed_dishes(db: Session):
         db.commit()
 
 
+def seed_games(db: Session):
+    existing_types = {game_type for (game_type,) in db.query(models.Game.type).all()}
+    missing_games = [
+        models.Game(**game)
+        for game in GAME_CATALOG
+        if game["type"] not in existing_types
+    ]
+    if missing_games:
+        db.add_all(missing_games)
+        db.commit()
+
+
 if __name__ == "__main__":
     from database import Base, SessionLocal, engine
 
     Base.metadata.create_all(bind=engine)
     with SessionLocal() as session:
         seed_dishes(session)
+        seed_games(session)
     print("测试菜品数据已准备好。")

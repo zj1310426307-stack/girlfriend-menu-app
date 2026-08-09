@@ -52,23 +52,39 @@ class OrderEventHub:
                     self.connections.discard(websocket)
 
 
-class DiceRoomManager:
+class GameRoomManager:
+    """Shared in-memory transport for real-time games.
+
+    Room metadata is persisted in ``game_rooms``; fast-changing board state and
+    socket objects remain in memory. V2.1 registers dice as the first protocol,
+    while the envelope and room lifecycle are reusable by future games.
+    """
+
     def __init__(self):
         self.rooms = {}
         self.lock = asyncio.Lock()
 
-    async def create_room(self):
+    async def create_room(self, room_code=None, game_type="dice", max_players=2):
         async with self.lock:
+            if room_code:
+                normalized = str(room_code).strip().upper()
+                self.rooms.setdefault(
+                    normalized,
+                    self._new_room(normalized, game_type, max_players),
+                )
+                return normalized
             while True:
                 room_code = "".join(secrets.choice(ROOM_ALPHABET) for _ in range(6))
                 if room_code not in self.rooms:
-                    self.rooms[room_code] = self._new_room(room_code)
+                    self.rooms[room_code] = self._new_room(room_code, game_type, max_players)
                     return room_code
 
     @staticmethod
-    def _new_room(room_code):
+    def _new_room(room_code, game_type="dice", max_players=2):
         return {
             "room_code": room_code,
+            "game_type": game_type,
+            "max_players": max_players,
             "players": OrderedDict(),
             "scores": {},
             "dice": {},
@@ -80,20 +96,36 @@ class DiceRoomManager:
             "round": 0,
         }
 
-    async def join(self, room_code, player_id, player_name, websocket):
+    async def ensure_room(self, room_code, game_type, max_players):
+        return await self.create_room(room_code, game_type, max_players)
+
+    async def join(
+        self,
+        room_code,
+        player_id,
+        player_name,
+        websocket,
+        protocol="v2",
+        game_type=None,
+    ):
         async with self.lock:
             room = self.rooms.get(room_code)
             if not room:
                 return False, "房间不存在或已经失效"
-            if player_id not in room["players"] and len(room["players"]) >= 2:
+            if game_type and game_type != room["game_type"]:
+                return False, "游戏类型与房间不匹配"
+            if room["game_type"] != "dice":
+                return False, "这个游戏协议还没有开放"
+            if player_id not in room["players"] and len(room["players"]) >= room["max_players"]:
                 return False, "房间已经满了"
             room["players"][player_id] = {
                 "id": player_id,
                 "name": player_name[:20] or "玩家",
                 "socket": websocket,
+                "protocol": protocol,
             }
             room["scores"].setdefault(player_id, 0)
-            if len(room["players"]) == 2 and room["phase"] == "waiting":
+            if len(room["players"]) == room["max_players"] and room["phase"] == "waiting":
                 room["phase"] = "rolling"
             payloads = self._payloads(room)
         await self._send_payloads(payloads)
@@ -128,11 +160,15 @@ class DiceRoomManager:
             room = self.rooms.get(room_code)
             if not room or player_id not in room["players"]:
                 return "房间已经失效"
+            requested_game = message.get("game")
+            if requested_game and requested_game != room["game_type"]:
+                return "游戏类型与房间不匹配"
             action = message.get("type")
+            data = message.get("data") if isinstance(message.get("data"), dict) else message
             if action == "roll":
-                error = self._roll(room, player_id, message.get("values"))
+                error = self._roll(room, player_id, data.get("values"))
             elif action == "bid":
-                error = self._bid(room, player_id, message)
+                error = self._bid(room, player_id, data)
             elif action == "challenge":
                 error = self._challenge(room, player_id)
             elif action == "rematch":
@@ -145,6 +181,17 @@ class DiceRoomManager:
         if not error:
             await self._send_payloads(payloads)
         return error
+
+    async def room_status(self, room_code):
+        async with self.lock:
+            room = self.rooms.get(room_code)
+            if not room:
+                return "waiting"
+            if room["phase"] == "finished":
+                return "finished"
+            if len(room["players"]) >= room["max_players"]:
+                return "playing"
+            return "waiting"
 
     @staticmethod
     def _roll(room, player_id, values):
@@ -159,7 +206,7 @@ class DiceRoomManager:
         ):
             return "骰子结果不正确"
         room["dice"][player_id] = values
-        if len(room["dice"]) == len(room["players"]) == 2:
+        if len(room["dice"]) == len(room["players"]) == room["max_players"]:
             room["phase"] = "bidding"
             player_ids = list(room["players"])
             room["turn_id"] = player_ids[room["round"] % len(player_ids)]
@@ -217,7 +264,7 @@ class DiceRoomManager:
         if room["phase"] != "finished":
             return "本局还没有结束"
         room["rematch_ready"].add(player_id)
-        if len(room["rematch_ready"]) == len(room["players"]) == 2:
+        if len(room["rematch_ready"]) == len(room["players"]) == room["max_players"]:
             room["round"] += 1
             room["phase"] = "rolling"
             room["dice"] = {}
@@ -241,9 +288,7 @@ class DiceRoomManager:
         ]
         payloads = []
         for player_id, player in room["players"].items():
-            payload = {
-                "type": "room_state",
-                "room_code": room["room_code"],
+            state = {
                 "phase": room["phase"],
                 "players": public_players,
                 "turn_id": room["turn_id"],
@@ -253,6 +298,19 @@ class DiceRoomManager:
                 "my_dice": room["dice"].get(player_id),
                 "all_dice": room["dice"] if room["phase"] == "finished" else None,
             }
+            if player.get("protocol") == "legacy":
+                payload = {
+                    "type": "room_state",
+                    "room_code": room["room_code"],
+                    **state,
+                }
+            else:
+                payload = {
+                    "type": "state",
+                    "game": room["game_type"],
+                    "room_code": room["room_code"],
+                    "data": state,
+                }
             payloads.append((player["socket"], payload))
         return payloads
 
@@ -266,4 +324,6 @@ class DiceRoomManager:
 
 
 order_event_hub = OrderEventHub()
-dice_room_manager = DiceRoomManager()
+game_room_manager = GameRoomManager()
+# Compatibility alias for code imported before the unified V2.1 protocol.
+dice_room_manager = game_room_manager

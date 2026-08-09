@@ -1,3 +1,5 @@
+import secrets
+
 from fastapi import HTTPException
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
@@ -5,6 +7,74 @@ from sqlalchemy.orm import Session
 
 import models
 import schemas
+
+
+ROOM_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
+GAME_MAX_PLAYERS = {
+    "dice": 2,
+    "gomoku": 2,
+    "aeroplane": 4,
+    "landlord": 3,
+    "jungle": 2,
+    "chinese_chess": 2,
+}
+
+
+def list_games(db: Session):
+    return db.query(models.Game).order_by(models.Game.id).all()
+
+
+def get_game(db: Session, game_type: str):
+    game = db.query(models.Game).filter(models.Game.type == game_type).first()
+    if not game:
+        raise HTTPException(status_code=404, detail="游戏不存在")
+    return game
+
+
+def create_game_room(db: Session, game_type: str, creator: str):
+    game = get_game(db, game_type)
+    if game.status != "available":
+        raise HTTPException(status_code=409, detail="这个游戏还在准备中")
+    max_players = GAME_MAX_PLAYERS.get(game_type, 2)
+    for _ in range(20):
+        room_code = "".join(secrets.choice(ROOM_ALPHABET) for _ in range(6))
+        if not db.query(models.GameRoom.id).filter(models.GameRoom.room_code == room_code).first():
+            room = models.GameRoom(
+                room_code=room_code,
+                game_type=game_type,
+                creator=creator,
+                status="waiting",
+                max_players=max_players,
+            )
+            db.add(room)
+            try:
+                db.commit()
+            except IntegrityError:
+                db.rollback()
+                continue
+            db.refresh(room)
+            return room
+    raise HTTPException(status_code=503, detail="暂时无法创建房间，请稍后再试")
+
+
+def get_game_room(db: Session, room_code: str):
+    room = (
+        db.query(models.GameRoom)
+        .filter(models.GameRoom.room_code == room_code.strip().upper())
+        .first()
+    )
+    if not room:
+        raise HTTPException(status_code=404, detail="房间不存在或已经失效")
+    return room
+
+
+def update_game_room_status(db: Session, room_code: str, room_status: str):
+    room = get_game_room(db, room_code)
+    if room.status != room_status:
+        room.status = room_status
+        db.commit()
+        db.refresh(room)
+    return room
 
 
 def list_dishes(db: Session, category: str | None = None):

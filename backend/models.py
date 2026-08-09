@@ -89,3 +89,26 @@ class FavoriteDish(Base):
     customer_id = Column(String(100), nullable=False, index=True)
     dish_id = Column(Integer, ForeignKey("dishes.id"), nullable=False, index=True)
     created_at = Column(DateTime, default=datetime.now, nullable=False)
+
+
+class Game(Base):
+    __tablename__ = "games"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(50), nullable=False)
+    icon = Column(String(20), nullable=False, default="玩")
+    type = Column(String(50), nullable=False, unique=True, index=True)
+    status = Column(String(20), nullable=False, default="coming_soon", index=True)
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
+
+
+class GameRoom(Base):
+    __tablename__ = "game_rooms"
+
+    id = Column(Integer, primary_key=True, index=True)
+    room_code = Column(String(12), nullable=False, unique=True, index=True)
+    game_type = Column(String(50), nullable=False, index=True)
+    creator = Column(String(100), nullable=False, index=True)
+    status = Column(String(20), nullable=False, default="waiting", index=True)
+    max_players = Column(Integer, nullable=False, default=2)
+    created_at = Column(DateTime, default=datetime.now, nullable=False, index=True)

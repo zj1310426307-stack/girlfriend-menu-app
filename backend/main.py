@@ -26,8 +26,8 @@ import crud
 import models
 import schemas
 from database import Base, SessionLocal, engine, ensure_compatible_schema, get_db
-from realtime import dice_room_manager, order_event_hub
-from seed import seed_dishes
+from realtime import game_room_manager, order_event_hub
+from seed import seed_dishes, seed_games
 from storage import UPLOAD_DIR, ensure_upload_directory, save_image
 
 
@@ -44,6 +44,7 @@ async def lifespan(_: FastAPI):
     ensure_compatible_schema()
     with SessionLocal() as db:
         seed_dishes(db)
+        seed_games(db)
     yield
 
 
@@ -173,57 +174,175 @@ async def admin_order_events(websocket: WebSocket):
         await order_event_hub.remove(websocket)
 
 
-@app.post("/api/games/dice/rooms", response_model=schemas.DiceRoomOut)
-async def create_dice_room(data: schemas.DiceRoomCreate):
+@app.get("/api/games", response_model=list[schemas.GameOut])
+def games(db: Session = Depends(get_db)):
+    return crud.list_games(db)
+
+
+@app.post(
+    "/api/games/rooms",
+    response_model=schemas.GameRoomOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_game_room(data: schemas.GameRoomCreate, db: Session = Depends(get_db)):
     if not secrets.compare_digest(data.invite_code, get_admin_invite_code()):
         raise HTTPException(status_code=401, detail="邀请码错误")
-    return {"room_code": await dice_room_manager.create_room()}
+    room = crud.create_game_room(db, data.game_type, data.creator)
+    await game_room_manager.ensure_room(room.room_code, room.game_type, room.max_players)
+    return room
 
 
-@app.websocket("/ws/games/dice/{room_code}")
-async def dice_room_socket(websocket: WebSocket, room_code: str):
+@app.get("/api/games/rooms/{room_code}", response_model=schemas.GameRoomOut)
+def game_room_detail(room_code: str, db: Session = Depends(get_db)):
+    return crud.get_game_room(db, room_code)
+
+
+@app.post("/api/games/dice/rooms", response_model=schemas.DiceRoomOut)
+async def create_dice_room(data: schemas.DiceRoomCreate, db: Session = Depends(get_db)):
+    """Compatibility endpoint for already uploaded 1.x clients."""
+    if not secrets.compare_digest(data.invite_code, get_admin_invite_code()):
+        raise HTTPException(status_code=401, detail="邀请码错误")
+    room = crud.create_game_room(db, "dice", "legacy_client")
+    await game_room_manager.ensure_room(room.room_code, room.game_type, room.max_players)
+    return {"room_code": room.room_code}
+
+
+async def _send_game_error(websocket: WebSocket, message: str, game_type: str, protocol: str):
+    if protocol == "legacy":
+        await websocket.send_json({"type": "error", "message": message})
+    else:
+        await websocket.send_json({"type": "error", "game": game_type, "message": message})
+
+
+def _sync_game_room_status(room_code: str, room_status: str, allow_restart: bool = False):
+    with SessionLocal() as db:
+        room = crud.get_game_room(db, room_code)
+        if room.status == "finished" and room_status != "finished" and not allow_restart:
+            return
+        crud.update_game_room_status(db, room_code, room_status)
+
+
+async def _game_room_socket(
+    websocket: WebSocket,
+    room_code: str,
+    protocol: str,
+    forced_game_type: str | None = None,
+):
     await websocket.accept()
     player_id = None
     normalized_room_code = room_code.strip().upper()
+    game_type = forced_game_type or "unknown"
     try:
+        try:
+            with SessionLocal() as db:
+                room_record = crud.get_game_room(db, normalized_room_code)
+                game_type = room_record.game_type
+                if room_record.status == "finished":
+                    await _send_game_error(websocket, "房间已经结束", game_type, protocol)
+                    await websocket.close(code=4404)
+                    return
+                if forced_game_type and forced_game_type != game_type:
+                    await _send_game_error(websocket, "游戏类型与房间不匹配", game_type, protocol)
+                    await websocket.close(code=4400)
+                    return
+                await game_room_manager.ensure_room(
+                    normalized_room_code,
+                    room_record.game_type,
+                    room_record.max_players,
+                )
+        except HTTPException as error:
+            await _send_game_error(websocket, str(error.detail), game_type, protocol)
+            await websocket.close(code=4404)
+            return
+
         join_message = await asyncio.wait_for(websocket.receive_json(), timeout=10)
+        join_data = (
+            join_message.get("data")
+            if isinstance(join_message.get("data"), dict)
+            else join_message
+        )
+        requested_game = join_message.get("game") or forced_game_type or game_type
         if join_message.get("type") != "join":
-            await websocket.send_json({"type": "error", "message": "请先加入房间"})
+            await _send_game_error(websocket, "请先加入房间", game_type, protocol)
+            await websocket.close(code=4400)
+            return
+        if requested_game != game_type:
+            await _send_game_error(websocket, "游戏类型与房间不匹配", game_type, protocol)
             await websocket.close(code=4400)
             return
         if not secrets.compare_digest(
-            str(join_message.get("invite_code") or ""),
+            str(join_data.get("invite_code") or ""),
             get_admin_invite_code(),
         ):
-            await websocket.send_json({"type": "error", "message": "邀请码错误"})
+            await _send_game_error(websocket, "邀请码错误", game_type, protocol)
             await websocket.close(code=4401)
             return
-        player_id = str(join_message.get("player_id") or "")[:100]
-        player_name = str(join_message.get("name") or "玩家")[:20]
+        player_id = str(join_data.get("player_id") or "")[:100]
+        player_name = str(join_data.get("name") or "玩家")[:20]
         if not player_id:
-            await websocket.send_json({"type": "error", "message": "玩家标识不能为空"})
+            await _send_game_error(websocket, "玩家标识不能为空", game_type, protocol)
             await websocket.close(code=4400)
             return
-        joined, message = await dice_room_manager.join(
+        joined, message = await game_room_manager.join(
             normalized_room_code,
             player_id,
             player_name,
             websocket,
+            protocol=protocol,
+            game_type=game_type,
         )
         if not joined:
-            await websocket.send_json({"type": "error", "message": message})
+            await _send_game_error(websocket, message, game_type, protocol)
             await websocket.close(code=4404)
             return
+        _sync_game_room_status(
+            normalized_room_code,
+            await game_room_manager.room_status(normalized_room_code),
+        )
         while True:
             action = await websocket.receive_json()
-            error = await dice_room_manager.handle(normalized_room_code, player_id, action)
+            if action.get("type") == "ping":
+                pong = {"type": "pong"}
+                if protocol != "legacy":
+                    pong.update(game=game_type, data={})
+                await websocket.send_json(pong)
+                continue
+            error = await game_room_manager.handle(normalized_room_code, player_id, action)
             if error:
-                await websocket.send_json({"type": "error", "message": error})
+                await _send_game_error(websocket, error, game_type, protocol)
+                continue
+            _sync_game_room_status(
+                normalized_room_code,
+                await game_room_manager.room_status(normalized_room_code),
+                allow_restart=action.get("type") == "rematch",
+            )
     except (WebSocketDisconnect, asyncio.TimeoutError):
         pass
     finally:
         if player_id:
-            await dice_room_manager.leave(normalized_room_code, player_id, websocket)
+            await game_room_manager.leave(normalized_room_code, player_id, websocket)
+            try:
+                _sync_game_room_status(
+                    normalized_room_code,
+                    await game_room_manager.room_status(normalized_room_code),
+                )
+            except HTTPException:
+                pass
+
+
+@app.websocket("/ws/game/{room_code}")
+async def unified_game_room_socket(websocket: WebSocket, room_code: str):
+    await _game_room_socket(websocket, room_code, protocol="v2")
+
+
+@app.websocket("/ws/games/dice/{room_code}")
+async def dice_room_socket(websocket: WebSocket, room_code: str):
+    await _game_room_socket(
+        websocket,
+        room_code,
+        protocol="legacy",
+        forced_game_type="dice",
+    )
 
 
 @app.post("/api/upload/image", dependencies=[Depends(verify_admin_token)])

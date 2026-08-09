@@ -24,6 +24,39 @@ class DiceRoomOut(BaseModel):
     room_code: str
 
 
+GameStatus = Literal["available", "coming_soon", "maintenance"]
+GameRoomStatus = Literal["waiting", "playing", "finished"]
+
+
+class GameOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    icon: str
+    type: str
+    status: GameStatus
+    created_at: datetime
+
+
+class GameRoomCreate(BaseModel):
+    game_type: str = Field(min_length=1, max_length=50, pattern=r"^[a-z][a-z0-9_]*$")
+    creator: str = Field(min_length=1, max_length=100)
+    invite_code: str = Field(min_length=1, max_length=100)
+
+
+class GameRoomOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    room_code: str
+    game_type: str
+    creator: str
+    status: GameRoomStatus
+    max_players: int
+    created_at: datetime
+
+
 class DishBase(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     description: str = Field(default="", max_length=1000)

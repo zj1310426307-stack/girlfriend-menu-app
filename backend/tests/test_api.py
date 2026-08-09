@@ -284,3 +284,95 @@ def test_two_player_dice_room_privacy_and_challenge():
                 assert first_rematch["phase"] == second_rematch["phase"] == "rolling"
                 assert first_rematch["round"] == 2
                 assert sum(player["score"] for player in first_rematch["players"]) == 1
+
+
+def test_unified_game_catalog_room_and_websocket_protocol():
+    with TestClient(app) as client:
+        games = client.get("/api/games")
+        assert games.status_code == 200
+        catalog = {game["type"]: game for game in games.json()}
+        assert catalog["dice"]["status"] == "available"
+        assert catalog["gomoku"]["status"] == "coming_soon"
+
+        unavailable = client.post(
+            "/api/games/rooms",
+            json={
+                "game_type": "gomoku",
+                "creator": "gf_game_creator",
+                "invite_code": "test-invite",
+            },
+        )
+        assert unavailable.status_code == 409
+        assert client.post(
+            "/api/games/rooms",
+            json={
+                "game_type": "dice",
+                "creator": "gf_game_creator",
+                "invite_code": "wrong",
+            },
+        ).status_code == 401
+
+        created = client.post(
+            "/api/games/rooms",
+            json={
+                "game_type": "dice",
+                "creator": "gf_game_creator",
+                "invite_code": "test-invite",
+            },
+        )
+        assert created.status_code == 201
+        room_code = created.json()["room_code"]
+        assert created.json()["status"] == "waiting"
+        assert created.json()["max_players"] == 2
+
+        def join_message(player_id, name):
+            return {
+                "type": "join",
+                "game": "dice",
+                "data": {
+                    "player_id": player_id,
+                    "name": name,
+                    "invite_code": "test-invite",
+                },
+            }
+
+        with client.websocket_connect(f"/ws/game/{room_code}") as first:
+            first.send_json(join_message("gf_unified_first", "我"))
+            first_waiting = first.receive_json()
+            assert first_waiting["type"] == "state"
+            assert first_waiting["game"] == "dice"
+            assert first_waiting["data"]["phase"] == "waiting"
+            with client.websocket_connect(f"/ws/game/{room_code}") as second:
+                second.send_json(join_message("gf_unified_second", "女朋友"))
+                assert first.receive_json()["data"]["phase"] == "rolling"
+                assert second.receive_json()["data"]["phase"] == "rolling"
+                assert client.get(f"/api/games/rooms/{room_code}").json()["status"] == "playing"
+
+                first.send_json({
+                    "type": "roll",
+                    "game": "dice",
+                    "data": {"values": [1, 2, 3, 4, 5]},
+                })
+                first.receive_json()
+                second.receive_json()
+                second.send_json({
+                    "type": "roll",
+                    "game": "dice",
+                    "data": {"values": [2, 2, 3, 5, 6]},
+                })
+                assert first.receive_json()["data"]["phase"] == "bidding"
+                assert second.receive_json()["data"]["phase"] == "bidding"
+
+                first.send_json({
+                    "type": "bid",
+                    "game": "dice",
+                    "data": {"quantity": 3, "face": 2},
+                })
+                first.receive_json()
+                second.receive_json()
+                second.send_json({"type": "challenge", "game": "dice", "data": {}})
+                first_finished = first.receive_json()
+                second_finished = second.receive_json()
+                assert first_finished["data"]["phase"] == "finished"
+                assert second_finished["data"]["outcome"]["actual_count"] == 4
+                assert client.get(f"/api/games/rooms/{room_code}").json()["status"] == "finished"
