@@ -178,6 +178,14 @@ async function run() {
 
       console.log("[smoke] 验证一起玩 Tab、情侣中心与小程序管理入口");
       page = await miniProgram.switchTab("/pages/games/index");
+      const gomokuEntry = await waitForElement(page, ".gomoku-enter", 4000);
+      assert(gomokuEntry, "一起玩页面没有渲染五子棋入口");
+      await gomokuEntry.tap();
+      page = await waitForCurrentPage(miniProgram, "pages/games/gomoku/index", page);
+      const gomokuLobby = await waitForElement(page, ".gomoku-lobby-card", 5000);
+      assert(gomokuLobby, "五子棋大厅没有完整渲染");
+      page = await miniProgram.navigateBack();
+
       const wheelEntry = await waitForElement(page, ".wheel-game-entry", 4000);
       assert(wheelEntry, "一起玩页面没有渲染今晚转盘入口");
       await wheelEntry.tap();
@@ -202,7 +210,7 @@ async function run() {
       page = await waitForCurrentPage(miniProgram, "pages/admin-login/index", page);
       assert(await page.$(".mini-admin-password"), "小厨房登录页没有渲染密码框");
       page = await miniProgram.navigateBack();
-      console.log("[smoke] 转盘增项、情侣中心与管理登录页正常");
+      console.log("[smoke] 五子棋大厅、转盘增项、情侣中心与管理登录页正常");
     }
 
     console.log("[smoke] 进入原生 3D 骰子桌");

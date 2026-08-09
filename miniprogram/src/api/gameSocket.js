@@ -10,6 +10,7 @@ export function connectGameRoom({
   playerName,
   inviteCode,
   onState,
+  onEvent,
   onError,
   onStatus
 }) {
@@ -57,27 +58,36 @@ export function connectGameRoom({
     socket.onMessage((event) => {
       try {
         const message = JSON.parse(event.data);
-        if (message.type === "state" && message.game === gameType) {
+        const messageType = String(message.type || "").toLowerCase();
+        onEvent?.({ ...message, type: messageType });
+        if (
+          messageType === "state"
+          && (!message.game || String(message.game).toLowerCase() === String(gameType).toLowerCase())
+        ) {
           onState?.({ room_code: message.room_code, ...(message.data || {}) });
         }
-        if (message.type === "error") onError?.(message.message || "游戏操作失败");
+        if (messageType === "error") {
+          onError?.(message.message || message.data?.message || "游戏操作失败");
+        }
       } catch {
         onError?.("收到的房间数据不正确");
       }
     });
     socket.onError(() => {
+      if (closed) return;
       onStatus?.("offline");
       onError?.("实时连接失败，请检查 socket 合法域名");
     });
     socket.onClose(() => {
       open = false;
       clearInterval(heartbeat);
-      onStatus?.("offline");
+      if (!closed) onStatus?.("offline");
     });
   };
 
   if (connection && typeof connection.then === "function") {
     connection.then(bindSocket).catch(() => {
+      if (closed) return;
       onStatus?.("offline");
       onError?.("实时连接失败，请检查网络");
     });

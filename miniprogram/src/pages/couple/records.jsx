@@ -38,7 +38,7 @@ export default function CoupleRecordsPage() {
       <View className="couple-record-list">
         <View><Text>第一次点餐</Text><Text>{formatDate(records.firstOrder)}</Text><Text>故事从第一张点菜单开始</Text></View>
         <View><Text>一起完成晚餐</Text><Text>{records.meals} 次</Text><Text>只统计状态为“已完成”的订单</Text></View>
-        <View><Text>一起玩游戏</Text><Text>{records.games} 次</Text><Text>游戏积分将在后续版本自动接入</Text></View>
+        <View><Text>一起玩游戏</Text><Text>{records.games} 次</Text><Text>五子棋对局已自动记入默契积分</Text></View>
         <View className="favorite"><Text>她最喜欢</Text><Text>{records.favorite}</Text><Text>根据点单、收藏和评价综合计算</Text></View>
       </View>
     </View>

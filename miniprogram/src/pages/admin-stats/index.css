@@ -49,3 +49,13 @@ page { min-height: 100%; color: #57433f; background: #f8f2ef; }
 .stats-all-dishes > view:last-child { border-bottom: 0; }
 .stats-all-dishes > view:not(.stats-section-title) text:first-child { color: #674f49; font-size: 22px; }
 .stats-all-dishes > view:not(.stats-section-title) text:last-child { color: #cf566e; font-size: 21px; font-weight: 900; }
+.stats-game-section { background: linear-gradient(145deg, #26352c, #172019); border-color: #33453a; color: #f5f3eb; }
+.stats-game-section .stats-section-title { border-color: rgba(255,255,255,.1); }
+.stats-game-section .stats-section-title text:first-child { color: #f7f4eb; }
+.stats-game-section .stats-section-title text:last-child { color: #aebdaf; }
+.stats-game-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 17px; }
+.stats-game-grid > view { min-height: 105px; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 21px; background: rgba(255,255,255,.07); }
+.stats-game-grid text:first-child { color: #e3c68c; font-size: 31px; font-weight: 900; }
+.stats-game-grid text:last-child { display: block; margin-top: 5px; color: #b9c4ba; font-size: 17px; }
+.stats-game-favorite { min-height: 77px; display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 10px; padding: 0 18px; border-radius: 20px; color: #b9c4ba; background: rgba(255,255,255,.07); font-size: 18px; }
+.stats-game-favorite text:last-child { color: #fff; font-size: 22px; font-weight: 900; }

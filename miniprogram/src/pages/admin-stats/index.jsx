@@ -4,6 +4,7 @@ import { Text, View } from "@tarojs/components";
 
 import {
   getAdminDishStats,
+  getAdminGameStats,
   getAdminOrders,
   getAdminRecentOrders,
   getAdminStatsSummary
@@ -23,6 +24,7 @@ export default function AdminStatsPage() {
   const [dishStats, setDishStats] = useState([]);
   const [recentOrders, setRecentOrders] = useState([]);
   const [orders, setOrders] = useState([]);
+  const [gameStats, setGameStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const token = getAdminToken();
@@ -36,16 +38,18 @@ export default function AdminStatsPage() {
     if (!token) return leaveToLogin();
     setLoading(true);
     try {
-      const [nextSummary, nextDishStats, nextRecent, nextOrders] = await Promise.all([
+      const [nextSummary, nextDishStats, nextRecent, nextOrders, nextGameStats] = await Promise.all([
         getAdminStatsSummary(token),
         getAdminDishStats(token),
         getAdminRecentOrders(token),
-        getAdminOrders(token)
+        getAdminOrders(token),
+        getAdminGameStats(token).catch(() => null)
       ]);
       setSummary(nextSummary);
       setDishStats(nextDishStats);
       setRecentOrders(nextRecent);
       setOrders(nextOrders);
+      setGameStats(nextGameStats);
       setError("");
     } catch (requestError) {
       if (requestError.statusCode === 401) return leaveToLogin();
@@ -128,6 +132,17 @@ export default function AdminStatsPage() {
               <Text>{topRatedDish?.name || "等待第一条评价"}</Text>
               <Text>{topRatedDish ? `${topRatedDish.average.toFixed(1)} 颗爱心 · ${topRatedDish.count} 次评价` : "完成订单后就可以评价"}</Text>
             </View>
+          </View>
+
+          <View className="stats-section stats-game-section">
+            <View className="stats-section-title"><Text>情侣游戏统计</Text><Text>V2.3 实时记录</Text></View>
+            <View className="stats-game-grid">
+              <View><Text>{gameStats?.total_games ?? gameStats?.total ?? 0}</Text><Text>总游戏次数</Text></View>
+              <View><Text>{gameStats?.gomoku_games ?? gameStats?.gomoku?.total ?? 0}</Text><Text>五子棋对局</Text></View>
+              <View><Text>{gameStats?.gomoku_win_rate != null ? `${Number(gameStats.gomoku_win_rate).toFixed(0)}%` : "—"}</Text><Text>五子棋胜率</Text></View>
+              <View><Text>{gameStats?.love_score_change ?? gameStats?.score_change ?? 0}</Text><Text>游戏积分变化</Text></View>
+            </View>
+            <View className="stats-game-favorite"><Text>最常玩的游戏</Text><Text>{gameStats?.most_played_game?.name || gameStats?.most_played_game || "还没有游戏记录"}</Text></View>
           </View>
 
           <View className="stats-section">

@@ -1,0 +1,80 @@
+.gomoku-board {
+  width: 100%;
+  padding: 14px;
+  box-sizing: border-box;
+  border: 2px solid rgba(91, 66, 37, .25);
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 30% 20%, rgba(255,255,255,.28), transparent 30%),
+    linear-gradient(135deg, #e8c78e, #d8a967 58%, #c98f4f);
+  box-shadow: inset 0 2px 0 rgba(255,255,255,.34), 0 15px 30px rgba(57,39,21,.2);
+}
+.gomoku-grid {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(15, 1fr);
+  aspect-ratio: 1;
+  border: 1px solid rgba(75,48,24,.52);
+  box-sizing: border-box;
+}
+.gomoku-point { position: relative; min-width: 0; min-height: 0; }
+.gomoku-point::before, .gomoku-point::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  background: rgba(67,43,22,.66);
+}
+.gomoku-point::before { left: 0; right: 0; top: 50%; height: 1px; }
+.gomoku-point::after { top: 0; bottom: 0; left: 50%; width: 1px; }
+.gomoku-point.left::before { left: 50%; }
+.gomoku-point.right::before { right: 50%; }
+.gomoku-point.top::after { top: 50%; }
+.gomoku-point.bottom::after { bottom: 50%; }
+.gomoku-star {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #4c3019;
+  transform: translate(-50%, -50%);
+}
+.gomoku-stone {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  left: 50%;
+  width: 88%;
+  height: 88%;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  box-sizing: border-box;
+}
+.gomoku-stone.black {
+  border: 1px solid #0c0f12;
+  background: radial-gradient(circle at 32% 25%, #747a80 0, #23282d 24%, #080a0c 68%, #000 100%);
+  box-shadow: inset -2px -3px 5px rgba(0,0,0,.9), 0 3px 5px rgba(45,27,13,.5);
+}
+.gomoku-stone.white {
+  border: 1px solid rgba(75,66,54,.3);
+  background: radial-gradient(circle at 32% 25%, #fff 0, #faf8f2 35%, #d9d6cc 78%, #b9b5aa 100%);
+  box-shadow: inset -2px -3px 5px rgba(117,111,96,.22), 0 3px 5px rgba(45,27,13,.35);
+}
+.gomoku-stone.last > text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 26%;
+  height: 26%;
+  border-radius: 50%;
+  background: #e9676f;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 0 2px rgba(255,255,255,.55);
+}
+.gomoku-board.disabled .gomoku-point { opacity: .96; }
+@media (max-width: 360px) {
+  .gomoku-board { padding: 10px; border-radius: 19px; }
+  .gomoku-star { width: 5px; height: 5px; }
+}

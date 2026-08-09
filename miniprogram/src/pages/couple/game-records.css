@@ -1,0 +1,28 @@
+.game-records-page { padding-bottom: calc(70px + env(safe-area-inset-bottom)); }
+.game-record-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; overflow: hidden; border: 2px solid var(--border-soft); border-radius: 28px; background: var(--border-soft); box-shadow: var(--shadow-card); }
+.game-record-summary > view { min-height: 124px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--surface); }
+.game-record-summary text:first-child { color: #70856a; font-size: 34px; font-weight: 900; }
+.game-record-summary text:last-child { display: block; margin-top: 6px; color: var(--text-muted); font-size: 18px; }
+.game-record-state, .game-record-empty { margin-top: 20px; padding: 48px 24px; border: 2px solid var(--border-soft); border-radius: 28px; color: var(--text-muted); background: var(--surface); text-align: center; }
+.game-record-state text, .game-record-empty > text { display: block; font-size: 21px; line-height: 1.6; }
+.game-record-state.error { color: #aa5554; background: #fff1ef; }
+.game-record-empty > text:first-child { color: var(--text-main); font-size: 28px; font-weight: 900; }
+.game-record-empty > view { height: 76px; display: flex; align-items: center; justify-content: center; margin-top: 20px; border-radius: 23px; color: #fff; background: var(--sage); font-size: 23px; font-weight: 900; }
+.game-record-list { margin-top: 25px; }
+.game-record-heading { display: flex; align-items: flex-end; justify-content: space-between; margin: 0 4px 13px; }
+.game-record-heading text:first-child { color: var(--text-main); font-size: 28px; font-weight: 900; }
+.game-record-heading text:last-child { color: var(--text-muted); font-size: 18px; }
+.game-record-row { min-height: 125px; display: flex; align-items: center; gap: 16px; margin-bottom: 11px; padding: 19px; box-sizing: border-box; border: 2px solid var(--border-soft); border-radius: 26px; background: var(--surface); box-shadow: var(--shadow-card); }
+.game-record-icon { width: 62px; height: 62px; display: flex; align-items: center; justify-content: center; flex: 0 0 62px; border-radius: 21px; color: #fff; background: #748970; font-size: 24px; font-weight: 900; }
+.game-record-icon.dice { background: #526d84; }
+.game-record-main { min-width: 0; flex: 1; }
+.game-record-main > view { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.game-record-main > view text:first-child { color: var(--text-main); font-size: 24px; font-weight: 900; }
+.game-record-main > view text:last-child { color: #9b8d78; font-size: 18px; font-weight: 800; }
+.game-record-main > view text.won { color: #d16861; }
+.game-record-main > text { display: block; margin-top: 5px; color: var(--text-muted); font-size: 17px; }
+.game-record-main > text:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 360px) {
+  .game-record-summary text:first-child { font-size: 29px; }
+  .game-record-summary text:last-child { font-size: 16px; }
+}

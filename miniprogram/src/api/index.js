@@ -138,6 +138,11 @@ export const createGameRoom = (gameType, creator, inviteCode) =>
 export const getGameRoom = (roomCode) =>
   request(`/games/rooms/${encodeURIComponent(roomCode)}`);
 
+export const getMyGameRecords = (customerId) =>
+  request("/games/records/my", {
+    header: customerHeader(customerId)
+  });
+
 export const getCoupleScore = (customerId) =>
   request("/couple/score", { header: customerHeader(customerId) });
 
@@ -237,5 +242,10 @@ export const getAdminDishStats = (token) =>
 
 export const getAdminRecentOrders = (token) =>
   request("/stats/recent", {
+    header: { Authorization: `Bearer ${token}` }
+  });
+
+export const getAdminGameStats = (token) =>
+  request("/admin/games/stats", {
     header: { Authorization: `Bearer ${token}` }
   });

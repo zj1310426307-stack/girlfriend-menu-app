@@ -5,6 +5,24 @@
 .game-section-title { display: flex; align-items: flex-end; justify-content: space-between; margin: 22px 4px 15px; }
 .game-section-title text:first-child { color: var(--text-main); font-size: 30px; font-weight: 900; }
 .game-section-title text:last-child { color: var(--text-muted); font-size: 20px; }
+.gomoku-feature-card { overflow: hidden; padding: 26px; border-radius: 32px; color: #f7f4ea; background: linear-gradient(145deg, #33463a, #17221b); box-shadow: 0 18px 40px rgba(32,50,38,.24); }
+.gomoku-feature-head { display: flex; align-items: center; gap: 16px; }
+.gomoku-feature-head > view:first-child { width: 76px; height: 76px; display: flex; align-items: center; justify-content: center; flex: 0 0 76px; border-radius: 24px; color: #253229; background: #d9b678; font-size: 30px; font-weight: 900; }
+.gomoku-feature-head > view:nth-child(2) { min-width: 0; flex: 1; }
+.gomoku-feature-head > view:nth-child(2) text:first-child { display: block; font-size: 31px; font-weight: 900; }
+.gomoku-feature-head > view:nth-child(2) text:last-child { display: block; margin-top: 6px; color: #b9c7ba; font-size: 19px; }
+.gomoku-feature-head > text { padding: 6px 11px; border-radius: 14px; color: #2e4535; background: #d7e6d4; font-size: 17px; font-weight: 800; }
+.gomoku-feature-line { display: flex; justify-content: center; gap: 2px; margin: 22px 0 18px; }
+.gomoku-feature-line text { width: 46px; height: 46px; display: flex; align-items: center; justify-content: center; border-radius: 50%; color: #111; background: #f7f4e9; font-size: 42px; line-height: 1; box-shadow: 0 5px 10px rgba(0,0,0,.24); }
+.gomoku-feature-line text:nth-child(odd) { color: #101310; background: #101310; border: 2px solid #566259; }
+.gomoku-feature-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
+.gomoku-feature-actions > view { min-height: 99px; display: flex; flex-direction: column; justify-content: center; padding: 15px 17px; border-radius: 22px; background: #789073; }
+.gomoku-feature-actions > view:last-child { color: #e3eadf; border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.07); }
+.gomoku-feature-actions text:first-child { display: block; font-size: 23px; font-weight: 900; }
+.gomoku-feature-actions text:last-child { display: block; margin-top: 5px; color: rgba(255,255,255,.7); font-size: 17px; }
+.gomoku-quick-join { height: 78px; display: flex; align-items: center; gap: 9px; margin-top: 12px; padding: 0 8px 0 18px; border: 1px solid rgba(255,255,255,.13); border-radius: 22px; background: rgba(255,255,255,.07); }
+.gomoku-quick-join input { min-width: 0; flex: 1; color: #fff; font-size: 22px; font-weight: 800; letter-spacing: 4px; }
+.gomoku-quick-join > view { height: 58px; min-width: 86px; display: flex; align-items: center; justify-content: center; border-radius: 17px; color: #2e4033; background: #e0c48f; font-size: 21px; font-weight: 900; }
 .game-feature-card { overflow: hidden; padding: 26px; border-radius: 32px; color: #f5f7fb; background: #121827; box-shadow: 0 16px 38px rgba(20,27,43,.22); }
 .game-feature-top { display: flex; align-items: center; gap: 17px; }
 .game-feature-icon { width: 78px; height: 78px; display: flex; align-items: center; justify-content: center; flex: 0 0 78px; border-radius: 25px; background: #315b87; font-size: 30px; font-weight: 900; box-shadow: inset 0 1px 0 rgba(255,255,255,.18); }
@@ -33,6 +51,6 @@
 .game-center-fallback { display: block; margin-top: 17px; color: #9b754b; font-size: 19px; text-align: center; }
 .game-center-note { margin-top: 22px; padding: 21px; border-radius: 23px; color: var(--text-muted); background: #ecefe8; font-size: 20px; line-height: 1.55; }
 @media (max-width: 360px) {
-  .game-feature-actions, .game-coming-grid { grid-template-columns: 1fr; }
+  .game-feature-actions, .game-coming-grid, .gomoku-feature-actions { grid-template-columns: 1fr; }
   .game-coming-grid > view { min-height: 164px; }
 }
