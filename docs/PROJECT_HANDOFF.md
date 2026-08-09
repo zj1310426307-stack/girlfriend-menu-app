@@ -58,7 +58,7 @@ flowchart LR
 | 首页/邀请码 | `pages/index/index` | 邀请码、智能推荐、最近常点、Top 5、今日菜单 |
 | 菜单 | `pages/menu/index` | 搜索、分类、收藏、加入清单 |
 | 一起玩 | `pages/games/index` | 动态游戏大厅、开放状态、转盘和大话骰入口 |
-| 我们 | `pages/couple/index` | 默契值、本月互动、共同成长和低强调管理入口 |
+| 我们 | `pages/couple/index` | 默契值、本月互动、共同成长、口味收藏和低强调管理入口 |
 | 积分明细 | `pages/couple/score` | 按日期查看积分来源 |
 | 共同记录 | `pages/couple/records` | 第一次点餐、完成次数、游戏次数和最爱菜品 |
 | 成就 | `pages/couple/achievements` | 根据已有业务数据派生的成长成就 |

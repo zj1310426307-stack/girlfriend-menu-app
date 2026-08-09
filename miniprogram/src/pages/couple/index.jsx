@@ -58,6 +58,7 @@ export default function CoupleHome() {
         <View onClick={() => Taro.navigateTo({ url: "/pages/couple/score" })}><Text>积分明细</Text><Text>每一分从哪里来</Text></View>
         <View onClick={() => Taro.navigateTo({ url: "/pages/couple/records" })}><Text>共同记录</Text><Text>第一次与最喜欢</Text></View>
         <View onClick={() => Taro.navigateTo({ url: "/pages/couple/achievements" })}><Text>成就</Text><Text>看看解锁了什么</Text></View>
+        <View onClick={() => Taro.navigateTo({ url: "/pages/profile/index" })}><Text>口味收藏</Text><Text>继续查看她喜欢的菜</Text></View>
       </View>
 
       <View className="couple-admin-link" onClick={() => Taro.navigateTo({ url: "/pages/admin-login/index" })}>

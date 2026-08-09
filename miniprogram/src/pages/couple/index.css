@@ -16,7 +16,7 @@
 .couple-latest-card > view { min-width: 0; flex: 1; }
 .couple-latest-card > view text:first-child { display: block; color: var(--text-main); font-size: 24px; font-weight: 900; }
 .couple-latest-card > view text:last-child { display: block; margin-top: 7px; color: var(--text-muted); font-size: 19px; }
-.couple-link-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 11px; }
+.couple-link-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 11px; }
 .couple-link-grid > view { min-height: 132px; display: flex; flex-direction: column; justify-content: center; padding: 18px; border: 2px solid var(--border-soft); border-radius: 25px; background: var(--surface); }
 .couple-link-grid text:first-child { color: var(--text-main); font-size: 23px; font-weight: 900; }
 .couple-link-grid text:last-child { display: block; margin-top: 8px; color: var(--text-muted); font-size: 18px; line-height: 1.4; }
