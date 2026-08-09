@@ -1,9 +1,10 @@
 import secrets
+from datetime import datetime
 
 from fastapi import HTTPException
-from sqlalchemy import func
+from sqlalchemy import and_, func, or_
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 import models
 import schemas
@@ -36,6 +37,9 @@ def create_game_room(db: Session, game_type: str, creator: str):
     game = get_game(db, game_type)
     if game.status != "available":
         raise HTTPException(status_code=409, detail="这个游戏还在准备中")
+    creator = creator.strip()
+    if not creator:
+        raise HTTPException(status_code=400, detail="创建者标识不能为空")
     max_players = GAME_MAX_PLAYERS.get(game_type, 2)
     for _ in range(20):
         room_code = "".join(secrets.choice(ROOM_ALPHABET) for _ in range(6))
@@ -73,9 +77,232 @@ def update_game_room_status(db: Session, room_code: str, room_status: str):
     room = get_game_room(db, room_code)
     if room.status != room_status:
         room.status = room_status
+        if room_status == "finished":
+            room.finished_at = datetime.now()
+        elif room_status == "playing":
+            room.finished_at = None
         db.commit()
         db.refresh(room)
     return room
+
+
+def list_game_players(db: Session, room_code: str):
+    room = get_game_room(db, room_code)
+    return (
+        db.query(models.GamePlayer)
+        .filter(models.GamePlayer.room_id == room.id)
+        .order_by(models.GamePlayer.seat)
+        .all()
+    )
+
+
+def join_game_room(db: Session, room_code: str, player_id: str):
+    """Join the first free seat and return the persisted player.
+
+    Repeated requests from the same device are idempotent. The database unique
+    constraints remain the final protection if two clients race for one seat.
+    """
+    room = get_game_room(db, room_code)
+    player_id = player_id.strip()
+    if not player_id:
+        raise HTTPException(status_code=400, detail="玩家标识不能为空")
+    existing = (
+        db.query(models.GamePlayer)
+        .filter(
+            models.GamePlayer.room_id == room.id,
+            models.GamePlayer.player_id == player_id,
+        )
+        .first()
+    )
+    if existing:
+        return existing
+    if room.status == "finished":
+        raise HTTPException(status_code=409, detail="本房间对局已经结束")
+
+    occupied_seats = {player.seat for player in room.players}
+    available_seat = next(
+        (seat for seat in range(1, room.max_players + 1) if seat not in occupied_seats),
+        None,
+    )
+    if available_seat is None:
+        raise HTTPException(status_code=409, detail="房间人数已满")
+
+    player = models.GamePlayer(
+        room_id=room.id,
+        player_id=player_id,
+        seat=available_seat,
+    )
+    db.add(player)
+    if len(occupied_seats) + 1 >= room.max_players:
+        room.status = "playing"
+        room.finished_at = None
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        existing = (
+            db.query(models.GamePlayer)
+            .filter(
+                models.GamePlayer.room_id == room.id,
+                models.GamePlayer.player_id == player_id,
+            )
+            .first()
+        )
+        if existing:
+            return existing
+        raise HTTPException(status_code=409, detail="房间座位刚刚被其他玩家占用")
+    db.refresh(player)
+    return player
+
+
+def _game_record_query(db: Session):
+    return db.query(models.GameRecord).options(
+        selectinload(models.GameRecord.room).selectinload(models.GameRoom.players)
+    )
+
+
+def finish_game_room(
+    db: Session,
+    room_code: str,
+    winner: str | None,
+    duration: int,
+    result: dict | None = None,
+    round_number: int = 1,
+):
+    """Finish one round and persist exactly one record for that room/round.
+
+    A client or WebSocket may retry its final message. Returning the existing
+    record makes those retries safe and gives the scoring layer one stable ID.
+    """
+    room = get_game_room(db, room_code)
+    if round_number < 1:
+        raise HTTPException(status_code=422, detail="局数必须从 1 开始")
+    existing = (
+        _game_record_query(db)
+        .filter(
+            models.GameRecord.room_id == room.id,
+            models.GameRecord.round_number == round_number,
+        )
+        .first()
+    )
+    if existing:
+        return existing
+
+    player_ids = {player.player_id for player in room.players}
+    if winner is not None and winner not in player_ids:
+        raise HTTPException(status_code=400, detail="获胜者不是本房间玩家")
+
+    record = models.GameRecord(
+        room_id=room.id,
+        round_number=round_number,
+        game_type=room.game_type,
+        winner=winner,
+        duration=max(0, int(duration)),
+        result=result or {},
+    )
+    db.add(record)
+    if winner:
+        winner_player = next(
+            (player for player in room.players if player.player_id == winner),
+            None,
+        )
+        if winner_player:
+            winner_player.score += 1
+    room.status = "finished"
+    room.finished_at = datetime.now()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        existing = (
+            _game_record_query(db)
+            .filter(
+                models.GameRecord.room_id == room.id,
+                models.GameRecord.round_number == round_number,
+            )
+            .first()
+        )
+        if existing:
+            return existing
+        raise
+    return (
+        _game_record_query(db)
+        .filter(models.GameRecord.id == record.id)
+        .one()
+    )
+
+
+def list_game_records(db: Session, customer_id: str, limit: int = 50):
+    safe_limit = max(1, min(int(limit), 100))
+    return (
+        _game_record_query(db)
+        .join(models.GameRoom, models.GameRecord.room_id == models.GameRoom.id)
+        .join(models.GamePlayer, models.GamePlayer.room_id == models.GameRoom.id)
+        .filter(models.GamePlayer.player_id == customer_id)
+        .order_by(models.GameRecord.created_at.desc(), models.GameRecord.id.desc())
+        .limit(safe_limit)
+        .all()
+    )
+
+
+def game_stats(db: Session):
+    total_games = db.query(func.count(models.GameRecord.id)).scalar() or 0
+    gomoku_games = (
+        db.query(func.count(models.GameRecord.id))
+        .filter(models.GameRecord.game_type == "gomoku")
+        .scalar()
+        or 0
+    )
+    creator_gomoku_wins = (
+        db.query(func.count(models.GameRecord.id))
+        .join(models.GameRoom, models.GameRoom.id == models.GameRecord.room_id)
+        .filter(
+            models.GameRecord.game_type == "gomoku",
+            models.GameRecord.winner == models.GameRoom.creator,
+        )
+        .scalar()
+        or 0
+    )
+    most_played = (
+        db.query(
+            models.GameRecord.game_type,
+            func.count(models.GameRecord.id).label("play_count"),
+        )
+        .group_by(models.GameRecord.game_type)
+        .order_by(func.count(models.GameRecord.id).desc(), models.GameRecord.game_type)
+        .first()
+    )
+    most_played_game = None
+    if most_played:
+        game = db.query(models.Game).filter(models.Game.type == most_played.game_type).first()
+        most_played_game = game.name if game else most_played.game_type
+
+    love_score_change = (
+        db.query(func.sum(models.LoveScore.score))
+        .filter(
+            or_(
+                models.LoveScore.type.in_(("GAME_PLAY", "GAME_WIN")),
+                and_(
+                    models.LoveScore.type == "SPECIAL_EVENT",
+                    models.LoveScore.description == "五子棋三连胜",
+                ),
+            )
+        )
+        .scalar()
+        or 0
+    )
+    return {
+        "total_games": int(total_games),
+        "gomoku_games": int(gomoku_games),
+        "gomoku_win_rate": round(
+            creator_gomoku_wins * 100 / gomoku_games,
+            1,
+        )
+        if gomoku_games
+        else 0.0,
+        "most_played_game": most_played_game,
+        "love_score_change": int(love_score_change),
+    }
 
 
 def list_dishes(db: Session, category: str | None = None):

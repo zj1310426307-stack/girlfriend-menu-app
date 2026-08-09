@@ -1,12 +1,21 @@
 import asyncio
 import secrets
+import time
 from collections import OrderedDict
 
 from fastapi import WebSocket
 
+from gomoku import GomokuError, GomokuGame
+
 
 ROOM_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
 DICE_PER_PLAYER = 5
+GOMOKU_REWARDS = (
+    "赢家决定今晚加一道菜",
+    "输家负责洗碗一次",
+    "互相说一句今天最喜欢对方的地方",
+    "赢家可以指定下一次约会的小任务",
+)
 
 
 def is_higher_bid(current_bid, next_bid):
@@ -56,8 +65,8 @@ class GameRoomManager:
     """Shared in-memory transport for real-time games.
 
     Room metadata is persisted in ``game_rooms``; fast-changing board state and
-    socket objects remain in memory. V2.1 registers dice as the first protocol,
-    while the envelope and room lifecycle are reusable by future games.
+    socket objects remain in memory. Dice and the server-authoritative Gomoku
+    engine share the V2 protocol envelope and room lifecycle.
     """
 
     def __init__(self):
@@ -81,7 +90,7 @@ class GameRoomManager:
 
     @staticmethod
     def _new_room(room_code, game_type="dice", max_players=2):
-        return {
+        room = {
             "room_code": room_code,
             "game_type": game_type,
             "max_players": max_players,
@@ -94,10 +103,50 @@ class GameRoomManager:
             "outcome": None,
             "rematch_ready": set(),
             "round": 0,
+            "started_at": None,
+            "completed_event": None,
         }
+        if game_type == "gomoku":
+            room["gomoku"] = GomokuGame()
+        return room
 
     async def ensure_room(self, room_code, game_type, max_players):
         return await self.create_room(room_code, game_type, max_players)
+
+    async def has_room(self, room_code):
+        async with self.lock:
+            return room_code in self.rooms
+
+    async def restore_players(self, room_code, stored_players):
+        """Restore persistent seats before sockets reconnect after a warm restart."""
+        async with self.lock:
+            room = self.rooms.get(room_code)
+            if not room or room["game_type"] != "gomoku":
+                return
+            engine = room["gomoku"]
+            for stored in sorted(stored_players, key=lambda item: item.seat):
+                player_id = stored.player_id
+                if player_id not in engine.players:
+                    color = engine.add_player(player_id)
+                else:
+                    color = "black" if engine.players[player_id] == 1 else "white"
+                room["players"].setdefault(
+                    player_id,
+                    {
+                        "id": player_id,
+                        "name": f"玩家{stored.seat}",
+                        "socket": None,
+                        "protocol": "v2",
+                        "connected": False,
+                        "seat": stored.seat,
+                        "color": color,
+                    },
+                )
+                room["scores"][player_id] = stored.score
+            room["phase"] = engine.phase
+            room["turn_id"] = engine.turn_id
+            if engine.phase == "playing" and room["started_at"] is None:
+                room["started_at"] = time.monotonic()
 
     async def join(
         self,
@@ -114,18 +163,37 @@ class GameRoomManager:
                 return False, "房间不存在或已经失效"
             if game_type and game_type != room["game_type"]:
                 return False, "游戏类型与房间不匹配"
-            if room["game_type"] != "dice":
-                return False, "这个游戏协议还没有开放"
             if player_id not in room["players"] and len(room["players"]) >= room["max_players"]:
                 return False, "房间已经满了"
-            room["players"][player_id] = {
+            existing = room["players"].get(player_id, {})
+            player = {
+                **existing,
                 "id": player_id,
-                "name": player_name[:20] or "玩家",
+                "name": player_name[:20] or existing.get("name") or "玩家",
                 "socket": websocket,
                 "protocol": protocol,
+                "connected": True,
             }
+            if room["game_type"] == "gomoku":
+                engine = room["gomoku"]
+                if player_id not in engine.players:
+                    try:
+                        player["color"] = engine.add_player(player_id)
+                    except GomokuError as error:
+                        return False, error.message
+                else:
+                    player["color"] = "black" if engine.players[player_id] == 1 else "white"
+                player["seat"] = list(engine.players).index(player_id) + 1
+            elif room["game_type"] != "dice":
+                return False, "这个游戏协议还没有开放"
+            room["players"][player_id] = player
             room["scores"].setdefault(player_id, 0)
-            if len(room["players"]) == room["max_players"] and room["phase"] == "waiting":
+            if room["game_type"] == "gomoku":
+                room["phase"] = room["gomoku"].phase
+                room["turn_id"] = room["gomoku"].turn_id
+                if room["phase"] == "playing" and room["started_at"] is None:
+                    room["started_at"] = time.monotonic()
+            elif len(room["players"]) == room["max_players"] and room["phase"] == "waiting":
                 room["phase"] = "rolling"
             payloads = self._payloads(room)
         await self._send_payloads(payloads)
@@ -138,20 +206,33 @@ class GameRoomManager:
                 return
             player = room["players"].get(player_id)
             if player and player["socket"] is websocket:
-                room["players"].pop(player_id, None)
-                room["dice"].pop(player_id, None)
-                room["rematch_ready"].discard(player_id)
+                if room["game_type"] == "gomoku":
+                    player["socket"] = None
+                    player["connected"] = False
+                else:
+                    room["players"].pop(player_id, None)
+                    room["dice"].pop(player_id, None)
+                    room["rematch_ready"].discard(player_id)
             if not room["players"]:
                 self.rooms.pop(room_code, None)
                 return
-            room.update(
-                phase="waiting",
-                turn_id=None,
-                current_bid=None,
-                outcome=None,
-            )
-            room["dice"] = {}
-            payloads = self._payloads(room)
+            if room["game_type"] == "gomoku":
+                payloads = self._payloads(room)
+                should_remove = not any(
+                    item.get("connected") for item in room["players"].values()
+                ) and room["phase"] == "waiting"
+                if should_remove:
+                    self.rooms.pop(room_code, None)
+                    return
+            else:
+                room.update(
+                    phase="waiting",
+                    turn_id=None,
+                    current_bid=None,
+                    outcome=None,
+                )
+                room["dice"] = {}
+                payloads = self._payloads(room)
         await self._send_payloads(payloads)
 
     async def handle(self, room_code, player_id, message):
@@ -160,12 +241,16 @@ class GameRoomManager:
             room = self.rooms.get(room_code)
             if not room or player_id not in room["players"]:
                 return "房间已经失效"
-            requested_game = message.get("game")
+            requested_game = str(message.get("game") or "").lower()
             if requested_game and requested_game != room["game_type"]:
                 return "游戏类型与房间不匹配"
-            action = message.get("type")
+            action = str(message.get("type") or "").lower()
             data = message.get("data") if isinstance(message.get("data"), dict) else message
-            if action == "roll":
+            if room["game_type"] == "gomoku" and action == "move":
+                error = self._gomoku_move(room, player_id, data)
+            elif room["game_type"] == "gomoku" and action == "rematch":
+                error = self._gomoku_rematch(room, player_id)
+            elif action == "roll":
                 error = self._roll(room, player_id, data.get("values"))
             elif action == "bid":
                 error = self._bid(room, player_id, data)
@@ -182,6 +267,22 @@ class GameRoomManager:
             await self._send_payloads(payloads)
         return error
 
+    async def consume_completed_event(self, room_code):
+        async with self.lock:
+            room = self.rooms.get(room_code)
+            if not room:
+                return None
+            event = room.get("completed_event")
+            room["completed_event"] = None
+            return event
+
+    async def restore_completed_event(self, room_code, event):
+        """Put a failed settlement back so the next room action can retry it."""
+        async with self.lock:
+            room = self.rooms.get(room_code)
+            if room and room.get("completed_event") is None:
+                room["completed_event"] = event
+
     async def room_status(self, room_code):
         async with self.lock:
             room = self.rooms.get(room_code)
@@ -192,6 +293,63 @@ class GameRoomManager:
             if len(room["players"]) >= room["max_players"]:
                 return "playing"
             return "waiting"
+
+    @staticmethod
+    def _gomoku_move(room, player_id, data):
+        engine = room["gomoku"]
+        try:
+            engine.move(player_id, data.get("x"), data.get("y"))
+        except GomokuError as error:
+            return error.message
+        room["phase"] = engine.phase
+        room["turn_id"] = engine.turn_id
+        if engine.phase == "finished":
+            players = list(engine.players)
+            winner_id = engine.winner_id
+            loser_id = next((item for item in players if item != winner_id), None) if winner_id else None
+            reward = secrets.choice(GOMOKU_REWARDS)
+            room["outcome"] = {
+                "winner_id": winner_id,
+                "loser_id": loser_id,
+                "is_draw": engine.is_draw,
+                "reward": reward,
+            }
+            if winner_id:
+                room["scores"][winner_id] = room["scores"].get(winner_id, 0) + 1
+            room["rematch_ready"] = set()
+            duration = max(0, round(time.monotonic() - (room["started_at"] or time.monotonic())))
+            room["completed_event"] = {
+                "room_code": room["room_code"],
+                "game_type": "gomoku",
+                "round_number": engine.round,
+                "players": players,
+                "winner_id": winner_id,
+                "duration": duration,
+                "result": {
+                    "winner_id": winner_id,
+                    "is_draw": engine.is_draw,
+                    "move_count": engine.move_count,
+                    "last_move": engine.last_move,
+                    "reward": reward,
+                    "scores": dict(room["scores"]),
+                },
+            }
+        return None
+
+    @staticmethod
+    def _gomoku_rematch(room, player_id):
+        if room["phase"] != "finished":
+            return "本局还没有结束"
+        room["rematch_ready"].add(player_id)
+        if len(room["rematch_ready"]) == len(room["players"]) == room["max_players"]:
+            engine = room["gomoku"]
+            engine.reset()
+            room["phase"] = engine.phase
+            room["turn_id"] = engine.turn_id
+            room["outcome"] = None
+            room["rematch_ready"] = set()
+            room["started_at"] = time.monotonic()
+        return None
 
     @staticmethod
     def _roll(room, player_id, values):
@@ -276,6 +434,38 @@ class GameRoomManager:
 
     @staticmethod
     def _payloads(room):
+        if room["game_type"] == "gomoku":
+            engine_state = room["gomoku"].serialize()
+            public_players = [
+                {
+                    "id": player["id"],
+                    "name": player["name"],
+                    "seat": player.get("seat"),
+                    "color": player.get("color"),
+                    "connected": bool(player.get("connected")),
+                    "rematch_ready": player["id"] in room["rematch_ready"],
+                    "score": room["scores"].get(player["id"], 0),
+                }
+                for player in room["players"].values()
+            ]
+            state = {
+                **engine_state,
+                "players": public_players,
+                "outcome": room["outcome"],
+            }
+            return [
+                (
+                    player["socket"],
+                    {
+                        "type": "state",
+                        "game": "gomoku",
+                        "room_code": room["room_code"],
+                        "data": state,
+                    },
+                )
+                for player in room["players"].values()
+                if player.get("socket") is not None
+            ]
         public_players = [
             {
                 "id": player["id"],

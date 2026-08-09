@@ -87,6 +87,22 @@ def ensure_compatible_schema():
                 text("CREATE INDEX IF NOT EXISTS ix_orders_source_order_id ON orders (source_order_id)")
             )
 
+        if "game_rooms" in table_names:
+            room_columns = {
+                column["name"] for column in inspector.get_columns("game_rooms")
+            }
+            if "finished_at" not in room_columns:
+                connection.execute(
+                    # TIMESTAMP is understood by both PostgreSQL and SQLite.
+                    text("ALTER TABLE game_rooms ADD COLUMN finished_at TIMESTAMP")
+                )
+            connection.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS "
+                    "ix_game_rooms_finished_at ON game_rooms (finished_at)"
+                )
+            )
+
 
 def get_db():
     db = SessionLocal()

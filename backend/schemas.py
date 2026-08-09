@@ -45,6 +45,16 @@ class GameRoomCreate(BaseModel):
     invite_code: str = Field(min_length=1, max_length=100)
 
 
+class GamePlayerOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    player_id: str
+    seat: int
+    score: int
+    joined_at: datetime
+
+
 class GameRoomOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -55,6 +65,31 @@ class GameRoomOut(BaseModel):
     status: GameRoomStatus
     max_players: int
     created_at: datetime
+    finished_at: datetime | None = None
+    players: list[GamePlayerOut] = Field(default_factory=list)
+
+
+class GameRecordOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    room_id: int
+    room_code: str
+    round_number: int
+    game_type: str
+    winner: str | None
+    duration: int
+    result: dict
+    players: list[GamePlayerOut] = Field(default_factory=list)
+    created_at: datetime
+
+
+class GameStatsOut(BaseModel):
+    total_games: int
+    gomoku_games: int
+    gomoku_win_rate: float
+    most_played_game: str | None
+    love_score_change: int
 
 
 LoveScoreType = Literal[

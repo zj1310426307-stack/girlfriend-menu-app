@@ -112,6 +112,75 @@ class GameRoom(Base):
     status = Column(String(20), nullable=False, default="waiting", index=True)
     max_players = Column(Integer, nullable=False, default=2)
     created_at = Column(DateTime, default=datetime.now, nullable=False, index=True)
+    finished_at = Column(DateTime, nullable=True, index=True)
+
+    players = relationship(
+        "GamePlayer",
+        back_populates="room",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+        order_by="GamePlayer.seat",
+    )
+    records = relationship(
+        "GameRecord",
+        back_populates="room",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+        order_by="GameRecord.round_number",
+    )
+
+
+class GamePlayer(Base):
+    __tablename__ = "game_players"
+    __table_args__ = (
+        UniqueConstraint("room_id", "player_id", name="uq_game_player_room_player"),
+        UniqueConstraint("room_id", "seat", name="uq_game_player_room_seat"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    room_id = Column(
+        Integer,
+        ForeignKey("game_rooms.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    player_id = Column(String(100), nullable=False, index=True)
+    seat = Column(Integer, nullable=False)
+    score = Column(Integer, nullable=False, default=0)
+    joined_at = Column(DateTime, default=datetime.now, nullable=False, index=True)
+
+    room = relationship("GameRoom", back_populates="players")
+
+
+class GameRecord(Base):
+    __tablename__ = "game_records"
+    __table_args__ = (
+        UniqueConstraint("room_id", "round_number", name="uq_game_record_room_round"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    room_id = Column(
+        Integer,
+        ForeignKey("game_rooms.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    round_number = Column(Integer, nullable=False, default=1)
+    game_type = Column(String(50), nullable=False, index=True)
+    winner = Column(String(100), nullable=True, index=True)
+    duration = Column(Integer, nullable=False, default=0)
+    result = Column(JSON, nullable=False, default=dict)
+    created_at = Column(DateTime, default=datetime.now, nullable=False, index=True)
+
+    room = relationship("GameRoom", back_populates="records")
+
+    @property
+    def room_code(self):
+        return self.room.room_code
+
+    @property
+    def players(self):
+        return self.room.players
 
 
 class LoveScore(Base):

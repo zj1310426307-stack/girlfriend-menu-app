@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 import asyncio
 import hashlib
+import logging
 import os
 from pathlib import Path
 import secrets
@@ -32,6 +33,9 @@ from seed import seed_dishes, seed_games
 from storage import UPLOAD_DIR, ensure_upload_directory, save_image
 
 
+logger = logging.getLogger(__name__)
+
+
 ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 ALLOWED_IMAGE_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
 MAX_IMAGE_SIZE = 5 * 1024 * 1024
@@ -49,7 +53,7 @@ async def lifespan(_: FastAPI):
     yield
 
 
-app = FastAPI(title="情侣智能厨房管家 API", version="2.2.0", lifespan=lifespan)
+app = FastAPI(title="情侣智能厨房管家 API", version="2.3.0", lifespan=lifespan)
 
 
 def get_frontend_origins():
@@ -180,6 +184,23 @@ def games(db: Session = Depends(get_db)):
     return crud.list_games(db)
 
 
+@app.get("/api/games/records/my", response_model=list[schemas.GameRecordOut])
+def my_game_records(
+    customer_id: str = Depends(get_customer_id),
+    db: Session = Depends(get_db),
+):
+    return crud.list_game_records(db, customer_id)
+
+
+@app.get(
+    "/api/admin/games/stats",
+    response_model=schemas.GameStatsOut,
+    dependencies=[Depends(verify_admin_token)],
+)
+def admin_game_stats(db: Session = Depends(get_db)):
+    return crud.game_stats(db)
+
+
 @app.post(
     "/api/games/rooms",
     response_model=schemas.GameRoomOut,
@@ -190,6 +211,10 @@ async def create_game_room(data: schemas.GameRoomCreate, db: Session = Depends(g
         raise HTTPException(status_code=401, detail="邀请码错误")
     room = crud.create_game_room(db, data.game_type, data.creator)
     await game_room_manager.ensure_room(room.room_code, room.game_type, room.max_players)
+    await game_room_manager.restore_players(
+        room.room_code,
+        crud.list_game_players(db, room.room_code),
+    )
     return room
 
 
@@ -223,6 +248,78 @@ def _sync_game_room_status(room_code: str, room_status: str, allow_restart: bool
         crud.update_game_room_status(db, room_code, room_status)
 
 
+def _game_win_streak(db: Session, game_type: str, winner_id: str) -> int:
+    records = (
+        db.query(models.GameRecord.winner)
+        .filter(models.GameRecord.game_type == game_type)
+        .order_by(models.GameRecord.created_at.desc(), models.GameRecord.id.desc())
+        .limit(100)
+        .all()
+    )
+    streak = 0
+    for (winner,) in records:
+        if winner != winner_id:
+            break
+        streak += 1
+    return streak
+
+
+def _persist_completed_game(event: dict):
+    with SessionLocal() as db:
+        record = crud.finish_game_room(
+            db,
+            event["room_code"],
+            event.get("winner_id"),
+            event.get("duration", 0),
+            event.get("result") or {},
+            event.get("round_number", 1),
+        )
+        for player_id in event.get("players") or []:
+            love_score.record_score(
+                db,
+                player_id,
+                "GAME_PLAY",
+                1,
+                "一起完成一局五子棋",
+                record.id,
+            )
+        winner_id = event.get("winner_id")
+        if not winner_id:
+            return record
+        love_score.record_score(
+            db,
+            winner_id,
+            "GAME_WIN",
+            5,
+            "五子棋胜利",
+            record.id,
+        )
+        streak = _game_win_streak(db, event["game_type"], winner_id)
+        if streak and streak % 3 == 0:
+            love_score.record_score(
+                db,
+                winner_id,
+                "SPECIAL_EVENT",
+                10,
+                "五子棋三连胜",
+                record.id,
+            )
+        return record
+
+
+async def _persist_completed_game_with_retry(event: dict):
+    """Persist a completed round off the event loop, retrying one transient failure."""
+    last_error = None
+    for attempt in range(2):
+        try:
+            return await asyncio.to_thread(_persist_completed_game, event)
+        except Exception as error:  # Database drivers expose different transient errors.
+            last_error = error
+            if attempt == 0:
+                await asyncio.sleep(0.2)
+    raise last_error
+
+
 async def _game_room_socket(
     websocket: WebSocket,
     room_code: str,
@@ -231,6 +328,7 @@ async def _game_room_socket(
 ):
     await websocket.accept()
     player_id = None
+    joined_room = False
     normalized_room_code = room_code.strip().upper()
     game_type = forced_game_type or "unknown"
     try:
@@ -238,7 +336,11 @@ async def _game_room_socket(
             with SessionLocal() as db:
                 room_record = crud.get_game_room(db, normalized_room_code)
                 game_type = room_record.game_type
-                if room_record.status == "finished":
+                is_warm_gomoku_room = (
+                    game_type == "gomoku"
+                    and await game_room_manager.has_room(normalized_room_code)
+                )
+                if room_record.status == "finished" and not is_warm_gomoku_room:
                     await _send_game_error(websocket, "房间已经结束", game_type, protocol)
                     await websocket.close(code=4404)
                     return
@@ -251,6 +353,10 @@ async def _game_room_socket(
                     room_record.game_type,
                     room_record.max_players,
                 )
+                await game_room_manager.restore_players(
+                    normalized_room_code,
+                    crud.list_game_players(db, normalized_room_code),
+                )
         except HTTPException as error:
             await _send_game_error(websocket, str(error.detail), game_type, protocol)
             await websocket.close(code=4404)
@@ -262,8 +368,10 @@ async def _game_room_socket(
             if isinstance(join_message.get("data"), dict)
             else join_message
         )
-        requested_game = join_message.get("game") or forced_game_type or game_type
-        if join_message.get("type") != "join":
+        requested_game = str(
+            join_message.get("game") or forced_game_type or game_type
+        ).lower()
+        if str(join_message.get("type") or "").lower() != "join":
             await _send_game_error(websocket, "请先加入房间", game_type, protocol)
             await websocket.close(code=4400)
             return
@@ -278,12 +386,21 @@ async def _game_room_socket(
             await _send_game_error(websocket, "邀请码错误", game_type, protocol)
             await websocket.close(code=4401)
             return
-        player_id = str(join_data.get("player_id") or "")[:100]
-        player_name = str(join_data.get("name") or "玩家")[:20]
+        player_id = str(join_data.get("player_id") or "").strip()[:100]
+        player_name = str(join_data.get("name") or "玩家").strip()[:20] or "玩家"
         if not player_id:
             await _send_game_error(websocket, "玩家标识不能为空", game_type, protocol)
             await websocket.close(code=4400)
             return
+        try:
+            with SessionLocal() as db:
+                crud.join_game_room(db, normalized_room_code, player_id)
+                stored_players = crud.list_game_players(db, normalized_room_code)
+        except HTTPException as error:
+            await _send_game_error(websocket, str(error.detail), game_type, protocol)
+            await websocket.close(code=4404)
+            return
+        await game_room_manager.restore_players(normalized_room_code, stored_players)
         joined, message = await game_room_manager.join(
             normalized_room_code,
             player_id,
@@ -296,13 +413,15 @@ async def _game_room_socket(
             await _send_game_error(websocket, message, game_type, protocol)
             await websocket.close(code=4404)
             return
+        joined_room = True
         _sync_game_room_status(
             normalized_room_code,
             await game_room_manager.room_status(normalized_room_code),
         )
         while True:
             action = await websocket.receive_json()
-            if action.get("type") == "ping":
+            action_type = str(action.get("type") or "").lower()
+            if action_type == "ping":
                 pong = {"type": "pong"}
                 if protocol != "legacy":
                     pong.update(game=game_type, data={})
@@ -312,15 +431,37 @@ async def _game_room_socket(
             if error:
                 await _send_game_error(websocket, error, game_type, protocol)
                 continue
+            completed_event = await game_room_manager.consume_completed_event(
+                normalized_room_code
+            )
+            if completed_event:
+                try:
+                    await _persist_completed_game_with_retry(completed_event)
+                except Exception:
+                    await game_room_manager.restore_completed_event(
+                        normalized_room_code,
+                        completed_event,
+                    )
+                    logger.exception(
+                        "Failed to persist completed %s round in room %s",
+                        game_type,
+                        normalized_room_code,
+                    )
+                    await _send_game_error(
+                        websocket,
+                        "对局已经结束，但成长记录暂时保存失败",
+                        game_type,
+                        protocol,
+                    )
             _sync_game_room_status(
                 normalized_room_code,
                 await game_room_manager.room_status(normalized_room_code),
-                allow_restart=action.get("type") == "rematch",
+                allow_restart=action_type == "rematch",
             )
     except (WebSocketDisconnect, asyncio.TimeoutError):
         pass
     finally:
-        if player_id:
+        if player_id and joined_room:
             await game_room_manager.leave(normalized_room_code, player_id, websocket)
             try:
                 _sync_game_room_status(

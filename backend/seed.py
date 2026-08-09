@@ -141,7 +141,7 @@ SAMPLE_DISHES = [
 
 GAME_CATALOG = [
     {"name": "大话骰", "icon": "骰", "type": "dice", "status": "available"},
-    {"name": "五子棋", "icon": "棋", "type": "gomoku", "status": "coming_soon"},
+    {"name": "五子棋", "icon": "棋", "type": "gomoku", "status": "available"},
     {"name": "飞行棋", "icon": "飞", "type": "aeroplane", "status": "coming_soon"},
     {"name": "斗地主", "icon": "牌", "type": "landlord", "status": "coming_soon"},
     {"name": "斗兽棋", "icon": "兽", "type": "jungle", "status": "coming_soon"},
@@ -184,6 +184,12 @@ def seed_games(db: Session):
     ]
     if missing_games:
         db.add_all(missing_games)
+    changed = bool(missing_games)
+    gomoku = db.query(models.Game).filter(models.Game.type == "gomoku").first()
+    if gomoku and gomoku.status != "available":
+        gomoku.status = "available"
+        changed = True
+    if changed:
         db.commit()
 
 

@@ -292,17 +292,7 @@ def test_unified_game_catalog_room_and_websocket_protocol():
         assert games.status_code == 200
         catalog = {game["type"]: game for game in games.json()}
         assert catalog["dice"]["status"] == "available"
-        assert catalog["gomoku"]["status"] == "coming_soon"
-
-        unavailable = client.post(
-            "/api/games/rooms",
-            json={
-                "game_type": "gomoku",
-                "creator": "gf_game_creator",
-                "invite_code": "test-invite",
-            },
-        )
-        assert unavailable.status_code == 409
+        assert catalog["gomoku"]["status"] == "available"
         assert client.post(
             "/api/games/rooms",
             json={
