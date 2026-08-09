@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Taro, { useDidHide, useDidShow } from "@tarojs/taro";
 import { Canvas, Input, Text, View } from "@tarojs/components";
 
-import { createDiceRoom } from "../../api";
+import { createGameRoom } from "../../api";
 import { connectDiceRoom } from "../../api/diceSocket";
 import { getCustomerId } from "../../utils/customer";
 import { ensureInvitePassed, INVITE_CODE } from "../../utils/invite";
@@ -174,7 +174,7 @@ export default function DiceOnline() {
     if (creating) return;
     setCreating(true);
     try {
-      const result = await createDiceRoom(INVITE_CODE);
+      const result = await createGameRoom("dice", playerIdRef.current, INVITE_CODE);
       connectToRoom(result.room_code);
     } catch (error) {
       Taro.showToast({ title: error.message || "创建房间失败", icon: "none" });

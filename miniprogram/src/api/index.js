@@ -123,6 +123,21 @@ export const createDiceRoom = (inviteCode) =>
     data: { invite_code: inviteCode }
   });
 
+export const getGames = () => request("/games");
+
+export const createGameRoom = (gameType, creator, inviteCode) =>
+  request("/games/rooms", {
+    method: "POST",
+    data: {
+      game_type: gameType,
+      creator,
+      invite_code: inviteCode
+    }
+  });
+
+export const getGameRoom = (roomCode) =>
+  request(`/games/rooms/${encodeURIComponent(roomCode)}`);
+
 export const adminLogin = (password, inviteCode) =>
   request("/admin/login", {
     method: "POST",
