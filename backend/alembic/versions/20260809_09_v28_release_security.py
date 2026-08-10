@@ -20,6 +20,21 @@ def _has_column(inspector, table: str, column: str) -> bool:
     return column in {item["name"] for item in inspector.get_columns(table)}
 
 
+def _has_index(bind, table: str, index: str) -> bool:
+    inspector = sa.inspect(bind)
+    indexes = {item["name"] for item in inspector.get_indexes(table)}
+    constraints = {item["name"] for item in inspector.get_unique_constraints(table) if item.get("name")}
+    return index in indexes or index in constraints
+
+
+def _create_index_if_missing(bind, name: str, table: str, columns: list[str], *, unique: bool = False) -> None:
+    # A previous development-mode startup may have run ``create_all`` before
+    # Alembic recorded this revision. Production upgrades must accept that
+    # partially materialized schema instead of failing on duplicate indexes.
+    if not _has_index(bind, table, name):
+        op.create_index(name, table, columns, unique=unique)
+
+
 def upgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
@@ -41,7 +56,13 @@ def upgrade() -> None:
             sa.UniqueConstraint("legacy_customer_id"),
         )
         for column in ("token_hash", "is_active", "legacy_customer_id", "created_at", "last_seen_at"):
-            op.create_index(f"ix_customers_{column}", "customers", [column], unique=column in {"token_hash", "legacy_customer_id"})
+            _create_index_if_missing(
+                bind,
+                f"ix_customers_{column}",
+                "customers",
+                [column],
+                unique=column in {"token_hash", "legacy_customer_id"},
+            )
 
     inspector = sa.inspect(bind)
     if "orders" in tables:
@@ -54,7 +75,7 @@ def upgrade() -> None:
                 op.add_column("orders", sa.Column(name, type_, nullable=True))
         op.execute(sa.text("UPDATE orders SET status_updated_at = COALESCE(status_updated_at, created_at)"))
         for column, unique in (("desired_at", False), ("status_updated_at", False), ("idempotency_key", True)):
-            op.create_index(f"ix_orders_{column}", "orders", [column], unique=unique)
+            _create_index_if_missing(bind, f"ix_orders_{column}", "orders", [column], unique=unique)
 
     if "order_status_events" not in tables:
         op.create_table(
@@ -70,7 +91,7 @@ def upgrade() -> None:
             sa.PrimaryKeyConstraint("id"),
         )
         for column in ("id", "order_id", "to_status", "created_at"):
-            op.create_index(f"ix_order_status_events_{column}", "order_status_events", [column])
+            _create_index_if_missing(bind, f"ix_order_status_events_{column}", "order_status_events", [column])
 
     inspector = sa.inspect(bind)
     if "game_rooms" in tables:
@@ -83,8 +104,8 @@ def upgrade() -> None:
             if not _has_column(inspector, "game_rooms", name):
                 op.add_column("game_rooms", sa.Column(name, type_, nullable=True))
         op.execute(sa.text("UPDATE game_rooms SET last_activity_at = COALESCE(last_activity_at, created_at), state_version = COALESCE(state_version, 1)"))
-        op.create_index("ix_game_rooms_last_activity_at", "game_rooms", ["last_activity_at"])
-        op.create_index("ix_game_rooms_expires_at", "game_rooms", ["expires_at"])
+        _create_index_if_missing(bind, "ix_game_rooms_last_activity_at", "game_rooms", ["last_activity_at"])
+        _create_index_if_missing(bind, "ix_game_rooms_expires_at", "game_rooms", ["expires_at"])
 
     inspector = sa.inspect(bind)
     if "game_players" in tables:
@@ -104,7 +125,7 @@ def upgrade() -> None:
             ("disconnected_at", False),
             ("expires_at", False),
         ):
-            op.create_index(f"ix_game_players_{column}", "game_players", [column], unique=unique)
+            _create_index_if_missing(bind, f"ix_game_players_{column}", "game_players", [column], unique=unique)
 
 
 def downgrade() -> None:
