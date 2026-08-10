@@ -13,6 +13,16 @@ page { min-height: 100%; color: #363932; background: #f7f3ea; }
 .gomoku-name-options { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
 .gomoku-name-options > view { height: 76px; display: flex; align-items: center; justify-content: center; border: 2px solid #ded9cc; border-radius: 23px; color: #787b72; background: #faf8f2; font-size: 24px; font-weight: 800; }
 .gomoku-name-options > view.active { color: #fff; border-color: #7e9577; background: #7e9577; }
+.gomoku-name-options + .gomoku-label { margin-top: 22px; }
+.gomoku-mode-options { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; margin-top: 13px; }
+.gomoku-mode-options > view { min-height: 77px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border: 2px solid #ded9cc; border-radius: 22px; color: #71766c; background: #faf8f2; }
+.gomoku-mode-options > view text:first-child { font-size: 22px; font-weight: 900; }
+.gomoku-mode-options > view text:last-child { color: #a09e95; font-size: 16px; }
+.gomoku-mode-options > view.active { color: #fff; border-color: #7e9577; background: #7e9577; transform: translateY(-1px); }
+.gomoku-mode-options > view.active text:last-child { color: rgba(255,255,255,.74); }
+.gomoku-difficulty { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+.gomoku-difficulty text { padding: 12px 4px; border-radius: 16px; color: #777b72; background: #efede6; font-size: 16px; font-weight: 800; text-align: center; }
+.gomoku-difficulty text.active { color: #fff; background: #d18a62; }
 .gomoku-primary, .gomoku-secondary { height: 88px; display: flex; align-items: center; justify-content: center; border-radius: 27px; font-size: 26px; font-weight: 900; }
 .gomoku-primary { margin-top: 20px; color: #fff; background: #738b6d; box-shadow: 0 10px 22px rgba(91,113,84,.22); }
 .gomoku-primary.disabled { opacity: .55; box-shadow: none; }

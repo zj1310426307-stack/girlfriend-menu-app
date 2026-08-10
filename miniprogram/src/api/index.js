@@ -170,12 +170,20 @@ export const createDiceRoom = (inviteCode) =>
 
 export const getGames = () => request("/games");
 
-export const createGameRoom = (gameType, creator, inviteCode) =>
+export const createGameRoom = (
+  gameType,
+  creator,
+  inviteCode,
+  mode = "couple",
+  difficulty = "rule"
+) =>
   request("/games/rooms", {
     method: "POST",
     data: {
       game_type: gameType,
       creator,
+      mode,
+      difficulty,
       invite_code: inviteCode
     }
   });
@@ -188,10 +196,16 @@ export const getMyGameRecords = (customerId) =>
     header: customerHeader(customerId)
   });
 
-export const createFlightRoom = (customerId, playerName, inviteCode) =>
+export const createFlightRoom = (
+  customerId,
+  playerName,
+  inviteCode,
+  mode = "couple",
+  difficulty = "rule"
+) =>
   request("/games/flight/create", {
     method: "POST",
-    data: { player_name: playerName, invite_code: inviteCode },
+    data: { player_name: playerName, mode, difficulty, invite_code: inviteCode },
     header: customerHeader(customerId)
   });
 
@@ -222,10 +236,16 @@ export const sendFlightAction = (customerId, roomCode, action, pieceIndex) =>
     header: customerHeader(customerId)
   });
 
-export const createLandlordRoom = (customerId, playerName, difficulty, inviteCode) =>
+export const createLandlordRoom = (
+  customerId,
+  playerName,
+  difficulty,
+  inviteCode,
+  mode = "couple"
+) =>
   request("/games/landlord/create", {
     method: "POST",
-    data: { player_name: playerName, difficulty, invite_code: inviteCode },
+    data: { player_name: playerName, mode, difficulty, invite_code: inviteCode },
     header: customerHeader(customerId)
   });
 

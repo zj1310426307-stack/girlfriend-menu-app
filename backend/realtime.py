@@ -5,6 +5,7 @@ from collections import OrderedDict
 
 from fastapi import WebSocket
 
+from ai.gomoku_ai import GomokuAI
 from gomoku import GomokuError, GomokuGame
 from core.game_state_store import game_state_store
 from dice_rules import is_higher_bid, resolve_challenge
@@ -18,6 +19,7 @@ GOMOKU_REWARDS = (
     "互相说一句今天最喜欢对方的地方",
     "赢家可以指定下一次约会的小任务",
 )
+GOMOKU_AI_ID = "ai_gomoku"
 
 
 class OrderEventHub:
@@ -96,6 +98,8 @@ class GameRoomManager:
             "action_history": [],
             "state_version": 1,
             "last_activity_at": time.time(),
+            "mode": "couple",
+            "difficulty": "rule",
         }
         if game_type == "gomoku":
             room["gomoku"] = GomokuGame()
@@ -142,6 +146,8 @@ class GameRoomManager:
             "action_history": list(room.get("action_history") or []),
             "state_version": int(room.get("state_version") or 1),
             "last_activity_at": room.get("last_activity_at") or time.time(),
+            "mode": room.get("mode", "couple"),
+            "difficulty": room.get("difficulty", "rule"),
             "engine": room["gomoku"].serialize() if room["game_type"] == "gomoku" else None,
         }
 
@@ -163,6 +169,8 @@ class GameRoomManager:
         room["action_history"] = list(snapshot.get("action_history") or [])
         room["state_version"] = int(snapshot.get("state_version") or 1)
         room["last_activity_at"] = float(snapshot.get("last_activity_at") or time.time())
+        room["mode"] = snapshot.get("mode") or "couple"
+        room["difficulty"] = snapshot.get("difficulty") or "rule"
         for raw in snapshot.get("players") or []:
             room["players"][raw["id"]] = {
                 **raw,
@@ -197,7 +205,9 @@ class GameRoomManager:
             expired = []
             for code, room in list(self.rooms.items()):
                 no_live_socket = not any(
-                    player.get("connected") for player in room["players"].values()
+                    player.get("connected")
+                    for player in room["players"].values()
+                    if not str(player.get("id", "")).startswith("ai_")
                 )
                 idle = now - float(room.get("last_activity_at") or now) >= ttl_seconds
                 if no_live_socket and (code in requested or idle):
@@ -224,21 +234,54 @@ class GameRoomManager:
                     player_id,
                     {
                         "id": player_id,
-                        "name": f"玩家{stored.seat}",
+                        "name": "五子棋 AI" if player_id.startswith("ai_") else f"玩家{stored.seat}",
                         "socket": None,
                         "protocol": "v2",
-                        "connected": False,
+                        "connected": player_id.startswith("ai_"),
                         "seat": stored.seat,
                         "color": color,
                     },
                 )
                 room["scores"][player_id] = stored.score
+                if room["game_type"] == "gomoku" and player_id == GOMOKU_AI_ID:
+                    # The synthetic seat is durable even without Redis, so a
+                    # cold restart can still resume the room in AI mode. The
+                    # selected difficulty falls back to the safe rule level.
+                    room["mode"] = "ai"
+                    room["difficulty"] = room.get("difficulty") or "rule"
             if room["game_type"] == "gomoku":
                 engine = room["gomoku"]
                 room["phase"] = engine.phase
                 room["turn_id"] = engine.turn_id
                 if engine.phase == "playing" and room["started_at"] is None:
                     room["started_at"] = time.monotonic()
+            self._cache_room(room)
+
+    async def configure_gomoku_ai(self, room_code: str, difficulty: str = "rule") -> None:
+        """Mark a Gomoku room as solo mode and restore its synthetic opponent."""
+        async with self.lock:
+            room = self.rooms.get(room_code)
+            if not room or room["game_type"] != "gomoku":
+                return
+            room["mode"] = "ai"
+            room["difficulty"] = difficulty
+            engine = room["gomoku"]
+            if GOMOKU_AI_ID not in engine.players:
+                engine.add_player(GOMOKU_AI_ID)
+            room["players"][GOMOKU_AI_ID] = {
+                **room["players"].get(GOMOKU_AI_ID, {}),
+                "id": GOMOKU_AI_ID,
+                "name": "五子棋 AI",
+                "socket": None,
+                "protocol": "v2",
+                "connected": True,
+                "seat": 2,
+                "color": "white",
+            }
+            room["scores"].setdefault(GOMOKU_AI_ID, 0)
+            room["phase"] = engine.phase
+            room["turn_id"] = engine.turn_id
+            room["started_at"] = room["started_at"] or time.monotonic()
             self._cache_room(room)
 
     async def join(
@@ -323,6 +366,7 @@ class GameRoomManager:
 
     async def handle(self, room_code, player_id, message):
         error = None
+        should_run_gomoku_ai = False
         async with self.lock:
             room = self.rooms.get(room_code)
             if not room or player_id not in room["players"]:
@@ -352,9 +396,41 @@ class GameRoomManager:
             if not error:
                 room["state_version"] = int(room.get("state_version") or 0) + 1
                 room["last_activity_at"] = time.time()
+                should_run_gomoku_ai = (
+                    room["game_type"] == "gomoku"
+                    and room.get("mode") == "ai"
+                    and room["phase"] == "playing"
+                    and room["turn_id"] == GOMOKU_AI_ID
+                )
                 self._cache_room(room)
         if not error:
             await self._send_payloads(payloads)
+        if should_run_gomoku_ai:
+            # Let the human stone settle visually before broadcasting the AI
+            # response. State is rechecked after the delay to remain safe.
+            await asyncio.sleep(0.28)
+            async with self.lock:
+                room = self.rooms.get(room_code)
+                if (
+                    room
+                    and room.get("mode") == "ai"
+                    and room.get("phase") == "playing"
+                    and room.get("turn_id") == GOMOKU_AI_ID
+                ):
+                    decision = GomokuAI(room.get("difficulty", "rule")).choose_action(
+                        room["gomoku"].serialize(), GOMOKU_AI_ID
+                    )
+                    if decision.get("action") == "MOVE":
+                        error = self._gomoku_move(room, GOMOKU_AI_ID, decision)
+                    if not error:
+                        room["state_version"] = int(room.get("state_version") or 0) + 1
+                        room["last_activity_at"] = time.time()
+                        payloads = self._payloads(room)
+                        self._cache_room(room)
+                    else:
+                        payloads = []
+            if not error:
+                await self._send_payloads(payloads)
         return error
 
     async def consume_completed_event(self, room_code):
@@ -424,6 +500,8 @@ class GameRoomManager:
                     "scores": dict(room["scores"]),
                     "move_history": list(engine.move_history),
                     "final_state": engine.serialize(),
+                    "mode": room.get("mode", "couple"),
+                    "difficulty": room.get("difficulty", "rule"),
                 },
             }
         return None
@@ -433,6 +511,8 @@ class GameRoomManager:
         if room["phase"] != "finished":
             return "本局还没有结束"
         room["rematch_ready"].add(player_id)
+        if room.get("mode") == "ai":
+            room["rematch_ready"].add(GOMOKU_AI_ID)
         if len(room["rematch_ready"]) == len(room["players"]) == room["max_players"]:
             engine = room["gomoku"]
             engine.reset()
@@ -569,6 +649,8 @@ class GameRoomManager:
                 "round_id": f"{room['room_code']}:{engine_state.get('round', 1)}",
                 "server_timestamp": int(time.time() * 1000),
                 "state_version": int(room.get("state_version") or 1),
+                "mode": room.get("mode", "couple"),
+                "difficulty": room.get("difficulty", "rule"),
             }
             return [
                 (

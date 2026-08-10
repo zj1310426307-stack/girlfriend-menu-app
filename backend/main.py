@@ -122,7 +122,7 @@ async def lifespan(_: FastAPI):
                 await task
 
 
-app = FastAPI(title="情侣智能厨房管家 API", version="2.9.0", lifespan=lifespan)
+app = FastAPI(title="情侣智能厨房管家 API", version="2.9.1", lifespan=lifespan)
 
 
 def get_frontend_origins():
@@ -597,11 +597,17 @@ async def create_game_room(
     if not creator:
         raise HTTPException(status_code=401, detail="请先用邀请码验证设备")
     room = crud.create_game_room(db, data.game_type, creator)
+    if data.game_type == "gomoku" and data.mode == "ai":
+        crud.join_game_room(db, room.room_code, creator)
+        crud.join_game_room(db, room.room_code, "ai_gomoku")
     await game_room_manager.ensure_room(room.room_code, room.game_type, room.max_players)
     await game_room_manager.restore_players(
         room.room_code,
         crud.list_game_players(db, room.room_code),
     )
+    if data.game_type == "gomoku" and data.mode == "ai":
+        await game_room_manager.configure_gomoku_ai(room.room_code, data.difficulty)
+    db.refresh(room)
     return room
 
 
@@ -622,7 +628,9 @@ def create_flight_room(
 ):
     if _allow_legacy_customer_header() and not secrets.compare_digest(data.invite_code, get_admin_invite_code()):
         raise HTTPException(status_code=401, detail="邀请码错误")
-    return flight_service.create_room(db, customer_id, data.player_name)
+    return flight_service.create_room(
+        db, customer_id, data.player_name, data.mode, data.difficulty
+    )
 
 
 @app.post("/api/games/flight/join", response_model=schemas.FlightStateOut)
@@ -673,7 +681,9 @@ def create_landlord_room(
     """Create the first human seat in a two-human-plus-AI landlord room."""
     if _allow_legacy_customer_header() and not secrets.compare_digest(data.invite_code, get_admin_invite_code()):
         raise HTTPException(status_code=401, detail="邀请码错误")
-    return landlord_service.create(db, customer_id, data.player_name, data.difficulty)
+    return landlord_service.create(
+        db, customer_id, data.player_name, data.difficulty, data.mode
+    )
 
 
 @app.post("/api/games/landlord/join", response_model=schemas.GameSessionOut)
@@ -956,7 +966,10 @@ def _persist_completed_game(event: dict):
         )
         replay_state = result.get("final_state") or result
         game_recovery_service.save_replay(db, record, replay_state)
-        for player_id in event.get("players") or []:
+        for player_id in (
+            item for item in (event.get("players") or [])
+            if not str(item).startswith("ai_")
+        ):
             couple_profile_service.record_memory_once(
                 db,
                 player_id,

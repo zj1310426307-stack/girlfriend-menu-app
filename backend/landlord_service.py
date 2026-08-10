@@ -11,7 +11,7 @@ from games.core.player import join, players, require_member
 from games.core.room import create_room, require_room
 from games.core.service import settle_session_game
 from games.core.state import GameSessionStore
-from games.landlord.engine import AI_ID, LandlordGame
+from games.landlord.engine import LandlordGame
 
 
 GAME_TYPE = "landlord"
@@ -31,11 +31,20 @@ def _response(room: models.GameRoom, session: models.GameSession, viewer_id: str
     }
 
 
-def create(db: Session, creator_id: str, player_name: str, difficulty: str) -> dict:
-    """Create a two-human room; AI permanently occupies the third logical seat."""
-    room = create_room(db, GAME_TYPE, creator_id, max_players=2)
+def create(
+    db: Session,
+    creator_id: str,
+    player_name: str,
+    difficulty: str,
+    mode: str = "couple",
+) -> dict:
+    """Create a couple table or a solo table with two server AI players."""
+    room = create_room(db, GAME_TYPE, creator_id, max_players=1 if mode == "ai" else 2)
     join(db, room.room_code, creator_id)
-    game = LandlordGame.waiting([creator_id], {creator_id: player_name}, difficulty)
+    game = LandlordGame.waiting(
+        [creator_id], {creator_id: player_name}, difficulty, mode
+    )
+    _run_ai(game)
     session = GameSessionStore(db).create(room, game.serialize())
     db.refresh(room)
     return _response(room, session, creator_id)
@@ -47,10 +56,17 @@ def join_room(db: Session, room_code: str, player_id: str, player_name: str) -> 
     player = join(db, room.room_code, player_id)
     session = GameSessionStore(db).get(room.id)
     state = session.state
+    if state.get("mode") == "ai":
+        raise HTTPException(status_code=409, detail="人机练习桌不能再加入第二位玩家")
     human_ids = [item.player_id for item in players(db, room.id)]
     names = dict(state.get("names") or {})
     names[player_id] = player_name
-    game = LandlordGame.waiting(human_ids, names, state.get("difficulty", "rule"))
+    game = LandlordGame.waiting(
+        human_ids,
+        names,
+        state.get("difficulty", "rule"),
+        state.get("mode", "couple"),
+    )
     if len(human_ids) == 2 and state.get("phase") == "waiting":
         session = GameSessionStore(db).save(session, game.serialize(), session.version)
     db.refresh(room)
@@ -69,11 +85,15 @@ def _run_ai(game: LandlordGame) -> None:
     """Advance consecutive AI turns until a human decision is required."""
     ai = LandlordAI(game.state.get("difficulty", "rule"))
     guard = 0
-    while game.state.get("turn_id") == AI_ID and game.state.get("phase") in {"bidding", "playing"}:
-        decision = ai.choose_action(game.state, AI_ID)
-        game.apply(AI_ID, decision.pop("action"), decision)
+    while (
+        str(game.state.get("turn_id") or "").startswith("ai_")
+        and game.state.get("phase") in {"bidding", "playing"}
+    ):
+        ai_id = game.state["turn_id"]
+        decision = ai.choose_action(game.state, ai_id)
+        game.apply(ai_id, decision.pop("action"), decision)
         guard += 1
-        if guard > 4:
+        if guard > 12:
             raise RuntimeError("斗地主 AI 连续行动超过安全上限")
 
 

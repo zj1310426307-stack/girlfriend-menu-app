@@ -15,6 +15,7 @@ import FlightBoard from "../../../components/FlightBoard";
 import { getCustomerId } from "../../../utils/customer";
 import { ensureInvitePassed } from "../../../utils/invite";
 import { ensureGameRecovery } from "../../../utils/gameRecovery";
+import useAdaptiveGamePolling from "../../../hooks/useAdaptiveGamePolling";
 import "./index.css";
 
 const ROOM_PATTERN = /^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{6}$/;
@@ -27,8 +28,11 @@ const idOf = (player) => player?.id || player?.player_id;
 export default function FlightPage() {
   const router = useRouter();
   const customerIdRef = useRef(getCustomerId());
+  const revisionRef = useRef("");
   const [allowed, setAllowed] = useState(false);
   const [playerName, setPlayerName] = useState("我");
+  const [mode, setMode] = useState("couple");
+  const [difficulty, setDifficulty] = useState("rule");
   const [joinCode, setJoinCode] = useState("");
   const [roomCode, setRoomCode] = useState("");
   const [state, setState] = useState(EMPTY_STATE);
@@ -49,7 +53,11 @@ export default function FlightPage() {
   const canRoll = isMyTurn && state.dice == null && !state.pending_event && !busy;
 
   const applyResponse = useCallback((response) => {
-    if (response?.state) setState(response.state);
+    const revision = String(response?.updated_at || "");
+    if (response?.state && (!revision || revision !== revisionRef.current)) {
+      revisionRef.current = revision;
+      setState(response.state);
+    }
     if (response?.room_code) setRoomCode(response.room_code);
     setConnection("online");
     setError("");
@@ -74,11 +82,14 @@ export default function FlightPage() {
   }, [router.params?.room]);
 
   useEffect(() => {
-    if (!roomCode) return undefined;
+    if (!roomCode) return;
     getCoupleScore(customerIdRef.current).then((result) => setScore(result.total || result.points_total || 0)).catch(() => {});
-    const timer = setInterval(() => refresh(true), 2200);
-    return () => clearInterval(timer);
-  }, [refresh, roomCode]);
+  }, [roomCode]);
+  useAdaptiveGamePolling({
+    enabled: Boolean(roomCode && state.mode !== "ai" && state.phase !== "finished"),
+    load: () => refresh(true),
+    interval: state.phase === "waiting" ? 2400 : 1200
+  });
 
   useShareAppMessage(() => ({
     title: roomCode ? `来和我玩情侣飞行棋，房间 ${roomCode}` : "来和我玩一局情侣飞行棋",
@@ -89,9 +100,11 @@ export default function FlightPage() {
     if (busy) return;
     setBusy("create");
     try {
-      const result = await createFlightRoom(customerIdRef.current, playerName, "");
+      const result = await createFlightRoom(
+        customerIdRef.current, playerName, "", mode, difficulty
+      );
       applyResponse(result);
-      Taro.showToast({ title: "房间已创建", icon: "success" });
+      Taro.showToast({ title: mode === "ai" ? "AI 已就位" : "房间已创建", icon: "success" });
     } catch (requestError) {
       Taro.showToast({ title: requestError.message || "创建失败", icon: "none" });
     } finally {
@@ -148,7 +161,7 @@ export default function FlightPage() {
     if (state.pending_event) return state.pending_event.player_id === customerIdRef.current ? "完成互动后继续飞行" : "等待对方完成互动任务";
     if (isMyTurn && state.dice != null) return "选择一架发光的飞机移动";
     if (isMyTurn) return "轮到你掷骰子";
-    return `等待 ${opponent?.name || "对方"} 掷骰子`;
+    return state.mode === "ai" ? "AI 正在规划航线…" : `等待 ${opponent?.name || "对方"} 掷骰子`;
   }, [connection, error, isFinished, isMyTurn, opponent?.name, state.dice, state.pending_event, state.players, state.winner_id]);
 
   if (!allowed) return <View className="flight-loading"><Text>正在返回邀请码页面…</Text></View>;
@@ -167,7 +180,13 @@ export default function FlightPage() {
           <View className="flight-name-options">
             {["我", "男朋友", "女朋友"].map((name) => <View key={name} className={playerName === name ? "active" : ""} onClick={() => setPlayerName(name)}><Text>{name}</Text></View>)}
           </View>
-          <View className={`flight-primary ${busy ? "disabled" : ""}`} onClick={createRoom}><Text>{busy === "create" ? "正在准备跑道…" : "创建飞行棋房间"}</Text></View>
+          <Text className="flight-lobby-label">游戏模式</Text>
+          <View className="flight-mode-options">
+            <View className={mode === "couple" ? "active" : ""} onClick={() => setMode("couple")}><Text>情侣双人</Text><Text>房间码邀请她</Text></View>
+            <View className={mode === "ai" ? "active" : ""} onClick={() => setMode("ai")}><Text>人机练习</Text><Text>立即开始</Text></View>
+          </View>
+          {mode === "ai" && <View className="flight-difficulty"><Text className={difficulty === "random" ? "active" : ""} onClick={() => setDifficulty("random")}>轻松 AI</Text><Text className={difficulty === "rule" ? "active" : ""} onClick={() => setDifficulty("rule")}>聪明 AI</Text></View>}
+          <View className={`flight-primary ${busy ? "disabled" : ""}`} onClick={createRoom}><Text>{busy === "create" ? "正在准备跑道…" : mode === "ai" ? "开始人机飞行棋" : "创建飞行棋房间"}</Text></View>
           <Text className="flight-or">或者加入对方的房间</Text>
           <View className="flight-join-row">
             <Input value={joinCode} maxlength={6} placeholder="输入 6 位房间码" onInput={(event) => setJoinCode(event.detail.value.toUpperCase())} onConfirm={joinRoom} />
@@ -197,7 +216,8 @@ export default function FlightPage() {
         <View className="flight-action-panel">
           <DiceButton value={state.dice} disabled={!canRoll} loading={busy === "ROLL_DICE"} onClick={() => act("ROLL_DICE")} />
           {state.movable?.length > 0 && isMyTurn && <Text>请点击棋盘上正在跳动的飞机。掷出 6 后还可以再来一次。</Text>}
-          {!isMyTurn && <Text>棋局每 2 秒自动同步，也可以点上方状态手动刷新。</Text>}
+          {!isMyTurn && <Text>{state.mode === "ai" ? "AI 行动由服务器完成，请稍等片刻。" : "棋局会自动同步，也可以点下方立即同步。"}</Text>}
+          {state.ai_turn_summary?.length > 0 && <Text>AI 最近掷出 {state.ai_turn_summary[state.ai_turn_summary.length - 1].dice} 点</Text>}
         </View>
       )}
 

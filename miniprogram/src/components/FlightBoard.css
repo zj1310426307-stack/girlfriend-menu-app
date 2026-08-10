@@ -8,7 +8,7 @@
 .flight-cell-index { color: #8c9586; font-size: 14px; font-weight: 800; }
 .flight-cell.event .flight-cell-index { color: #fff; font-size: 17px; }
 .flight-cell-tokens { position: absolute; inset: 1px; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; }
-.flight-token { width: 29px; height: 29px; display: flex; align-items: center; justify-content: center; margin: -2px; border: 3px solid rgba(255,255,255,.88); border-radius: 50% 50% 47% 47%; color: #fff; font-size: 13px; font-weight: 900; box-shadow: 0 4px 8px rgba(37,37,37,.3), inset 0 2px 2px rgba(255,255,255,.35); transform: translateZ(0); }
+.flight-token { width: 29px; height: 29px; display: flex; align-items: center; justify-content: center; margin: -2px; border: 3px solid rgba(255,255,255,.88); border-radius: 50% 50% 47% 47%; color: #fff; font-size: 13px; font-weight: 900; box-shadow: 0 4px 8px rgba(37,37,37,.3), inset 0 2px 2px rgba(255,255,255,.35); transform: translateZ(0); will-change: transform; animation: flight-token-arrive .2s cubic-bezier(.2,.8,.3,1.25); }
 .flight-token.red { background: linear-gradient(145deg, #ef816f, #b73f3d); }
 .flight-token.blue { background: linear-gradient(145deg, #7caac4, #315c7d); }
 .flight-token.movable { z-index: 3; animation: flight-piece-pulse 1s ease-in-out infinite; box-shadow: 0 0 0 5px rgba(232,184,109,.42), 0 5px 10px rgba(37,37,37,.35); }
@@ -28,6 +28,7 @@
 .flight-home-pieces { min-height: 34px; display: flex; align-items: center; gap: 4px; margin-top: 9px; }
 .flight-home-pieces > text { color: #a19a8e; font-size: 14px; }
 @keyframes flight-piece-pulse { 0%,100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-5px) scale(1.08); } }
+@keyframes flight-token-arrive { from { opacity:.25; transform:translateY(-8px) scale(.72); } to { opacity:1; transform:translateY(0) scale(1); } }
 @media (max-width: 360px) {
   .flight-board { border-width: 6px; border-radius: 27px; }
   .flight-token { width: 25px; height: 25px; font-size: 11px; }

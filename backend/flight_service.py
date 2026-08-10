@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 import crud
 import models
+from ai.flight_ai import FlightAI
 from flight import FlightError, FlightGame, initial_state
 from game_rewards import settle_game_rewards
 from love_score import record_score
@@ -19,6 +20,7 @@ from notification_service import create_notification
 
 
 GAME_TYPE = "aeroplane"
+AI_ID = "ai_flight"
 
 
 def _validate_flight_room(room: models.GameRoom):
@@ -80,14 +82,26 @@ def _cache(room: models.GameRoom, state: dict) -> None:
     )
 
 
-def create_room(db: Session, creator_id: str, player_name: str):
+def create_room(
+    db: Session,
+    creator_id: str,
+    player_name: str,
+    mode: str = "couple",
+    difficulty: str = "rule",
+):
+    """Create a couple room or an immediately playable server-AI room."""
     room = crud.create_game_room(db, GAME_TYPE, creator_id)
     player = crud.join_game_room(db, room.room_code, creator_id)
+    player_payloads = [_payload(player, player_name)]
+    if mode == "ai":
+        player_payloads.append({"id": AI_ID, "name": "飞行棋 AI", "seat": 2})
+        room.status = "playing"
     row = models.GameState(
         room_id=room.id,
         game_type=GAME_TYPE,
-        state=initial_state([_payload(player, player_name)]),
+        state=initial_state(player_payloads),
     )
+    row.state = {**row.state, "mode": mode, "difficulty": difficulty, "ai_turn_summary": []}
     db.add(row)
     db.commit()
     db.refresh(room)
@@ -99,8 +113,10 @@ def create_room(db: Session, creator_id: str, player_name: str):
 def join_room(db: Session, room_code: str, player_id: str, player_name: str):
     room = crud.get_game_room(db, room_code)
     _validate_flight_room(room)
-    player = crud.join_game_room(db, room.room_code, player_id)
     row = _state_row(db, room, lock=True)
+    if row.state.get("mode") == "ai":
+        raise HTTPException(status_code=409, detail="AI 练习房不能再加入第二位玩家")
+    player = crud.join_game_room(db, room.room_code, player_id)
     game = FlightGame(row.state)
     known_names = {item["id"]: item["name"] for item in game.state["players"]}
     known_names[player_id] = player_name
@@ -209,7 +225,10 @@ def _finish_if_needed(db: Session, room: models.GameRoom, state: dict):
         [player.player_id for player in record.players],
         state.get("winner_id"),
     )
-    human_ids = [player.player_id for player in record.players]
+    human_ids = [
+        player.player_id for player in record.players
+        if not player.player_id.startswith("ai_")
+    ]
     for player_id in human_ids:
         record_memory_once(
             db,
@@ -235,6 +254,36 @@ def _finish_if_needed(db: Session, room: models.GameRoom, state: dict):
     return record
 
 
+def _run_ai(game: FlightGame) -> None:
+    """Complete bounded consecutive AI turns using only server-generated dice."""
+    if game.state.get("mode") != "ai":
+        return
+    summary = []
+    guard = 0
+    ai = FlightAI(game.state.get("difficulty", "rule"))
+    while game.state.get("phase") == "playing" and game.state.get("turn_id") == AI_ID:
+        dice = secrets.randbelow(6) + 1
+        game.roll_dice(AI_ID, dice)
+        turn = {"dice": dice, "piece_index": None, "from": None, "to": None}
+        if game.state.get("turn_id") != AI_ID or game.state.get("dice") is None:
+            summary.append(turn)
+            break
+        index = ai.choose_piece(game.state, AI_ID)
+        turn["piece_index"] = index
+        turn["from"] = game.state["pieces"][AI_ID][index]
+        game.move_piece(AI_ID, index)
+        turn["to"] = game.state["pieces"][AI_ID][index]
+        summary.append(turn)
+        if (game.state.get("pending_event") or {}).get("player_id") == AI_ID:
+            # Interaction prompts are for people. The AI acknowledges its
+            # square without writing a fake couple event or awarding points.
+            game.complete_event(AI_ID)
+        guard += 1
+        if guard >= 12:
+            raise RuntimeError("飞行棋 AI 连续行动超过安全上限")
+    game.state["ai_turn_summary"] = summary[-6:]
+
+
 def perform_action(
     db: Session,
     room_code: str,
@@ -248,6 +297,7 @@ def perform_action(
         raise HTTPException(status_code=403, detail="你还没有加入这个房间")
     row = _state_row(db, room, lock=True)
     game = FlightGame(row.state)
+    game.state["ai_turn_summary"] = []
     completed_log = None
     try:
         if action == "ROLL_DICE":
@@ -278,6 +328,7 @@ def perform_action(
             completed_log.completed_at = datetime.now()
         else:
             raise HTTPException(status_code=422, detail="不支持的飞行棋动作")
+        _run_ai(game)
     except FlightError as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
 

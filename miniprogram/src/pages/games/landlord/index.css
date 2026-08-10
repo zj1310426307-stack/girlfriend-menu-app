@@ -14,6 +14,12 @@ page { min-height: 100%; background: #10251d; }
 .ll-choice-row.two { grid-template-columns:repeat(2,1fr); }
 .ll-choice-row > view { height:58px; display:flex; align-items:center; justify-content:center; border:2px solid #e6dccd; border-radius:18px; color:#7b7266; font-size:17px; font-weight:800; }
 .ll-choice-row > view.active { color:#fff; border-color:#708a72; background:#708a72; }
+.ll-mode-row { display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-bottom:19px; }
+.ll-mode-row > view { min-height:68px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; border:2px solid #e6dccd; border-radius:19px; color:#786f63; background:#fff; }
+.ll-mode-row > view text:first-child { font-size:18px; font-weight:900; }
+.ll-mode-row > view text:last-child { color:#a1978a; font-size:13px; }
+.ll-mode-row > view.active { color:#fff; border-color:#708a72; background:#708a72; transform:translateY(-1px); }
+.ll-mode-row > view.active text:last-child { color:rgba(255,255,255,.72); }
 .ll-main-button { height:76px; display:flex; align-items:center; justify-content:center; margin-top:6px; border-radius:22px; color:#fff; background:#be7547; font-size:21px; font-weight:900; box-shadow:0 10px 22px rgba(164,88,46,.2); }
 .ll-divider { margin:18px 0 10px; color:#a19483; text-align:center; font-size:15px; }
 .ll-join { height:68px; display:flex; gap:7px; padding:6px; border:2px solid #e7ddcf; border-radius:21px; background:#fff; }

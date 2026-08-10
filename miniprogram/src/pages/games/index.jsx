@@ -17,8 +17,8 @@ const FALLBACK_GAMES = [
 ];
 
 const GAME_DESCRIPTIONS = {
-  aeroplane: "掷出好运，一起飞向终点",
-  landlord: "两位真人 + AI，服务端洗牌发牌",
+  aeroplane: "情侣房间或人机练习，一起飞向终点",
+  landlord: "情侣牌桌或你与两个 AI，服务端洗牌",
   jungle: "标准 7×9 森林棋盘，支持 AI",
   chinese_chess: "慢慢想一招，认真下一局"
 };
@@ -103,11 +103,11 @@ export default function GamesPage() {
         <View className="continue-game-list">{activeGames.map((game) => <View key={game.room_code} onClick={() => continueGame(game)}><View><Text>{({ dice: "骰", gomoku: "棋", aeroplane: "飞", landlord: "牌", jungle: "兽", chinese_chess: "象" })[game.game_type] || "玩"}</Text></View><View><Text>{({ dice: "大话骰", gomoku: "五子棋", aeroplane: "飞行棋", landlord: "斗地主", jungle: "斗兽棋", chinese_chess: "中国象棋" })[game.game_type] || game.game_type}</Text><Text>房间 {game.room_code} · {game.status === "playing" ? "进行中" : "等待加入"}</Text></View><Text>继续 ›</Text></View>)}</View>
       </>}
 
-      <View className="game-section-title"><Text>今日推荐</Text><Text>双人实时对战</Text></View>
+      <View className="game-section-title"><Text>今日推荐</Text><Text>双人实时 · 人机练习</Text></View>
       <View className="gomoku-feature-card">
         <View className="gomoku-feature-head">
           <View><Text>{gomoku.icon}</Text></View>
-          <View><Text>{gomoku.name}</Text><Text>15×15 实时棋盘 · 五子连珠获胜</Text></View>
+          <View><Text>{gomoku.name}</Text><Text>15×15 实时棋盘 · 支持聪明 AI 陪练</Text></View>
           <Text>新开放</Text>
         </View>
         <View className="gomoku-feature-line"><Text>●</Text><Text>○</Text><Text>●</Text><Text>○</Text><Text>●</Text></View>
@@ -125,7 +125,7 @@ export default function GamesPage() {
       <View className="flight-feature-card" onClick={() => Taro.navigateTo({ url: "/pages/games/flight/index" })}>
         <View className="flight-feature-copy">
           <View><Text>{flight.icon}</Text></View>
-          <View><Text>{flight.name}</Text><Text>双人四棋子 · 服务端掷骰 · 互动格加默契</Text></View>
+          <View><Text>{flight.name}</Text><Text>情侣或人机 · 服务端掷骰 · 互动格加默契</Text></View>
           <Text>V2.4</Text>
         </View>
         <View className="flight-mini-route">
@@ -150,9 +150,9 @@ export default function GamesPage() {
       <View className="game-section-title"><Text>V2.5 新牌桌</Text><Text>统一状态与 AI 陪玩</Text></View>
       <View className="v25-game-grid">
         <View className="landlord-entry" onClick={() => Taro.navigateTo({ url: "/pages/games/landlord/index" })}>
-          <View><Text>{landlord.icon}</Text><Text>2+AI</Text></View>
+          <View><Text>{landlord.icon}</Text><Text>AI×2</Text></View>
           <Text>{landlord.name}</Text>
-          <Text>真人双排，AI 补第三席。手牌私密，服务器判定。</Text>
+          <Text>情侣双排或单人挑战两个 AI。手牌私密，服务器判定。</Text>
           <Text>进入牌桌 ›</Text>
         </View>
         <View className="animal-entry" onClick={() => Taro.navigateTo({ url: "/pages/games/animal/index" })}>

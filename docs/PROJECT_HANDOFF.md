@@ -1,6 +1,6 @@
 # 项目交接与首次完整审计
 
-> 当前交付基线：V2.9 体验版本 `2.9.0`，日期 2026-08-10。正式发布证据仍以微信公众平台和线上健康检查为准。
+> 当前工作区：`2.9.1` 游戏体验开发版；微信体验版仍为 `2.9.0`，日期 2026-08-10。正式发布证据仍以微信公众平台和线上健康检查为准。
 
 ## 1. 产品定位
 
@@ -17,14 +17,14 @@
 | 项目 | 当前状态 |
 | --- | --- |
 | 小程序技术 | Taro 4 + React 18 |
-| 小程序版本 | 2.9.0（准备上传体验版） |
+| 小程序版本 | 2.9.1（开发完成，尚未上传；体验版为 2.9.0） |
 | 后端 | FastAPI + SQLAlchemy 2 |
 | 生产数据库 | Neon PostgreSQL |
 | 本地数据库 | SQLite 回退 |
 | 生产 API | `https://girlfriend-menu-api.onrender.com` |
 | 2026-08-08 健康检查 | `/api/health` 正常；`/api/ready` 返回 PostgreSQL ready |
 | 线上启用菜品 | 19 道 |
-| 后端自动测试 | 56 项通过 |
+| 后端自动测试 | 59 项通过 |
 | 数据库迁移 | Alembic `20260809_09`；空库、V2.0 基线升级及末级降级/再升级通过 |
 | 小程序构建 | `npm run build:weapp` 通过 |
 | 正式发布状态 | 代码无法证明；需在微信公众平台“版本管理”确认 |
@@ -179,7 +179,7 @@ V2.7 的 `users.user_code` 对旧 `customer_id` 做兼容映射，不改变现�
 
 ### games / game_rooms / game_players / game_records
 
-- `games`：游戏名称、文字图标、唯一 `type`、`available/coming_soon/maintenance` 状态；当前 `dice` 与 `gomoku` 可用。
+- `games`：游戏名称、文字图标、唯一 `type`、`available/coming_soon/maintenance` 状态；当前大话骰、五子棋、飞行棋、斗地主、斗兽棋与中国象棋可用。
 - `game_rooms`：唯一房间码、游戏类型、创建者、`waiting/playing/finished` 状态、最大人数、创建时间和可空完成时间 `finished_at`。
 - `game_players`：所属房间、设备 `player_id`、席位、房间累计局分和加入时间；`room_id + player_id`、`room_id + seat` 分别唯一。
 - `game_records`：所属房间、局号、游戏类型、胜者、时长、结果 JSON 和完成时间；`room_id + round_number` 唯一，避免重试重复结算。

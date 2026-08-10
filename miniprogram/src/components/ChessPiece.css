@@ -1,7 +1,8 @@
-.chess-piece { position:absolute; inset:4px; z-index:3; display:flex; align-items:center; justify-content:center; border-radius:50%; background:linear-gradient(145deg,#f8dfaa,#c99153); box-shadow:0 5px 9px rgba(76,43,20,.3),inset 0 1px 1px rgba(255,255,255,.8); transition:transform .16s ease; }
+.chess-piece { position:absolute; inset:4px; z-index:3; display:flex; align-items:center; justify-content:center; border-radius:50%; background:linear-gradient(145deg,#f8dfaa,#c99153); box-shadow:0 5px 9px rgba(76,43,20,.3),inset 0 1px 1px rgba(255,255,255,.8); transition:transform .16s ease; will-change:transform; animation:chess-piece-arrive .16s ease-out; }
 .chess-piece > view { width:82%; height:82%; display:flex; align-items:center; justify-content:center; border:2px solid currentColor; border-radius:50%; background:rgba(255,239,199,.62); }
 .chess-piece text { font-family:serif; font-size:21px; font-weight:900; line-height:1; }
 .chess-piece.red { color:#a63d31; }
 .chess-piece.black { color:#28342d; }
 .chess-piece.selected { transform:translateY(-5px) scale(1.08); box-shadow:0 9px 14px rgba(164,70,48,.35),0 0 0 4px rgba(255,233,150,.8); }
 .chess-piece.last-moved::after { content:""; position:absolute; right:0; bottom:0; width:9px; height:9px; border:2px solid #fff4d7; border-radius:50%; background:#d66c55; }
+@keyframes chess-piece-arrive { from { opacity:.4; transform:scale(.72); } to { opacity:1; transform:scale(1); } }

@@ -59,6 +59,8 @@ class GameOut(BaseModel):
 class GameRoomCreate(BaseModel):
     game_type: str = Field(min_length=1, max_length=50, pattern=r"^[a-z][a-z0-9_]*$")
     creator: str = Field(min_length=1, max_length=100)
+    mode: Literal["couple", "ai"] = "couple"
+    difficulty: Literal["random", "rule", "strategy"] = "rule"
     invite_code: str = Field(default="", max_length=100)
 
 
@@ -139,6 +141,7 @@ class GameSessionOut(BaseModel):
 
 class LandlordRoomCreate(BaseModel):
     player_name: str = Field(default="男朋友", min_length=1, max_length=20)
+    mode: Literal["couple", "ai"] = "couple"
     difficulty: AIDifficulty = "rule"
     invite_code: str = Field(default="", max_length=100)
 
@@ -345,6 +348,8 @@ class LoveTaskOut(BaseModel):
 
 class FlightRoomCreate(BaseModel):
     player_name: str = Field(default="男朋友", min_length=1, max_length=20)
+    mode: Literal["couple", "ai"] = "couple"
+    difficulty: AIDifficulty = "rule"
     invite_code: str = Field(default="", max_length=100)
 
 

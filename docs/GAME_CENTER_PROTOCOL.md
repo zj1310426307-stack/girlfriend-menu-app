@@ -1,4 +1,4 @@
-# V2.7 游戏中心通信协议
+# V2.9.1 游戏中心通信协议
 
 ## 目标与边界
 
@@ -21,7 +21,7 @@
 | 方法 | 路径 | 用途 |
 | --- | --- | --- |
 | GET | `/api/games` | 返回全部游戏及 `available/coming_soon/maintenance` 状态 |
-| POST | `/api/games/rooms` | 为已开放游戏创建房间 |
+| POST | `/api/games/rooms` | 为已开放游戏创建房间；五子棋支持 `mode=ai` 与 `difficulty` |
 | GET | `/api/games/rooms/{room_code}` | 查询房间元数据、玩家席位和状态 |
 | GET | `/api/games/records/my` | 查询当前设备最近游戏记录，需 `X-Customer-Id` |
 | GET | `/api/admin/games/stats` | 管理端游戏统计，需 Bearer token |
@@ -43,6 +43,8 @@
 | GET | `/api/games/chess/{game_id}/history` | 原房间成员查看落库棋谱 |
 | GET | `/api/games/ranking` | 私人战绩与共同房间脱敏月榜 |
 | GET | `/api/games/memories/my` | 当前设备的游戏记忆 |
+
+2.9.1 创建参数与各游戏的人机能力见 [游戏顺滑与全模式人机](GAME_AI_MODES_2_9_1.md)。旧请求不传 `mode/difficulty` 时继续按情侣规则模式创建，不改变已上传客户端行为。
 | GET | `/api/games/ai/players` | AI 角色与透明难度目录 |
 | GET | `/api/games/ai/summary` | 基于真实记录的规则日报 |
 

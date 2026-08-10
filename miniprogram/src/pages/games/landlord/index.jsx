@@ -14,6 +14,7 @@ import LandlordPlayer from "../../../components/LandlordPlayer";
 import { getCustomerId } from "../../../utils/customer";
 import { ensureInvitePassed } from "../../../utils/invite";
 import { ensureGameRecovery } from "../../../utils/gameRecovery";
+import useAdaptiveGamePolling from "../../../hooks/useAdaptiveGamePolling";
 import "./index.css";
 
 const ROOM_PATTERN = /^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{6}$/;
@@ -23,8 +24,10 @@ const EMPTY = { phase: "waiting", players: [], names: {}, hand_counts: {}, my_ha
 export default function LandlordPage() {
   const router = useRouter();
   const customerId = useRef(getCustomerId()).current;
+  const versionRef = useRef(0);
   const [allowed, setAllowed] = useState(false);
   const [name, setName] = useState("我");
+  const [mode, setMode] = useState("couple");
   const [difficulty, setDifficulty] = useState("rule");
   const [joinCode, setJoinCode] = useState("");
   const [roomCode, setRoomCode] = useState("");
@@ -39,11 +42,13 @@ export default function LandlordPage() {
 
   const apply = useCallback((payload) => {
     if (!payload?.state) return;
+    if (payload.room_code === roomCode && payload.version === versionRef.current) return;
+    versionRef.current = payload.version || 0;
     setState(payload.state);
     setVersion(payload.version || 0);
     setRoomCode(payload.room_code || "");
     setSelected([]);
-  }, []);
+  }, [roomCode]);
   const refresh = useCallback(async () => {
     if (!roomCode) return;
     try { apply(await getVersionedGameState(customerId, roomCode)); } catch (_) {}
@@ -54,11 +59,11 @@ export default function LandlordPage() {
     const shared = String(router.params?.room || "").trim().toUpperCase();
     if (shared) setJoinCode(shared);
   }, [router.params?.room]);
-  useEffect(() => {
-    if (!roomCode || state.phase === "finished") return undefined;
-    const timer = setInterval(refresh, 1800);
-    return () => clearInterval(timer);
-  }, [refresh, roomCode, state.phase]);
+  useAdaptiveGamePolling({
+    enabled: Boolean(roomCode && state.mode !== "ai" && state.phase !== "finished"),
+    load: refresh,
+    interval: state.phase === "waiting" ? 2400 : 1200
+  });
 
   useShareAppMessage(() => ({
     title: roomCode ? `来和我斗地主，房间 ${roomCode}` : "来玩一局情侣斗地主",
@@ -68,7 +73,7 @@ export default function LandlordPage() {
   const create = async () => {
     if (busy) return;
     setBusy("create");
-    try { apply(await createLandlordRoom(customerId, name, difficulty, "")); }
+    try { apply(await createLandlordRoom(customerId, name, difficulty, "", mode)); }
     catch (error) { Taro.showToast({ title: error.message || "创建失败", icon: "none" }); }
     finally { setBusy(""); }
   };
@@ -110,9 +115,11 @@ export default function LandlordPage() {
       <View className="ll-lobby-card">
         <Text>我在牌桌上的名字</Text>
         <View className="ll-choice-row">{["我", "男朋友", "女朋友"].map((item) => <View key={item} className={name === item ? "active" : ""} onClick={() => setName(item)}><Text>{item}</Text></View>)}</View>
+        <Text>游戏模式</Text>
+        <View className="ll-mode-row"><View className={mode === "couple" ? "active" : ""} onClick={() => setMode("couple")}><Text>情侣牌桌</Text><Text>两人 + 1 AI</Text></View><View className={mode === "ai" ? "active" : ""} onClick={() => setMode("ai")}><Text>人机挑战</Text><Text>你 + 2 AI</Text></View></View>
         <Text>AI 风格</Text>
         <View className="ll-choice-row two"><View className={difficulty === "random" ? "active" : ""} onClick={() => setDifficulty("random")}><Text>轻松随机</Text></View><View className={difficulty === "rule" ? "active" : ""} onClick={() => setDifficulty("rule")}><Text>规则陪玩</Text></View></View>
-        <View className="ll-main-button" onClick={create}><Text>{busy === "create" ? "正在洗牌…" : "创建斗地主房间"}</Text></View>
+        <View className="ll-main-button" onClick={create}><Text>{busy === "create" ? "正在洗牌…" : mode === "ai" ? "开始人机斗地主" : "创建斗地主房间"}</Text></View>
         <View className="ll-divider"><Text>或者加入她的牌桌</Text></View>
         <View className="ll-join"><Input value={joinCode} maxlength={6} placeholder="输入 6 位房间码" onInput={(event) => setJoinCode(event.detail.value.toUpperCase())} onConfirm={join} /><View onClick={join}><Text>{busy === "join" ? "加入中" : "加入"}</Text></View></View>
         <Text className="ll-rules">当前支持单张、对子、三张、三带一、顺子、炸弹和王炸。手牌只对本人可见。</Text>

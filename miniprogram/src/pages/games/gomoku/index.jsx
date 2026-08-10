@@ -56,8 +56,11 @@ export default function GomokuPage() {
   const router = useRouter();
   const playerIdRef = useRef(getCustomerId());
   const socketRef = useRef(null);
+  const authoritativeRoomRef = useRef(EMPTY_ROOM);
   const [allowed, setAllowed] = useState(false);
   const [playerName, setPlayerName] = useState("我");
+  const [mode, setMode] = useState("couple");
+  const [difficulty, setDifficulty] = useState("rule");
   const [joinCode, setJoinCode] = useState("");
   const [activeRoomCode, setActiveRoomCode] = useState("");
   const [room, setRoom] = useState(EMPTY_ROOM);
@@ -125,7 +128,11 @@ export default function GomokuPage() {
       playerName: nameOverride.trim() || playerName.trim() || "玩家",
       inviteCode: "",
       onState: (nextState) => {
-        setRoom((previous) => ({ ...previous, ...nextState, board: nextState.board || previous.board || EMPTY_BOARD }));
+        setRoom((previous) => {
+          const merged = { ...previous, ...nextState, board: nextState.board || previous.board || EMPTY_BOARD };
+          authoritativeRoomRef.current = merged;
+          return merged;
+        });
         setMoving(false);
         setErrorMessage("");
       },
@@ -138,6 +145,7 @@ export default function GomokuPage() {
       onStatus: setConnectionStatus,
       onError: (message) => {
         setMoving(false);
+        setRoom(authoritativeRoomRef.current);
         setErrorMessage(message);
         Taro.showToast({ title: message, icon: "none" });
       }
@@ -166,7 +174,9 @@ export default function GomokuPage() {
     if (creating) return;
     setCreating(true);
     try {
-      const result = await createGameRoom("gomoku", playerIdRef.current, "");
+      const result = await createGameRoom(
+        "gomoku", playerIdRef.current, "", mode, difficulty
+      );
       connectToRoom(result.room_code);
     } catch (error) {
       Taro.showToast({ title: error.message || "创建房间失败", icon: "none" });
@@ -181,6 +191,15 @@ export default function GomokuPage() {
       return;
     }
     setMoving(true);
+    setRoom((previous) => {
+      const board = (previous.board || EMPTY_BOARD).map((row) => [...row]);
+      board[y][x] = myColor === "black" ? 1 : 2;
+      return {
+        ...previous,
+        board,
+        last_move: { x, y, player_id: playerIdRef.current, color: myColor, optimistic: true }
+      };
+    });
     Taro.vibrateShort({ type: "light" }).catch(() => {});
     socketRef.current?.send({ type: "move", x, y });
     setTimeout(() => setMoving(false), 3000);
@@ -206,8 +225,8 @@ export default function GomokuPage() {
       <View className="gomoku-page gomoku-lobby">
         <View className="gomoku-lobby-hero">
           <Text className="gomoku-kicker">FIVE IN A ROW</Text>
-          <Text className="gomoku-title">和女朋友下一局</Text>
-          <Text>15×15 双人实时棋盘。黑棋先手，五颗棋子连成一线就获胜。</Text>
+          <Text className="gomoku-title">认真下一局</Text>
+          <Text>15×15 实时棋盘。既可以邀请她，也可以先和 AI 热身。</Text>
           <View className="gomoku-preview"><Text>●</Text><Text>○</Text><Text>●</Text><Text>○</Text><Text>●</Text></View>
         </View>
         <View className="gomoku-lobby-card">
@@ -217,7 +236,10 @@ export default function GomokuPage() {
               <View key={name} className={playerName === name ? "active" : ""} onClick={() => setPlayerName(name)}><Text>{name}</Text></View>
             ))}
           </View>
-          <View className={`gomoku-primary ${creating ? "disabled" : ""}`} onClick={makeRoom}><Text>{creating ? "正在布置棋盘…" : "创建双人棋局"}</Text></View>
+          <Text className="gomoku-label">游戏模式</Text>
+          <View className="gomoku-mode-options"><View className={mode === "couple" ? "active" : ""} onClick={() => setMode("couple")}><Text>情侣双人</Text><Text>实时房间</Text></View><View className={mode === "ai" ? "active" : ""} onClick={() => setMode("ai")}><Text>人机练习</Text><Text>立即开局</Text></View></View>
+          {mode === "ai" && <View className="gomoku-difficulty"><Text className={difficulty === "random" ? "active" : ""} onClick={() => setDifficulty("random")}>轻松 AI</Text><Text className={difficulty === "rule" ? "active" : ""} onClick={() => setDifficulty("rule")}>聪明 AI</Text><Text className={difficulty === "strategy" ? "active" : ""} onClick={() => setDifficulty("strategy")}>挑战 AI</Text></View>}
+          <View className={`gomoku-primary ${creating ? "disabled" : ""}`} onClick={makeRoom}><Text>{creating ? "正在布置棋盘…" : mode === "ai" ? "开始人机对战" : "创建双人棋局"}</Text></View>
           <Text className="gomoku-or">或者加入她创建的房间</Text>
           <Input
             className="gomoku-input"
@@ -236,7 +258,7 @@ export default function GomokuPage() {
   return (
     <View className="gomoku-page gomoku-room">
       <View className="gomoku-room-heading">
-        <View><Text className="gomoku-kicker">COUPLE GOMOKU</Text><Text className="gomoku-title">双人五子棋</Text></View>
+        <View><Text className="gomoku-kicker">COUPLE GOMOKU</Text><Text className="gomoku-title">{room.mode === "ai" ? "人机五子棋" : "双人五子棋"}</Text></View>
         <View className="gomoku-room-code" onClick={() => Taro.setClipboardData({ data: activeRoomCode })}>
           <Text>{activeRoomCode}</Text><Text>点此复制房间码</Text>
         </View>
@@ -255,8 +277,8 @@ export default function GomokuPage() {
           return (
             <View key={index} className={`${isCurrent ? "turn" : ""} ${playerIdOf(player) === playerIdRef.current ? "mine" : ""}`}>
               <View className={`gomoku-player-stone ${color}`} />
-              <View><Text>{player?.name || (index === 0 ? "等待黑棋" : "等待白棋")}</Text><Text>{colorName(color)}{playerIdOf(player) === playerIdRef.current ? " · 我" : ""}</Text></View>
-              <Text>{isCurrent ? "落子中" : player ? "已入座" : "未加入"}</Text>
+              <View><Text>{player?.name || (index === 0 ? "等待黑棋" : "等待白棋")}</Text><Text>{colorName(color)}{playerIdOf(player) === playerIdRef.current ? " · 我" : playerIdOf(player)?.startsWith("ai_") ? " · AI" : ""}</Text></View>
+              <Text>{isCurrent ? (playerIdOf(player)?.startsWith("ai_") ? "思考中" : "落子中") : player ? "已入座" : "未加入"}</Text>
             </View>
           );
         })}
@@ -286,7 +308,7 @@ export default function GomokuPage() {
       {isFinished && (
         <View className="gomoku-result-mask">
           <View className="gomoku-result-card">
-            <Text>{isDraw ? "握手言和" : winnerId === playerIdRef.current ? "这局你赢啦 ♥" : "这局她更胜一筹"}</Text>
+            <Text>{isDraw ? "握手言和" : winnerId === playerIdRef.current ? "这局你赢啦 ♥" : room.mode === "ai" ? "AI 这局更胜一筹" : "这局她更胜一筹"}</Text>
             <Text>{isDraw ? "下一局继续寻找彼此的棋路" : rewardText}</Text>
             <Text>参与本局会记入游戏记录，胜方获得额外默契积分。</Text>
             <View className={`gomoku-primary ${me?.rematch_ready ? "disabled" : ""}`} onClick={() => !me?.rematch_ready && socketRef.current?.send({ type: "rematch" })}>

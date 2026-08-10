@@ -172,7 +172,11 @@ def join_game_room(db: Session, room_code: str, player_id: str):
             return existing
         raise HTTPException(status_code=409, detail="房间座位刚刚被其他玩家占用")
     db.refresh(player)
-    if player_id != room.creator and room.creator != "legacy_client":
+    if (
+        player_id != room.creator
+        and room.creator != "legacy_client"
+        and not player_id.startswith("ai_")
+    ):
         # Import locally to keep the persistence layer free of a module cycle.
         from notification_service import create_notification
 
@@ -396,11 +400,16 @@ def game_stats(db: Session):
         or 0
     )
     all_records = db.query(models.GameRecord).all()
-    ai_games = sum(
-        record.game_type == "landlord"
-        or (record.game_type in {"jungle", "chinese_chess"} and (record.result or {}).get("mode") == "ai")
-        for record in all_records
-    )
+    def _is_ai_record(record):
+        result = record.result or {}
+        persisted_state = result.get("state") or {}
+        return (
+            record.game_type == "landlord"
+            or result.get("mode") == "ai"
+            or persisted_state.get("mode") == "ai"
+        )
+
+    ai_games = sum(_is_ai_record(record) for record in all_records)
     human_wins = sum(bool(record.winner) and not record.winner.startswith("ai_") for record in all_records)
     creator_gomoku_wins = (
         db.query(func.count(models.GameRecord.id))

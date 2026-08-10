@@ -8,7 +8,7 @@ import { getCustomerId } from "../../../utils/customer";
 import { ensureInvitePassed } from "../../../utils/invite";
 import "./index.css";
 
-const NAMES = { gomoku: "五子棋", landlord: "斗地主", jungle: "斗兽棋", chinese_chess: "中国象棋" };
+const NAMES = { gomoku: "五子棋", aeroplane: "飞行棋", landlord: "斗地主", jungle: "斗兽棋", chinese_chess: "中国象棋" };
 
 /** Explainable AI companion page backed only by real local product records. */
 export default function AIPage() {

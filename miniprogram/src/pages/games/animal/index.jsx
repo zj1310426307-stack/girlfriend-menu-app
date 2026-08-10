@@ -8,6 +8,7 @@ import MoveHint from "../../../components/MoveHint";
 import { getCustomerId } from "../../../utils/customer";
 import { ensureInvitePassed } from "../../../utils/invite";
 import { ensureGameRecovery } from "../../../utils/gameRecovery";
+import useAdaptiveGamePolling from "../../../hooks/useAdaptiveGamePolling";
 import "./index.css";
 
 const ROOM_PATTERN = /^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{6}$/;
@@ -17,6 +18,7 @@ const EMPTY = { phase: "waiting", players: [], pieces: [], colors: {}, names: {}
 export default function AnimalPage() {
   const router = useRouter();
   const customerId = useRef(getCustomerId()).current;
+  const revisionRef = useRef("");
   const [allowed, setAllowed] = useState(false);
   const [name, setName] = useState("我");
   const [mode, setMode] = useState("couple");
@@ -34,6 +36,9 @@ export default function AnimalPage() {
 
   const apply = useCallback((payload) => {
     if (!payload?.state) return;
+    const revision = `${payload.room_code || ""}:${payload.version || 0}`;
+    if (revision === revisionRef.current) return;
+    revisionRef.current = revision;
     setState(payload.state); setVersion(payload.version || 0); setRoomCode(payload.room_code || ""); setSelectedId("");
   }, []);
   const refresh = useCallback(async () => {
@@ -45,11 +50,11 @@ export default function AnimalPage() {
     const shared = String(router.params?.room || "").trim().toUpperCase();
     if (shared) setJoinCode(shared);
   }, [router.params?.room]);
-  useEffect(() => {
-    if (!roomCode || state.phase === "finished" || state.mode === "ai") return undefined;
-    const timer = setInterval(refresh, 1700);
-    return () => clearInterval(timer);
-  }, [refresh, roomCode, state.mode, state.phase]);
+  useAdaptiveGamePolling({
+    enabled: Boolean(roomCode && state.phase !== "finished" && state.mode !== "ai"),
+    load: refresh,
+    interval: state.phase === "waiting" ? 2400 : 1200
+  });
   useShareAppMessage(() => ({ title: roomCode ? `来和我玩斗兽棋，房间 ${roomCode}` : "来玩一局情侣斗兽棋", path: `/pages/games/animal/index${roomCode ? `?room=${roomCode}` : ""}` }));
 
   const create = async () => {
@@ -76,6 +81,17 @@ export default function AnimalPage() {
     if (state.phase !== "playing" || state.turn_id !== customerId || busy) return;
     if (piece?.color === state.my_color) return setSelectedId(piece.id);
     if (!selectedId) return Taro.showToast({ title: "请先选择自己的棋子", icon: "none" });
+    setState((current) => ({
+      ...current,
+      turn_id: "ai_pending",
+      last_move: { player_id: customerId, piece_id: selectedId, to: { x, y }, optimistic: true },
+      pieces: (current.pieces || []).map((item) => {
+        if (item.id === selectedId) return { ...item, x, y };
+        if (item.alive && item.x === x && item.y === y) return { ...item, alive: false };
+        return item;
+      })
+    }));
+    setSelectedId("");
     act("MOVE", { piece_id: selectedId, x, y });
   };
 

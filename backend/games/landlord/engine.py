@@ -14,6 +14,7 @@ from .rule import beats, classify
 
 
 AI_ID = "ai_landlord"
+AI_ID_2 = "ai_landlord_b"
 
 
 class LandlordGame(GameEngine):
@@ -23,14 +24,26 @@ class LandlordGame(GameEngine):
         self.state = deepcopy(state)
 
     @classmethod
-    def waiting(cls, human_ids: list[str], names: dict[str, str] | None = None, difficulty: str = "rule"):
+    def waiting(
+        cls,
+        human_ids: list[str],
+        names: dict[str, str] | None = None,
+        difficulty: str = "rule",
+        mode: str = "couple",
+    ):
         """Create a waiting or freshly dealt game from persisted human seats."""
-        players = [*human_ids, AI_ID]
+        ai_ids = [AI_ID, AI_ID_2] if mode == "ai" else [AI_ID]
+        players = [*human_ids, *ai_ids]
         state = {
             "phase": "waiting",
             "players": players,
             "human_ids": list(human_ids),
-            "names": {**(names or {}), AI_ID: "AI 陪玩"},
+            "names": {
+                **(names or {}),
+                AI_ID: "豆豆 AI",
+                **({AI_ID_2: "小满 AI"} if mode == "ai" else {}),
+            },
+            "mode": mode,
             "difficulty": difficulty,
             "hands": {player_id: [] for player_id in players},
             "bottom_cards": [],
@@ -45,13 +58,13 @@ class LandlordGame(GameEngine):
             "started_at": None,
         }
         game = cls(state)
-        if len(human_ids) == 2:
+        if len(players) == 3 and (mode == "ai" or len(human_ids) == 2):
             game.start()
         return game
 
     def start(self) -> dict:
-        """Deal only after two real players are present."""
-        if len(self.state["human_ids"]) != 2:
+        """Deal only after the logical three seats are present."""
+        if len(self.state["players"]) != 3:
             raise GameRuleError("还需要一位玩家加入")
         hands, bottom = deal()
         for player_id, hand in zip(self.state["players"], hands):

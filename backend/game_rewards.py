@@ -12,6 +12,7 @@ GAME_NAMES = {
     "dice": "大话骰",
     "landlord": "斗地主",
     "jungle": "斗兽棋",
+    "chinese_chess": "中国象棋",
 }
 
 
@@ -38,7 +39,8 @@ def settle_game_rewards(
     winner_id: str | None,
 ):
     game_name = GAME_NAMES.get(record.game_type, "小游戏")
-    for player_id in player_ids:
+    human_ids = [player_id for player_id in player_ids if not player_id.startswith("ai_")]
+    for player_id in human_ids:
         record_score(db, player_id, "GAME_PLAY", 1, f"一起完成一局{game_name}", record.id)
         complete_task_type(db, player_id, "GAME")
     if not winner_id or winner_id.startswith("ai_"):

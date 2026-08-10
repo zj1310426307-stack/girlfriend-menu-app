@@ -51,6 +51,12 @@
   border-radius: 50%;
   transform: translate(-50%, -50%);
   box-sizing: border-box;
+  will-change: transform, opacity;
+  animation: gomoku-stone-drop .18s cubic-bezier(.2,.85,.35,1.2);
+}
+@keyframes gomoku-stone-drop {
+  from { opacity: .25; transform: translate(-50%, -60%) scale(.55); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 }
 .gomoku-stone.black {
   border: 1px solid #0c0f12;

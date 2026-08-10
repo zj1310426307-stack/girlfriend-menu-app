@@ -18,8 +18,11 @@ AI_CATALOG = (
     ("jungle", "rule", "森林向导", {"style": "rule"}),
     ("landlord", "random", "牌桌新手", {"style": "random"}),
     ("landlord", "rule", "牌桌搭档", {"style": "rule"}),
-    ("gomoku", "random", "五子棋新手", {"style": "random", "reserved": True}),
-    ("gomoku", "rule", "五子棋陪练", {"style": "rule", "reserved": True}),
+    ("aeroplane", "random", "飞行棋新手", {"style": "random"}),
+    ("aeroplane", "rule", "飞行棋领航员", {"style": "rule"}),
+    ("gomoku", "random", "五子棋新手", {"style": "random"}),
+    ("gomoku", "rule", "五子棋陪练", {"style": "rule"}),
+    ("gomoku", "strategy", "五子棋挑战者", {"style": "strategy"}),
 )
 
 
@@ -39,6 +42,8 @@ def rebuild_statistics(db: Session) -> None:
     records = db.query(models.GameRecord).all()
     players_by_room: dict[int, list[str]] = defaultdict(list)
     for player in db.query(models.GamePlayer).all():
+        if player.player_id.startswith("ai_"):
+            continue
         players_by_room[player.room_id].append(player.player_id)
     for record in records:
         for player_id in players_by_room.get(record.room_id, []):
@@ -79,6 +84,8 @@ def ranking(db: Session, customer_id: str) -> dict:
         records = db.query(models.GameRecord).filter(models.GameRecord.room_id.in_(my_room_ids), models.GameRecord.created_at >= since).all()
         room_players = defaultdict(list)
         for player in db.query(models.GamePlayer).filter(models.GamePlayer.room_id.in_(my_room_ids)).all():
+            if player.player_id.startswith("ai_"):
+                continue
             room_players[player.room_id].append(player.player_id)
         for record in records:
             popular[record.game_type] += 1
