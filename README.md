@@ -6,8 +6,8 @@
 
 ## 当前版本与线上状态
 
-- 当前源码版本：`2.9.1`（游戏顺滑与全模式人机）
-- 当前微信体验版：`2.9.1`（2026-08-10 上传并在公众平台核验）
+- 当前源码版本：`2.11.0`（游戏长期稳定化第二阶段）
+- 当前微信体验版：`2.11.0`（2026-08-11 14:27 上传并在公众平台核验）
 - AppID：`wx08cb090781c3e679`
 - 后端：FastAPI，部署于 Render
 - 生产数据库：Neon PostgreSQL
@@ -28,7 +28,7 @@
 - 已完成订单的 1～5 颗爱心评价
 - 自定义选项转盘
 - 单机 3D 大话骰（原生 WebGL 场景、AI 玩家、上滑开盅）
-- 统一游戏大厅、动态游戏目录和“即将上线”状态
+- 克制的统一游戏大厅、动态游戏目录、未完房间直达恢复和维护状态
 - 双人实时大话骰房间、叫骰、开盅与计分板
 - 15×15 双人/人机五子棋、服务端落子校验、五连胜负判定和再来一局
 - 双人/人机飞行棋、服务端掷骰、四棋子移动、碰撞、精确到达与持久棋局状态
@@ -44,7 +44,8 @@
 - 订单、游戏加入/完成和纪念日站内通知
 - “我们的故事”时间轴、手写共同记忆、纪念日与提前提醒
 - 未完成游戏发现、哈希重连凭证和通用对局回放
-- Redis 可选热状态与在线标记；未配置时 PostgreSQL 核心流程继续运行
+- 大话骰与五子棋进行中快照持久化到 PostgreSQL；Redis 仅作为可选热缓存和在线标记
+- 实时游戏指数退避自动重连、有限离线队列；回合制页面显示同步/离线/重试状态
 - 可解释的每日陪伴小结：只使用真实点菜、游戏与默契数据
 - 通用 `/ws/game/{room_code}` 房间通信协议
 - “我们”情侣中心、默契值、积分流水、共同记录和成就展示
@@ -74,7 +75,7 @@
 | 生产数据库 | Neon PostgreSQL |
 | 本地数据库 | SQLite（未配置 `DATABASE_URL` 时） |
 | 实时通信 | FastAPI WebSocket（管理订单推送、大话骰与五子棋双人房间） |
-| 热状态缓存 | Redis（可选；未配置时自动降级） |
+| 游戏状态 | PostgreSQL 权威快照；Redis 可选热缓存（未配置时不丢进行中棋局） |
 | 部署 | Render Blueprint + GitHub 自动部署 |
 | 自动化 | Pytest、GitHub Actions、微信开发者工具自动化冒烟脚本 |
 
@@ -205,9 +206,10 @@ npm run test:v24
 npm run test:v25
 npm run test:v26
 npm run test:v27
+npm run test:games
 ```
 
-2026-08-09 本地验证：后端 `47 passed`、V2.0 → V2.7 迁移升级/降级/再升级成功、小程序生产构建通过。V2.7 微信开发者工具冒烟入口为 `npm run test:v27`。
+2026-08-11 本地验证：后端 `65 passed`、实时状态重启/骰子隐私回归通过、Socket 生命周期与游戏恢复契约通过、小程序生产构建通过。
 
 ## 数据库
 
@@ -221,7 +223,7 @@ npm run test:v27
 - `games`：游戏名称、图标、类型与开放状态
 - `game_rooms`：房间码、游戏类型、创建者、房间状态、最大人数和完成时间
 - `game_players`：每个房间的持久玩家席位、设备标识、局分和加入时间
-- `game_states`：飞行棋进行中的权威 JSONB/JSON 状态
+- `game_states`：飞行棋、大话骰和五子棋进行中的权威 JSONB/JSON 快照
 - `game_sessions`：斗地主和斗兽棋的权威 JSONB/JSON 状态、当前回合与版本
 - `game_events` / `game_event_logs`：随机互动目录和实际完成记录
 - `daily_tasks`：按设备、日期和任务类型唯一的今日任务
@@ -328,9 +330,9 @@ wss://girlfriend-menu-api.onrender.com/ws/game/{room_code}
 
 积分总数用于记录发生过的互动；默契值另按“近 30 天互动 40% + 共同经历 30% + 满意反馈 30%”计算，不直接等于积分总数。接口为：
 
-- `GET /api/couple/score`：当前设备的默契值、等级、本月统计和计算分项，需 `X-Customer-Id`。
-- `GET /api/couple/score/history`：当前设备积分流水，需 `X-Customer-Id`。
-- `POST /api/couple/score/add`：补录纪念日等特殊事件，同时要求管理 Bearer token 与 `X-Customer-Id`，普通前端不能自行加分。
+- `GET /api/couple/score`：当前设备的默契值、等级、本月统计和计算分项，需设备 Bearer token。
+- `GET /api/couple/score/history`：当前设备积分流水，需设备 Bearer token。
+- `POST /api/couple/score/add`：补录纪念日等特殊事件，同时要求管理 Bearer token，普通前端不能自行加分。
 
 数据库升级由 Alembic `20260809_03` 创建 `love_scores` 表，不删除既有订单、评价或游戏数据。完整规则与边界见 [情侣积分系统说明](docs/LOVE_SCORE_SYSTEM.md)。
 
@@ -348,7 +350,7 @@ wss://girlfriend-menu-api.onrender.com/ws/game/{room_code}
 
 新增 HTTP 接口：
 
-- `GET /api/games/records/my`：当前设备的游戏记录，需 `X-Customer-Id`。
+- `GET /api/games/records/my`：当前设备的游戏记录，需设备 Bearer token。
 - `GET /api/admin/games/stats`：游戏统计，需管理 Bearer token。
 
 数据库迁移 `20260809_04` 新增 `game_players`、`game_records` 和 `game_rooms.finished_at`，并把五子棋目录状态调整为可用；旧的大话骰 HTTP/WebSocket 入口继续兼容。协议见 [游戏中心通信协议](docs/GAME_CENTER_PROTOCOL.md)，五子棋规则、状态和持久化边界见 [五子棋系统说明](docs/GOMOKU_SYSTEM.md)。
@@ -373,6 +375,26 @@ wss://girlfriend-menu-api.onrender.com/ws/game/{room_code}
 
 联机回合制页面改为串行自适应刷新：上一请求完成后才安排下一次，后台暂停，等待房间降低频率，进行中提高频率，相同版本不重复覆盖棋盘。五子棋仍使用 WebSocket，并对本人的落子先做安全的视觉预落子；棋子、骰子和卡牌增加轻量 GPU 友好过渡。详细接口与边界见 [2.9.1 人机模式说明](docs/GAME_AI_MODES_2_9_1.md)。
 
+## V2.9.2 全游戏质量优化
+
+五子棋增加双重威胁识别；飞行棋、斗兽棋和中国象棋开放第三档策略 AI；斗地主补齐连对、飞机和四带二，并提供服务端合法出牌提示；大话骰 AI 改为按二项概率判断叫骰与开骰；转盘增加“连续不重复”和最近结果。设计参考、授权边界和测试范围见 [2.9.2 游戏质量说明](docs/GAME_QUALITY_2_9_2.md)。这些改动已纳入 `2.11.0` 体验版。
+
+## V2.9.3 斗地主横屏牌桌
+
+斗地主大厅和对局改为独立横屏体验：大厅在一屏内完成模式与难度设置，对局采用左右对手、中央出牌区、底部手牌和操作栏的熟悉牌桌层级；保留服务端权威洗牌、发牌、提示、AI 与胜负判断。未复制第三方商标或美术资源。实现与验收边界见 [2.9.3 斗地主横屏说明](docs/LANDLORD_LANDSCAPE_2_9_3.md)。这些改动已纳入 `2.11.0` 体验版。
+
+## V2.10.0 游戏长期稳定化
+
+游戏大厅改为数据驱动的统一卡片，不再在大厅重复承担五子棋建房和加入逻辑；六款长期玩法、人机/双人能力、未完房间和轻量工具有固定层级。飞行棋、斗地主、斗兽棋和中国象棋从“继续游戏”进入时会恢复原房间，并统一显示同步中、在线、离线原因和重试入口；连续失败采用有上限的指数退避，动作增加同步锁，象棋和斗兽棋只在服务器确认后更新棋盘。
+
+实时连接增加指数退避自动重连、抖动和 20 条有界离线队列。大话骰与五子棋快照写入 PostgreSQL `game_states`，Render 进程重启后可恢复棋盘、骰子、轮次和待结算事件；大话骰重连严格按查看者过滤，开盅前只返回本人骰子。实现、参考与剩余边界见 [2.10.0 游戏长期稳定化说明](docs/GAME_LONGEVITY_2_10_0.md)。
+
+## V2.11.0 游戏运行时稳定化
+
+实时房间使用 PostgreSQL 租约确定唯一写入实例，避免多实例同时修改同一棋局；客户端遇到非归属实例会按已有退避机制重新连接。完成结算增加 `pending/complete/failed` 状态和每分钟补偿扫描，进程在奖励、记录或通知阶段异常退出后可以幂等补齐。
+
+等待超过 30 分钟或进行超过 6 小时的房间会标记为 `abandoned`，不会删除历史。飞行棋、斗地主、斗兽棋和中国象棋动作支持 `client_action_id`，同一动作重复到达只返回第一次结果；相同 ID 携带不同内容会被拒绝。斗兽棋和中国象棋增加单回合 5 分钟、三次重复局面、无进展步数及最大步数和棋规则。数据库迁移为 `20260811_10`。完整说明见 [2.11.0 游戏运行时稳定化](docs/GAME_RUNTIME_STABILITY_2_11_0.md)。
+
 两款游戏共用 `game_sessions`。每次动作携带 `expected_version`，另一端先行动时旧请求会收到 409 并刷新，不会覆盖已保存棋局。完成记录继续写入 `game_records` 并自动触发参与、胜利、AI/双人奖励、每日游戏任务和持久成就；斗地主还生成一个可完成的局后情侣约定。
 
 迁移 `20260809_06` 只新增 `game_sessions`、`achievements`、`user_achievements`、`love_tasks` 和索引，并将斗地主、斗兽棋目录切换为可用。完整规则与接口见 [V2.5 游戏与 AI 系统](docs/V25_GAME_AI_SYSTEM.md)。
@@ -387,7 +409,7 @@ wss://girlfriend-menu-api.onrender.com/ws/game/{room_code}
 
 - V2.8 使用后端设备会话和 Bearer token；数据库只保存 token 哈希。旧 `gf_customer_id` 可用邀请码认领一次，清缓存前应确保新令牌已保存。
 - 邀请码仅发送到后端验证，不再编译进小程序包；它仍是私人应用的设备准入方式，不等同于微信账号登录。
-- 实时热状态默认保存在单进程内存并可选镜像到 Redis；房间元数据和完成记录持久化。进程重启后能否完整恢复取决于具体游戏状态实现，不能承诺所有进行中对局无缝恢复。
+- 所有已开放游戏的进行中权威状态均写入 PostgreSQL；WebSocket 连接对象仍只存在于当前进程，Redis 仅加速热状态。数据库租约保证一个房间同一时刻只有一个写入实例，跨实例切换依靠客户端重连，不承诺不断线迁移。
 - 生产图片必须配置 S3-compatible 对象存储。`/api/ready` 会把缺失配置标记为 `release-blocked`；Render 本地 `uploads/` 只允许开发使用。
 - 当前没有微信 OpenID、手机号、订阅消息、支付、库存或采购清单。
 
@@ -395,7 +417,7 @@ wss://girlfriend-menu-api.onrender.com/ws/game/{room_code}
 
 ## V2.8 Release Candidate
 
-V2.8 RC 已完成设备身份、订单归属、12 小时管理令牌、订单状态审计和分页、生产存储抽象、实时重连加固、环境配置集中化及备份恢复工具；当前微信体验版已升级为 `2.9.1`，并加入游戏流畅度与全模式人机能力。真实能力与未验证边界见 [能力矩阵](docs/CAPABILITY_MATRIX.md)。
+V2.8 RC 已完成设备身份、订单归属、12 小时管理令牌、订单状态审计和分页、生产存储抽象、实时重连加固、环境配置集中化及备份恢复工具；当前微信体验版已升级为 `2.11.0`，并加入游戏流畅度、全模式人机与长期稳定化能力。真实能力与未验证边界见 [能力矩阵](docs/CAPABILITY_MATRIX.md)。
 
 小程序三套构建配置位于：
 
@@ -426,7 +448,7 @@ S3_SECRET_ACCESS_KEY
 S3_PUBLIC_BASE_URL
 ```
 
-`REDIS_URL` 可选；当前私人单实例部署不强制 Redis。正式启动命令先执行 `alembic upgrade head`，生产应用进程不再自动建表或运行手写 `ALTER TABLE`。
+`REDIS_URL` 可选；PostgreSQL 是权威状态来源。`GAME_ROOM_LEASE_SECONDS` 默认 30 秒，通常无需修改；`GAME_INSTANCE_ID` 可选，Render 会自动使用实例标识或主机名。正式启动命令先执行 `alembic upgrade head`，生产应用进程不再自动建表或运行手写 `ALTER TABLE`。
 
 发布前依次执行：
 

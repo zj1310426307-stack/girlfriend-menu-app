@@ -1,0 +1,22 @@
+.game-sync-bar {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  box-sizing: border-box;
+  padding: 8px 12px;
+  border: 1px solid #dfe5dc;
+  border-radius: 15px;
+  color: #687164;
+  background: rgba(255,255,255,.88);
+  font-size: 14px;
+  font-weight: 800;
+}
+.game-sync-bar > text { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.game-sync-dot { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; background: #d39a55; box-shadow: 0 0 0 4px rgba(211,154,85,.13); }
+.game-sync-bar.online .game-sync-dot { background: #71906d; box-shadow: 0 0 0 4px rgba(113,144,109,.13); }
+.game-sync-bar.offline { color: #a2534d; border-color: #eed0ca; background: #fff5f1; }
+.game-sync-bar.offline .game-sync-dot { background: #c75f55; box-shadow: 0 0 0 4px rgba(199,95,85,.13); }
+.game-sync-retry { min-width: 54px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 11px; color: #fff; background: #a95d50; font-size: 13px; }
+.game-sync-bar.compact { min-height: 32px; padding: 4px 9px; border-radius: 12px; font-size: 11px; }
+.game-sync-bar.compact .game-sync-retry { min-width: 44px; height: 24px; border-radius: 9px; font-size: 11px; }

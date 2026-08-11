@@ -36,6 +36,7 @@ page { min-height: 100%; background: #15231c; }
 .flight-room-top > view:first-child text:last-child { padding: 6px 10px; border-radius: 12px; color: #96775c; background: #eee3d3; font-size: 15px; }
 .flight-room-top > view:last-child { display: flex; align-items: center; gap: 8px; color: #bc6158; font-size: 18px; font-weight: 800; }
 .flight-room-top > view:last-child text:last-child { font-size: 27px; }
+.flight-room-page > .game-sync-bar { margin-bottom: 11px; }
 .flight-status-card { margin-bottom: 13px; padding: 19px 20px; border: 2px solid #e9dfd0; border-radius: 26px; background: rgba(255,253,248,.95); box-shadow: 0 11px 25px rgba(70,74,65,.08); }
 .flight-status-card > view { display: flex; justify-content: space-between; color: #899184; font-size: 16px; }
 .flight-status-card > view.online text:first-child { color: #6f8a69; }

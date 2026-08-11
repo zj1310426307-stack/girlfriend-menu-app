@@ -1,5 +1,11 @@
-.ll-player { width: 90px; padding: 8px 5px; border-radius: 18px; text-align: center; opacity: .68; }
-.ll-player.active { opacity: 1; background: rgba(232,184,109,.12); box-shadow: 0 0 0 1px rgba(232,184,109,.32); }
-.ll-player > view { width: 43px; height: 43px; display: flex; align-items: center; justify-content: center; margin: 0 auto 5px; border: 2px solid #d3ae6e; border-radius: 50%; color: #f7e7c7; background: #314b3c; font-size: 15px; font-weight: 900; }
-.ll-player > text:nth-child(2) { display: block; color: #f4ead8; font-size: 13px; font-weight: 800; white-space: nowrap; }
-.ll-player > text:last-child { display: block; margin-top: 3px; color: #aebdb1; font-size: 12px; }
+.ll-player { position:relative; width:88px; padding:7px 4px; border:1px solid transparent; border-radius:19px; text-align:center; opacity:.74; transition:opacity .16s ease,transform .16s ease; }
+.ll-player.active { opacity:1; transform:scale(1.04); border-color:rgba(244,199,111,.45); background:rgba(9,47,32,.74); box-shadow:0 0 22px rgba(245,202,113,.2),inset 0 1px rgba(255,255,255,.06); }
+.ll-player.active::after { content:"出牌中"; position:absolute; left:50%; top:-11px; padding:2px 8px; transform:translateX(-50%); border-radius:8px; color:#48331e; background:#f1c873; font-size:8px; font-weight:900; white-space:nowrap; }
+.ll-player > view { width:43px; height:43px; display:flex; align-items:center; justify-content:center; margin:0 auto 4px; border:2px solid #d6b26e; border-radius:50%; color:#fff1d5; background:radial-gradient(circle at 35% 30%,#597765,#294b39 65%); box-shadow:0 5px 12px rgba(0,0,0,.24); font-size:13px; font-weight:900; }
+.ll-player > text:nth-child(2) { display:block; overflow:hidden; color:#fff1db; font-size:11px; font-weight:900; text-overflow:ellipsis; white-space:nowrap; }
+.ll-player > text:last-child { display:inline-flex; align-items:center; justify-content:center; min-width:35px; margin-top:3px; padding:2px 7px; border-radius:9px; color:#4b3420; background:#efc777; font-size:10px; font-weight:900; }
+
+@media (max-height:330px) {
+  .ll-player > view { width:36px; height:36px; }
+  .ll-player { padding-block:4px; }
+}

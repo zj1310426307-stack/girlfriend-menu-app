@@ -15,9 +15,12 @@ class GomokuAI(AIPlayer):
     """
 
     @staticmethod
-    def _line_score(board: list[list[int]], x: int, y: int, color: int) -> int:
+    def _line_profiles(
+        board: list[list[int]], x: int, y: int, color: int
+    ) -> list[tuple[int, int]]:
+        """Return hypothetical line length/open ends in all four directions."""
         size = len(board)
-        score = 0
+        profiles = []
         for dx, dy in ((1, 0), (0, 1), (1, 1), (1, -1)):
             length = 1
             open_ends = 0
@@ -34,11 +37,28 @@ class GomokuAI(AIPlayer):
                     if board[ny][nx] == 0:
                         open_ends += 1
                     break
+            profiles.append((length, open_ends))
+        return profiles
+
+    @classmethod
+    def _line_score(cls, board: list[list[int]], x: int, y: int, color: int) -> int:
+        score = 0
+        for length, open_ends in cls._line_profiles(board, x, y, color):
             if length >= 5:
                 score += 1_000_000
             else:
                 score += (10 ** length) * (open_ends + 1)
         return score
+
+    @classmethod
+    def _threat_score(cls, board: list[list[int]], x: int, y: int, color: int) -> int:
+        """Reward double threats, the key tactical motif in strong Gomoku play."""
+        profiles = cls._line_profiles(board, x, y, color)
+        forcing = sum(
+            length >= 4 and open_ends >= 1 or length == 3 and open_ends == 2
+            for length, open_ends in profiles
+        )
+        return 90_000 if forcing >= 2 else 14_000 if forcing == 1 else 0
 
     @staticmethod
     def _candidate_cells(board: list[list[int]]) -> list[tuple[int, int]]:
@@ -85,8 +105,12 @@ class GomokuAI(AIPlayer):
             elif defense >= 1_000_000:
                 priority = 9_000_000 + defense
             else:
-                attack_weight = 2.0 if self.level == "strategy" else 1.5
-                priority = attack * attack_weight + defense - 0.4 * (
+                if self.level == "strategy":
+                    attack += self._threat_score(board, x, y, my_color)
+                    defense += self._threat_score(board, x, y, opponent_color)
+                attack_weight = 2.25 if self.level == "strategy" else 1.5
+                defense_weight = 1.35 if self.level == "strategy" else 1.0
+                priority = attack * attack_weight + defense * defense_weight - 0.4 * (
                     abs(x - center) + abs(y - center)
                 )
             ranked.append((priority, random.random(), x, y))

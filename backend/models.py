@@ -160,6 +160,10 @@ class GameRoom(Base):
     last_activity_at = Column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
     expires_at = Column(DateTime(timezone=True), nullable=True, index=True)
     state_version = Column(Integer, nullable=False, default=1)
+    owner_instance_id = Column(String(120), nullable=True, index=True)
+    lease_expires_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    lease_epoch = Column(Integer, nullable=False, default=0)
+    abandoned_at = Column(DateTime(timezone=True), nullable=True, index=True)
 
     players = relationship(
         "GamePlayer",
@@ -241,6 +245,10 @@ class GameRecord(Base):
     winner = Column(String(100), nullable=True, index=True)
     duration = Column(Integer, nullable=False, default=0)
     result = Column(JSON, nullable=False, default=dict)
+    settlement_status = Column(String(20), nullable=False, default="pending", index=True)
+    settlement_attempts = Column(Integer, nullable=False, default=0)
+    settlement_error = Column(Text, nullable=True)
+    settled_at = Column(DateTime(timezone=True), nullable=True, index=True)
     created_at = Column(DateTime, default=datetime.now, nullable=False, index=True)
 
     room = relationship("GameRoom", back_populates="records")
@@ -292,6 +300,40 @@ class GameSession(Base):
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, nullable=False, index=True)
 
     room = relationship("GameRoom", back_populates="session")
+
+
+class GameAction(Base):
+    """Idempotent action receipt committed with one authoritative state change."""
+
+    __tablename__ = "game_actions"
+    __table_args__ = (
+        UniqueConstraint(
+            "room_id",
+            "player_id",
+            "client_action_id",
+            name="uq_game_action_room_player_client",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    room_id = Column(
+        Integer,
+        ForeignKey("game_rooms.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    player_id = Column(String(100), nullable=False, index=True)
+    client_action_id = Column(String(80), nullable=False, index=True)
+    action_type = Column(String(40), nullable=False, index=True)
+    request_hash = Column(String(64), nullable=False)
+    request_version = Column(Integer, nullable=False, default=0)
+    response_version = Column(Integer, nullable=False, default=0)
+    response_state = Column(
+        JSON().with_variant(JSONB, "postgresql"),
+        nullable=False,
+        default=dict,
+    )
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
 
 
 class Achievement(Base):

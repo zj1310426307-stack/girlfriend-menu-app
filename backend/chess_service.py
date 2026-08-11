@@ -83,7 +83,15 @@ def get_state(db: Session, room_code: str, player_id: str) -> dict:
     """Authorize room membership before revealing the public board."""
     room = require_room(db, room_code, GAME_TYPE)
     require_member(db, room.id, player_id)
-    return _response(room, GameSessionStore(db).get(room.id), player_id)
+    store = GameSessionStore(db)
+    session = store.get(room.id)
+    game = ChessGame(session.state)
+    if game.expire_turn():
+        session = store.save(session, game.serialize(), session.version)
+        _persist_moves(db, room, game.state)
+        _finish(db, room, game.state)
+        db.refresh(room)
+    return _response(room, session, player_id)
 
 
 def _run_ai(game: ChessGame) -> None:
@@ -132,12 +140,37 @@ def _finish(db: Session, room: models.GameRoom, state: dict) -> None:
     rebuild_statistics(db)
 
 
-def move(db: Session, room_code: str, player_id: str, action_name: str, payload: dict, expected_version: int) -> dict:
+def move(
+    db: Session,
+    room_code: str,
+    player_id: str,
+    action_name: str,
+    payload: dict,
+    expected_version: int,
+    client_action_id: str | None = None,
+) -> dict:
     """Apply a versioned move/resign/chat, then persist AI response and replay."""
     room = require_room(db, room_code, GAME_TYPE)
     require_member(db, room.id, player_id)
-    session = GameSessionStore(db).get(room.id)
+    store = GameSessionStore(db)
+    session = store.get(room.id)
+    replayed = store.replay_action(
+        room,
+        player_id,
+        client_action_id,
+        action_name,
+        payload,
+        expected_version,
+    )
+    if replayed:
+        return _response(room, replayed, player_id)
     game = ChessGame(session.state)
+    if game.expire_turn():
+        expired = store.save(session, game.serialize(), session.version)
+        _persist_moves(db, room, game.state)
+        _finish(db, room, game.state)
+        db.refresh(room)
+        return _response(room, expired, player_id)
     data = dict(payload)
     if action_name == "MOVE":
         try:
@@ -152,12 +185,22 @@ def move(db: Session, room_code: str, player_id: str, action_name: str, payload:
         _run_ai(game)
     except GameRuleError as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
-    session = GameSessionStore(db).save(session, game.serialize(), expected_version)
-    _persist_moves(db, room, game.state)
+    committed = store.save_action(
+        session,
+        room,
+        player_id,
+        client_action_id,
+        action_name,
+        payload,
+        game.serialize(),
+        expected_version,
+    )
+    if not committed.replayed:
+        _persist_moves(db, room, game.state)
     if game.state.get("phase") == "finished":
         _finish(db, room, game.state)
         db.refresh(room)
-    return _response(room, session, player_id)
+    return _response(room, committed, player_id)
 
 
 def force_ai_move(db: Session, room_code: str, player_id: str, expected_version: int) -> dict:

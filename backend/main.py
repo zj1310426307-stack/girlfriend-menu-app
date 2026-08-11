@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager, suppress
 import asyncio
+from datetime import datetime, timezone
 import logging
 import os
 from pathlib import Path
@@ -31,6 +32,7 @@ import animal_service
 import chess_service
 import flight_service
 import game_data_service
+import game_maintenance
 import landlord_service
 import love_score
 import models
@@ -44,6 +46,12 @@ import user_service
 import customer_service
 from auth import issue_admin_token, verify_admin_token_value
 from core.cache import state_cache
+from core.game_room_lease import (
+    INSTANCE_ID,
+    acquire_room_lease,
+    release_room_lease,
+    renew_room_leases,
+)
 from core.rate_limit import RateLimitExceeded, rate_limiter
 from database import Base, SessionLocal, engine, ensure_compatible_schema, get_db
 from game_rewards import settle_game_rewards
@@ -80,17 +88,37 @@ async def _maintenance_loop():
 
 
 async def _game_cleanup_loop():
-    """Expire inactive game sessions without deleting durable history."""
+    """Repair settlements, resolve clocks and archive inactive rooms."""
     while True:
         await asyncio.sleep(60)
         try:
             with SessionLocal() as db:
+                timeout_result = game_maintenance.resolve_turn_timeouts(db)
+                settlement_result = game_maintenance.reconcile_game_settlements(db)
                 expired_codes = crud.expire_stale_game_rooms(db)
             removed = await game_room_manager.cleanup_expired(expired_codes)
             if removed:
                 logger.info("expired_game_rooms count=%s", len(removed))
+            if timeout_result["finished"] or settlement_result["repaired"]:
+                logger.info(
+                    "game_maintenance timeouts=%s settlements=%s",
+                    timeout_result,
+                    settlement_result,
+                )
         except Exception:
             logger.exception("game room cleanup failed")
+
+
+async def _game_lease_heartbeat_loop():
+    """Keep ownership only for rooms that still have local live sockets."""
+    while True:
+        await asyncio.sleep(10)
+        try:
+            room_codes = await game_room_manager.active_room_codes()
+            with SessionLocal() as db:
+                renew_room_leases(db, room_codes)
+        except Exception:
+            logger.exception("game room lease heartbeat failed instance=%s", INSTANCE_ID)
 
 
 @asynccontextmanager
@@ -111,6 +139,7 @@ async def lifespan(_: FastAPI):
     tasks = [
         asyncio.create_task(_maintenance_loop()),
         asyncio.create_task(_game_cleanup_loop()),
+        asyncio.create_task(_game_lease_heartbeat_loop()),
     ]
     try:
         yield
@@ -122,7 +151,7 @@ async def lifespan(_: FastAPI):
                 await task
 
 
-app = FastAPI(title="情侣智能厨房管家 API", version="2.9.1", lifespan=lifespan)
+app = FastAPI(title="情侣智能厨房管家 API", version="2.11.0", lifespan=lifespan)
 
 
 def get_frontend_origins():
@@ -544,7 +573,7 @@ def create_reconnect_token(
 
 
 @app.post("/api/games/reconnect")
-def reconnect_game(data: schemas.ReconnectRequest, db: Session = Depends(get_db)):
+async def reconnect_game(data: schemas.ReconnectRequest, db: Session = Depends(get_db)):
     """Resume a room from a hashed token and its authoritative durable state."""
     _, user, room = game_recovery_service.verify_token(db, data.reconnect_token)
     state_cache.touch_presence(user.user_code)
@@ -552,8 +581,27 @@ def reconnect_game(data: schemas.ReconnectRequest, db: Session = Depends(get_db)
         payload = flight_service.get_state(db, room.room_code, user.user_code)
     elif room.game_type in {"landlord", "animal", "chinese_chess"}:
         payload = animal_service.get_any_state(db, room.room_code, user.user_code)
+    elif room.game_type in {"dice", "gomoku"}:
+        # Restore the durable internal snapshot, then shape it for this viewer.
+        # Returning the raw dice snapshot would expose the opponent's values
+        # before a challenge opens the cup.
+        await game_room_manager.ensure_room(
+            room.room_code,
+            room.game_type,
+            room.max_players,
+        )
+        await game_room_manager.restore_players(
+            room.room_code,
+            crud.list_game_players(db, room.room_code),
+        )
+        payload = await game_room_manager.recovery_state(
+            room.room_code,
+            user.user_code,
+        )
+        if payload is None:
+            raise HTTPException(status_code=404, detail="游戏状态暂时无法恢复")
     else:
-        payload = state_cache.get_game_state(room.room_code) or {
+        payload = {
             "room_code": room.room_code,
             "game_type": room.game_type,
             "room_status": room.status,
@@ -665,6 +713,8 @@ def flight_room_action(
         customer_id,
         data.action,
         data.piece_index,
+        data.expected_version,
+        data.client_action_id,
     )
 
 
@@ -710,8 +760,9 @@ def landlord_action(
         data.room_code,
         customer_id,
         data.action,
-        data.model_dump(exclude={"room_code", "action", "expected_version"}),
+        data.model_dump(exclude={"room_code", "action", "expected_version", "client_action_id"}),
         data.expected_version,
+        data.client_action_id,
     )
 
 
@@ -761,8 +812,9 @@ def animal_move(
         data.room_code,
         customer_id,
         data.action,
-        data.model_dump(exclude={"room_code", "action", "expected_version"}),
+        data.model_dump(exclude={"room_code", "action", "expected_version", "client_action_id"}),
         data.expected_version,
+        data.client_action_id,
     )
 
 
@@ -806,8 +858,9 @@ def chess_move(
         data.room_code,
         customer_id,
         data.action,
-        data.model_dump(exclude={"room_code", "action", "expected_version"}),
+        data.model_dump(exclude={"room_code", "action", "expected_version", "client_action_id"}),
         data.expected_version,
+        data.client_action_id,
     )
 
 
@@ -958,6 +1011,10 @@ def _persist_completed_game(event: dict):
             result,
             event.get("round_number", 1),
         )
+        record.settlement_status = "pending"
+        record.settlement_attempts = int(record.settlement_attempts or 0) + 1
+        record.settlement_error = None
+        db.commit()
         settle_game_rewards(
             db,
             record,
@@ -989,6 +1046,9 @@ def _persist_completed_game(event: dict):
                 record.id,
             )
         record.result = {**(record.result or {}), "_settlement": "complete"}
+        record.settlement_status = "complete"
+        record.settlement_error = None
+        record.settled_at = datetime.now(timezone.utc)
         db.commit()
         db.refresh(record)
         return record
@@ -1016,6 +1076,7 @@ async def _game_room_socket(
     await websocket.accept()
     player_id = None
     joined_room = False
+    lease_acquired = False
     normalized_room_code = room_code.strip().upper()
     game_type = forced_game_type or "unknown"
     room_session = None
@@ -1036,6 +1097,20 @@ async def _game_room_socket(
                     await _send_game_error(websocket, "游戏类型与房间不匹配", game_type, protocol)
                     await websocket.close(code=4400)
                     return
+                lease = acquire_room_lease(db, normalized_room_code)
+                if not lease.acquired:
+                    await websocket.send_json(
+                        {
+                            "type": "room_busy",
+                            "game": game_type,
+                            "room_code": normalized_room_code,
+                            "message": "房间正在另一台游戏服务器上运行，正在重新连接",
+                            "retry_after_ms": 1200,
+                        }
+                    )
+                    await websocket.close(code=4429)
+                    return
+                lease_acquired = True
                 await game_room_manager.ensure_room(
                     normalized_room_code,
                     room_record.game_type,
@@ -1154,6 +1229,9 @@ async def _game_room_socket(
             if completed_event:
                 try:
                     await _persist_completed_game_with_retry(completed_event)
+                    await game_room_manager.acknowledge_completed_event(
+                        normalized_room_code
+                    )
                 except Exception:
                     await game_room_manager.restore_completed_event(
                         normalized_room_code,
@@ -1184,6 +1262,12 @@ async def _game_room_socket(
                 )
             except HTTPException:
                 pass
+        if lease_acquired and not await game_room_manager.has_live_connections(normalized_room_code):
+            try:
+                with SessionLocal() as db:
+                    release_room_lease(db, normalized_room_code)
+            except Exception:
+                logger.exception("failed to release room lease room=%s", normalized_room_code)
 
 
 @app.websocket("/ws/game/{room_code}")

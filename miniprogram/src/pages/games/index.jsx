@@ -1,199 +1,211 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Taro, { useDidShow } from "@tarojs/taro";
-import { Input, Text, View } from "@tarojs/components";
+import { Text, View } from "@tarojs/components";
 
-import { createGameRoom, getActiveGames, getGames } from "../../api";
+import { getActiveGames, getGames } from "../../api";
 import { getCustomerId } from "../../utils/customer";
 import { ensureInvitePassed } from "../../utils/invite";
 import "./index.css";
 
-const FALLBACK_GAMES = [
-  { name: "大话骰", icon: "骰", type: "dice", status: "available" },
-  { name: "五子棋", icon: "棋", type: "gomoku", status: "available" },
-  { name: "飞行棋", icon: "飞", type: "aeroplane", status: "available" },
-  { name: "斗地主", icon: "牌", type: "landlord", status: "available" },
-  { name: "斗兽棋", icon: "兽", type: "jungle", status: "available" },
-  { name: "中国象棋", icon: "象", type: "chinese_chess", status: "coming_soon" }
+const GAME_CATALOG = [
+  {
+    type: "gomoku",
+    icon: "五",
+    name: "五子棋",
+    description: "15×15 标准棋盘，落子清楚，适合随时来一局。",
+    route: "/pages/games/gomoku/index",
+    tone: "ink",
+    modes: "双人 · 人机"
+  },
+  {
+    type: "aeroplane",
+    icon: "飞",
+    name: "飞行棋",
+    description: "服务器掷骰，四枚棋子与情侣互动事件。",
+    route: "/pages/games/flight/index",
+    tone: "sky",
+    modes: "双人 · 人机"
+  },
+  {
+    type: "landlord",
+    icon: "牌",
+    name: "斗地主",
+    description: "横屏牌桌，提示、合法牌型和胜负都由服务器判断。",
+    route: "/pages/games/landlord/index",
+    tone: "amber",
+    modes: "双人+AI · 人机"
+  },
+  {
+    type: "jungle",
+    icon: "兽",
+    name: "斗兽棋",
+    description: "标准 7×9 棋盘，河流、陷阱和兽穴规则完整。",
+    route: "/pages/games/animal/index",
+    tone: "forest",
+    modes: "双人 · 人机"
+  },
+  {
+    type: "chinese_chess",
+    icon: "象",
+    name: "中国象棋",
+    description: "服务端校验走法，棋谱保存，断线后可以继续。",
+    route: "/pages/games/chess/index",
+    tone: "clay",
+    modes: "双人 · 人机"
+  },
+  {
+    type: "dice",
+    icon: "骰",
+    name: "大话骰",
+    description: "自己的骰子只自己可见，开盅后再公开结果。",
+    route: "/pages/dice/index",
+    onlineRoute: "/pages/dice-online/index",
+    tone: "night",
+    modes: "单机 · 双人"
+  }
 ];
 
-const GAME_DESCRIPTIONS = {
-  aeroplane: "情侣房间或人机练习，一起飞向终点",
-  landlord: "情侣牌桌或你与两个 AI，服务端洗牌",
-  jungle: "标准 7×9 森林棋盘，支持 AI",
-  chinese_chess: "慢慢想一招，认真下一局"
-};
-const ROOM_CODE_PATTERN = /^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{6}$/;
+const GAME_BY_TYPE = Object.fromEntries(GAME_CATALOG.map((game) => [game.type, game]));
 
+/** A calm, data-driven hub. Room creation belongs to each game, not this page. */
 export default function GamesPage() {
-  const [games, setGames] = useState(FALLBACK_GAMES);
-  const [usingFallback, setUsingFallback] = useState(false);
-  const [joinCode, setJoinCode] = useState("");
-  const [creating, setCreating] = useState(false);
+  const [serverGames, setServerGames] = useState([]);
   const [activeGames, setActiveGames] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [offline, setOffline] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    const customerId = getCustomerId();
+    const [catalogResult, activeResult] = await Promise.all([
+      getGames().then((value) => ({ ok: true, value })).catch((error) => ({ ok: false, error })),
+      getActiveGames(customerId).then((value) => ({ ok: true, value })).catch((error) => ({ ok: false, error }))
+    ]);
+    if (catalogResult.ok) {
+      setServerGames(catalogResult.value || []);
+      setOffline(false);
+    } else {
+      setOffline(true);
+    }
+    setActiveGames(activeResult.ok ? activeResult.value || [] : []);
+    setLoading(false);
+  };
 
   useDidShow(() => {
     if (!ensureInvitePassed()) return;
-    getGames()
-      .then((items) => {
-        setGames(items?.length ? items : FALLBACK_GAMES);
-        setUsingFallback(false);
-      })
-      .catch(() => {
-        setGames(FALLBACK_GAMES);
-        setUsingFallback(true);
-      });
-    getActiveGames(getCustomerId()).then(setActiveGames).catch(() => setActiveGames([]));
+    load();
   });
 
-  const continueGame = (game) => {
-    const route = {
-      dice: "/pages/dice-online/index",
-      gomoku: "/pages/games/gomoku/index",
-      aeroplane: "/pages/games/flight/index",
-      landlord: "/pages/games/landlord/index",
-      jungle: "/pages/games/animal/index",
-      chinese_chess: "/pages/games/chess/index"
-    }[game.game_type];
-    if (route) Taro.navigateTo({ url: `${route}?room=${game.room_code}` });
-  };
+  const games = useMemo(() => GAME_CATALOG.map((game) => {
+    const remote = serverGames.find((item) => item.type === game.type);
+    return { ...game, status: remote?.status || "available" };
+  }), [serverGames]);
 
-  const dice = games.find((game) => game.type === "dice") || FALLBACK_GAMES[0];
-  const gomoku = { ...(games.find((game) => game.type === "gomoku") || FALLBACK_GAMES[1]), status: "available" };
-  const flight = { ...(games.find((game) => game.type === "aeroplane") || FALLBACK_GAMES[2]), status: "available" };
-  const landlord = { ...(games.find((game) => game.type === "landlord") || FALLBACK_GAMES[3]), status: "available" };
-  const animal = { ...(games.find((game) => game.type === "jungle") || FALLBACK_GAMES[4]), status: "available" };
-  const chess = { ...(games.find((game) => game.type === "chinese_chess") || FALLBACK_GAMES[5]), status: "available" };
-  const upcomingGames = games.filter((game) => !["dice", "gomoku", "aeroplane", "landlord", "jungle", "chinese_chess"].includes(game.type));
-  const openGomoku = (roomCode = "", name = "") => Taro.navigateTo({
-    url: `/pages/games/gomoku/index${roomCode ? `?room=${roomCode}${name ? `&name=${encodeURIComponent(name)}` : ""}` : ""}`
-  });
-
-  const createGomoku = async () => {
-    if (creating) return;
-    setCreating(true);
-    try {
-      const room = await createGameRoom("gomoku", getCustomerId(), "");
-      openGomoku(room.room_code, "我");
-    } catch (error) {
-      Taro.showToast({ title: error.message || "创建房间失败", icon: "none" });
-    } finally {
-      setCreating(false);
-    }
-  };
-
-  const joinGomoku = () => {
-    const normalized = joinCode.trim().toUpperCase();
-    if (!ROOM_CODE_PATTERN.test(normalized)) {
-      Taro.showToast({ title: "请输入正确的 6 位房间码", icon: "none" });
+  const openGame = (game, online = false) => {
+    if (game.status !== "available") {
+      Taro.showToast({ title: "这个游戏正在维护，请稍后再来", icon: "none" });
       return;
     }
-    openGomoku(normalized, "女朋友");
+    Taro.navigateTo({ url: online && game.onlineRoute ? game.onlineRoute : game.route });
+  };
+
+  const continueGame = (room) => {
+    const game = GAME_BY_TYPE[room.game_type];
+    if (!game) return;
+    Taro.navigateTo({
+      url: `${game.type === "dice" ? game.onlineRoute : game.route}?room=${room.room_code}&resume=1`
+    });
   };
 
   return (
     <View className="page game-center-page">
       <View className="game-center-heading">
         <Text className="eyebrow">PLAY TOGETHER</Text>
-        <Text>一起玩 ♥</Text>
-        <Text>认真吃饭，也认真陪彼此玩一会儿。</Text>
+        <Text>一起玩</Text>
+        <Text>选一个现在就想玩的。双人房间和人机练习都放在各自游戏里，不再让首页替你做决定。</Text>
       </View>
 
-      {activeGames.length > 0 && <>
-        <View className="game-section-title"><Text>继续游戏</Text><Text>断开后也能找回来</Text></View>
-        <View className="continue-game-list">{activeGames.map((game) => <View key={game.room_code} onClick={() => continueGame(game)}><View><Text>{({ dice: "骰", gomoku: "棋", aeroplane: "飞", landlord: "牌", jungle: "兽", chinese_chess: "象" })[game.game_type] || "玩"}</Text></View><View><Text>{({ dice: "大话骰", gomoku: "五子棋", aeroplane: "飞行棋", landlord: "斗地主", jungle: "斗兽棋", chinese_chess: "中国象棋" })[game.game_type] || game.game_type}</Text><Text>房间 {game.room_code} · {game.status === "playing" ? "进行中" : "等待加入"}</Text></View><Text>继续 ›</Text></View>)}</View>
-      </>}
+      {activeGames.length > 0 && (
+        <View className="game-continue-section">
+          <View className="game-section-title">
+            <Text>继续上次</Text>
+            <Text>{activeGames.length} 个未结束房间</Text>
+          </View>
+          <View className="continue-game-list">
+            {activeGames.slice(0, 4).map((room) => {
+              const game = GAME_BY_TYPE[room.game_type] || { icon: "玩", name: room.game_type };
+              return (
+                <View key={room.room_code} className="continue-game-card" onClick={() => continueGame(room)}>
+                  <View className={`continue-game-icon tone-${game.tone || "ink"}`}><Text>{game.icon}</Text></View>
+                  <View className="continue-game-copy">
+                    <Text>{game.name}</Text>
+                    <Text>房间 {room.room_code} · {room.status === "playing" ? "进行中" : "等待加入"}</Text>
+                  </View>
+                  <View className="continue-game-action"><Text>继续</Text></View>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+      )}
 
-      <View className="game-section-title"><Text>今日推荐</Text><Text>双人实时 · 人机练习</Text></View>
-      <View className="gomoku-feature-card">
-        <View className="gomoku-feature-head">
-          <View><Text>{gomoku.icon}</Text></View>
-          <View><Text>{gomoku.name}</Text><Text>15×15 实时棋盘 · 支持聪明 AI 陪练</Text></View>
-          <Text>新开放</Text>
-        </View>
-        <View className="gomoku-feature-line"><Text>●</Text><Text>○</Text><Text>●</Text><Text>○</Text><Text>●</Text></View>
-        <View className="gomoku-feature-actions">
-          <View className="gomoku-create" onClick={createGomoku}><Text>{creating ? "正在创建…" : "创建棋局"}</Text><Text>生成房间码邀请她</Text></View>
-          <View className="gomoku-enter" onClick={() => openGomoku()}><Text>进入五子棋</Text><Text>查看规则与完整棋桌</Text></View>
-        </View>
-        <View className="gomoku-quick-join">
-          <Input value={joinCode} maxlength={6} placeholder="输入 6 位房间码" onInput={(event) => setJoinCode(event.detail.value.toUpperCase())} onConfirm={joinGomoku} />
-          <View onClick={joinGomoku}><Text>加入</Text></View>
-        </View>
+      <View className="game-section-title game-library-title">
+        <Text>选择游戏</Text>
+        <Text>{loading ? "正在同步…" : "6 个长期玩法"}</Text>
       </View>
-
-      <View className="game-section-title"><Text>情侣飞行棋</Text><Text>任务与随机互动</Text></View>
-      <View className="flight-feature-card" onClick={() => Taro.navigateTo({ url: "/pages/games/flight/index" })}>
-        <View className="flight-feature-copy">
-          <View><Text>{flight.icon}</Text></View>
-          <View><Text>{flight.name}</Text><Text>情侣或人机 · 服务端掷骰 · 互动格加默契</Text></View>
-          <Text>V2.4</Text>
-        </View>
-        <View className="flight-mini-route">
-          {["起", "♥", "餐", "乐", "挑", "终"].map((item, index) => <View key={`${item}-${index}`} className={item === "♥" ? "love" : ""}><Text>{item}</Text></View>)}
-        </View>
-        <View className="flight-feature-action"><Text>创建或加入飞行棋房间</Text><Text>›</Text></View>
-      </View>
-
-      <View className="game-section-title"><Text>经典游戏</Text><Text>原有玩法完整保留</Text></View>
-      <View className="game-feature-card">
-        <View className="game-feature-top">
-          <View className="game-feature-icon"><Text>{dice.icon}</Text></View>
-          <View><Text>{dice.name}</Text><Text>真实 3D 骰桌 · 单机练习或双人实时对战</Text></View>
-          <Text>已开放</Text>
-        </View>
-        <View className="game-feature-actions">
-          <View className="dice-game-entry" onClick={() => Taro.navigateTo({ url: "/pages/dice/index" })}><Text>单机练习</Text><Text>和 AI 先来一局</Text></View>
-          <View className="online-game-entry" onClick={() => Taro.navigateTo({ url: "/pages/dice-online/index" })}><Text>双人房间</Text><Text>邀请女朋友加入</Text></View>
-        </View>
-      </View>
-
-      <View className="game-section-title"><Text>V2.5 新牌桌</Text><Text>统一状态与 AI 陪玩</Text></View>
-      <View className="v25-game-grid">
-        <View className="landlord-entry" onClick={() => Taro.navigateTo({ url: "/pages/games/landlord/index" })}>
-          <View><Text>{landlord.icon}</Text><Text>AI×2</Text></View>
-          <Text>{landlord.name}</Text>
-          <Text>情侣双排或单人挑战两个 AI。手牌私密，服务器判定。</Text>
-          <Text>进入牌桌 ›</Text>
-        </View>
-        <View className="animal-entry" onClick={() => Taro.navigateTo({ url: "/pages/games/animal/index" })}>
-          <View><Text>{animal.icon}</Text><Text>7×9</Text></View>
-          <Text>{animal.name}</Text>
-          <Text>情侣房间或单人 AI，狮虎跳河、占领兽穴。</Text>
-          <Text>进入森林 ›</Text>
-        </View>
-      </View>
-
-      <View className="game-section-title"><Text>轻松决定</Text><Text>不建立在线房间</Text></View>
-      <View className="game-wheel-card wheel-game-entry" onClick={() => Taro.navigateTo({ url: "/pages/wheel/index" })}>
-        <View><Text>转</Text></View>
-        <View><Text>今晚转盘</Text><Text>自己写选项，把纠结交给一点好运</Text></View>
-        <Text>›</Text>
-      </View>
-
-      <View className="game-section-title"><Text>更多游戏</Text><Text>沿用同一房间系统</Text></View>
-      <View className="game-coming-grid">
-        <View className="chess-feature-card" onClick={() => Taro.navigateTo({ url: "/pages/games/chess/index" })}>
-          <View><Text>{chess.icon || "象"}</Text><Text>将</Text></View>
-          <View><Text>{chess.name || "中国象棋"}</Text><Text>标准棋盘、服务端判定、AI 陪练与完整棋谱。</Text><Text>进入象棋 →</Text></View>
-        </View>
-        <View className="game-data-card" onClick={() => Taro.navigateTo({ url: "/pages/games/ranking/index" })}>
-          <View><Text>榜</Text></View><Text>游戏数据中心</Text><Text>战绩、胜率与本月默契榜</Text><Text>查看 →</Text>
-        </View>
-        <View className="game-data-card companion" onClick={() => Taro.navigateTo({ url: "/pages/games/ai/index" })}>
-          <View><Text>伴</Text></View><Text>今日陪伴小结</Text><Text>真实记录生成，不猜测心情</Text><Text>查看 →</Text>
-        </View>
-        {upcomingGames.map((game) => (
-          <View key={game.type}>
-            <View><Text>{game.icon}</Text></View>
-            <Text>{game.name}</Text>
-            <Text>{GAME_DESCRIPTIONS[game.type] || "正在认真准备"}</Text>
-            <Text>即将上线</Text>
+      <View className="game-library-grid v25-game-grid">
+        {games.map((game) => (
+          <View
+            key={game.type}
+            className={`game-tile tone-${game.tone} ${game.type === "gomoku" ? "gomoku-feature-card" : ""} ${game.type === "landlord" ? "landlord-entry" : ""} ${game.type === "jungle" ? "animal-entry" : ""} ${game.type === "chinese_chess" ? "chess-feature-card" : ""}`}
+            onClick={() => openGame(game)}
+          >
+            <View className="game-tile-top">
+              <View className="game-tile-icon"><Text>{game.icon}</Text></View>
+              <Text className="game-tile-mode">{game.modes}</Text>
+            </View>
+            <Text className="game-tile-name">{game.name}</Text>
+            <Text className="game-tile-description">{game.description}</Text>
+            {game.onlineRoute ? (
+              <View className="game-tile-actions">
+                <View onClick={(event) => { event.stopPropagation?.(); openGame(game); }}><Text>单机练习</Text></View>
+                <View onClick={(event) => { event.stopPropagation?.(); openGame(game, true); }}><Text>双人房间</Text></View>
+              </View>
+            ) : (
+              <View className="game-tile-enter"><Text>进入游戏</Text><Text>›</Text></View>
+            )}
           </View>
         ))}
       </View>
 
-      {usingFallback && <Text className="game-center-fallback">游戏目录暂时离线，已显示本地安全目录。</Text>}
-      <View className="game-center-note"><Text>在线棋局由服务器判断胜负并写入共同记录，点菜和订单流程不受影响。</Text></View>
+      <View className="game-section-title">
+        <Text>轻松一下</Text>
+        <Text>不占用在线房间</Text>
+      </View>
+      <View className="game-tool-list">
+        <View onClick={() => Taro.navigateTo({ url: "/pages/wheel/index" })}>
+          <View className="game-tool-icon coral"><Text>转</Text></View>
+          <View><Text>今晚转盘</Text><Text>自定义选项，帮你们结束纠结</Text></View><Text>›</Text>
+        </View>
+        <View className="game-data-card" onClick={() => Taro.navigateTo({ url: "/pages/games/ranking/index" })}>
+          <View className="game-tool-icon green"><Text>榜</Text></View>
+          <View><Text>游戏记录</Text><Text>查看局数、胜率和共同回忆</Text></View><Text>›</Text>
+        </View>
+        <View onClick={() => Taro.navigateTo({ url: "/pages/games/ai/index" })}>
+          <View className="game-tool-icon amber"><Text>伴</Text></View>
+          <View><Text>今日小结</Text><Text>根据真实记录生成，不猜测心情</Text></View><Text>›</Text>
+        </View>
+      </View>
+
+      {offline && (
+        <View className="game-offline-card" onClick={load}>
+          <Text>游戏目录暂时没有连上服务器</Text>
+          <Text>已显示本地安全目录，点这里重新同步</Text>
+        </View>
+      )}
+      <View className="game-center-note">
+        <Text>规则、随机数和胜负由服务器确认；网络波动时不会偷偷改结果，恢复连接后可继续未完成的房间。</Text>
+      </View>
     </View>
   );
 }

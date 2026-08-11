@@ -14,6 +14,8 @@ from task_service import complete_task_type
 
 
 ROOM_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
+WAITING_ROOM_TTL = timedelta(minutes=30)
+PLAYING_ROOM_TTL = timedelta(hours=6)
 GAME_MAX_PLAYERS = {
     "dice": 2,
     "gomoku": 2,
@@ -30,6 +32,22 @@ ORDER_STATUS_TRANSITIONS = {
     "已完成": set(),
     "暂时做不了": set(),
 }
+
+
+def touch_game_room(
+    room: models.GameRoom,
+    now: datetime | None = None,
+) -> models.GameRoom:
+    """Refresh one active room using status-specific retention windows."""
+    now = now or datetime.now(timezone.utc)
+    room.last_activity_at = now
+    if room.status == "waiting":
+        room.expires_at = now + WAITING_ROOM_TTL
+    elif room.status == "playing":
+        room.expires_at = now + PLAYING_ROOM_TTL
+    else:
+        room.expires_at = None
+    return room
 
 
 def list_games(db: Session):
@@ -61,6 +79,7 @@ def create_game_room(db: Session, game_type: str, creator: str):
                 status="waiting",
                 max_players=max_players,
             )
+            touch_game_room(room)
             db.add(room)
             try:
                 db.commit()
@@ -85,15 +104,15 @@ def get_game_room(db: Session, room_code: str):
 
 def update_game_room_status(db: Session, room_code: str, room_status: str):
     room = get_game_room(db, room_code)
-    room.last_activity_at = datetime.now(timezone.utc)
     room.state_version = int(room.state_version or 0) + 1
-    room.expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
     if room.status != room_status:
         room.status = room_status
         if room_status == "finished":
             room.finished_at = datetime.now()
         elif room_status == "playing":
             room.finished_at = None
+            room.abandoned_at = None
+    touch_game_room(room)
     db.commit()
     db.refresh(room)
     return room
@@ -128,13 +147,14 @@ def join_game_room(db: Session, room_code: str, player_id: str):
         .first()
     )
     if existing:
-        existing.last_activity_at = datetime.now(timezone.utc)
+        now = datetime.now(timezone.utc)
+        existing.last_activity_at = now
         existing.disconnected_at = None
         existing.expires_at = None
-        room.last_activity_at = datetime.now(timezone.utc)
+        touch_game_room(room, now)
         db.commit()
         return existing
-    if room.status == "finished":
+    if room.status in {"finished", "abandoned"}:
         raise HTTPException(status_code=409, detail="本房间对局已经结束")
 
     occupied_seats = {player.seat for player in room.players}
@@ -155,7 +175,7 @@ def join_game_room(db: Session, room_code: str, player_id: str):
     if len(occupied_seats) + 1 >= room.max_players:
         room.status = "playing"
         room.finished_at = None
-    room.last_activity_at = datetime.now(timezone.utc)
+    touch_game_room(room)
     try:
         db.commit()
     except IntegrityError:
@@ -206,8 +226,7 @@ def issue_room_session_token(db: Session, player: models.GamePlayer) -> tuple[st
     player.last_activity_at = datetime.now(timezone.utc)
     player.disconnected_at = None
     player.expires_at = expires_at
-    player.room.last_activity_at = datetime.now(timezone.utc)
-    player.room.expires_at = expires_at
+    touch_game_room(player.room)
     db.commit()
     return token, expires_at
 
@@ -224,32 +243,50 @@ def mark_game_player_disconnected(db: Session, room_code: str, player_id: str) -
     now = datetime.now(timezone.utc)
     player.disconnected_at = now
     player.expires_at = now + timedelta(seconds=60)
-    room.last_activity_at = now
-    room.expires_at = now + timedelta(minutes=15)
+    touch_game_room(room, now)
     db.commit()
 
 
 def expire_stale_game_rooms(db: Session) -> list[str]:
-    """Close inactive live rooms while retaining players and completed history."""
+    """Mark inactive rooms abandoned while retaining state and history."""
     now = datetime.now(timezone.utc)
-    rooms = (
+    candidates = (
         db.query(models.GameRoom)
-        .filter(
-            models.GameRoom.status.in_(["waiting", "playing"]),
-            models.GameRoom.expires_at.isnot(None),
-            models.GameRoom.expires_at < now,
-        )
+        .filter(models.GameRoom.status.in_(["waiting", "playing"]))
         .all()
     )
+    rooms = []
+    for room in candidates:
+        expires_at = room.expires_at
+        if expires_at is None:
+            last_activity = room.last_activity_at or room.created_at
+            if last_activity.tzinfo is None:
+                last_activity = last_activity.replace(tzinfo=timezone.utc)
+            ttl = WAITING_ROOM_TTL if room.status == "waiting" else PLAYING_ROOM_TTL
+            expires_at = last_activity + ttl
+        elif expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if expires_at < now:
+            rooms.append(room)
     codes = []
     for room in rooms:
-        room.status = "finished"
+        room.status = "abandoned"
+        room.abandoned_at = now
         room.finished_at = now
+        room.expires_at = None
+        room.owner_instance_id = None
+        room.lease_expires_at = None
         room.state_version = int(room.state_version or 0) + 1
         codes.append(room.room_code)
         for player in room.players:
             player.room_session_token_hash = None
             player.expires_at = now
+        db.query(models.GameReconnectToken).filter(
+            models.GameReconnectToken.room_id == room.id
+        ).update(
+            {models.GameReconnectToken.revoked: True},
+            synchronize_session=False,
+        )
     if rooms:
         db.commit()
     return codes
@@ -301,6 +338,8 @@ def finish_game_room(
         winner=winner,
         duration=max(0, int(duration)),
         result=result or {},
+        settlement_status="pending",
+        settlement_attempts=0,
     )
     db.add(record)
     if winner:
@@ -312,6 +351,9 @@ def finish_game_room(
             winner_player.score += 1
     room.status = "finished"
     room.finished_at = datetime.now()
+    room.expires_at = None
+    room.owner_instance_id = None
+    room.lease_expires_at = None
     try:
         db.commit()
     except IntegrityError:

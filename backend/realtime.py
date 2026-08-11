@@ -1,4 +1,5 @@
 import asyncio
+from copy import deepcopy
 import secrets
 import time
 from collections import OrderedDict
@@ -52,11 +53,10 @@ class OrderEventHub:
 
 
 class GameRoomManager:
-    """Shared in-memory transport for real-time games.
+    """Process-local WebSocket transport for database-leased real-time rooms.
 
-    Room metadata is persisted in ``game_rooms``; fast-changing board state and
-    socket objects remain in memory. Dice and the server-authoritative Gomoku
-    engine share the V2 protocol envelope and room lifecycle.
+    PostgreSQL owns room metadata and recoverable snapshots. A database lease
+    ensures only one process mutates a room while socket objects stay local.
     """
 
     def __init__(self):
@@ -129,8 +129,14 @@ class GameRoomManager:
             }
             for item in room["players"].values()
         ]
+        started_at = room.get("started_at")
+        elapsed_seconds = (
+            max(0.0, time.monotonic() - float(started_at))
+            if started_at is not None
+            else None
+        )
         return {
-            "version": 1,
+            "version": 2,
             "room_code": room["room_code"],
             "game_type": room["game_type"],
             "max_players": room["max_players"],
@@ -143,6 +149,8 @@ class GameRoomManager:
             "outcome": room["outcome"],
             "rematch_ready": list(room["rematch_ready"]),
             "round": room["round"],
+            "elapsed_seconds": elapsed_seconds,
+            "completed_event": deepcopy(room.get("completed_event")),
             "action_history": list(room.get("action_history") or []),
             "state_version": int(room.get("state_version") or 1),
             "last_activity_at": room.get("last_activity_at") or time.time(),
@@ -166,6 +174,13 @@ class GameRoomManager:
         room["outcome"] = snapshot.get("outcome")
         room["rematch_ready"] = set(snapshot.get("rematch_ready") or [])
         room["round"] = int(snapshot.get("round") or 0)
+        elapsed_seconds = snapshot.get("elapsed_seconds")
+        room["started_at"] = (
+            time.monotonic() - max(0.0, float(elapsed_seconds))
+            if elapsed_seconds is not None
+            else None
+        )
+        room["completed_event"] = deepcopy(snapshot.get("completed_event"))
         room["action_history"] = list(snapshot.get("action_history") or [])
         room["state_version"] = int(snapshot.get("state_version") or 1)
         room["last_activity_at"] = float(snapshot.get("last_activity_at") or time.time())
@@ -196,6 +211,33 @@ class GameRoomManager:
     async def has_room(self, room_code):
         async with self.lock:
             return room_code in self.rooms
+
+    async def active_room_codes(self) -> list[str]:
+        """Return rooms with at least one live human socket for lease heartbeat."""
+        async with self.lock:
+            return [
+                code
+                for code, room in self.rooms.items()
+                if any(
+                    player.get("connected")
+                    for player in room["players"].values()
+                    if not str(player.get("id", "")).startswith("ai_")
+                )
+            ]
+
+    async def has_live_connections(self, room_code: str) -> bool:
+        """Tell the gateway whether it is safe to release one room lease."""
+        normalized = room_code.strip().upper()
+        async with self.lock:
+            room = self.rooms.get(normalized)
+            return bool(
+                room
+                and any(
+                    player.get("connected")
+                    for player in room["players"].values()
+                    if not str(player.get("id", "")).startswith("ai_")
+                )
+            )
 
     async def cleanup_expired(self, room_codes=None, ttl_seconds=900):
         """Drop only inactive socket state; durable records remain in the database."""
@@ -442,12 +484,24 @@ class GameRoomManager:
             room["completed_event"] = None
             return event
 
+    async def acknowledge_completed_event(self, room_code):
+        """Persist that a consumed completion event finished settlement.
+
+        Until this acknowledgement, PostgreSQL intentionally retains the
+        pending event so a process crash can replay the idempotent settlement.
+        """
+        async with self.lock:
+            room = self.rooms.get(room_code)
+            if room:
+                self._cache_room(room)
+
     async def restore_completed_event(self, room_code, event):
         """Put a failed settlement back so the next room action can retry it."""
         async with self.lock:
             room = self.rooms.get(room_code)
             if room and room.get("completed_event") is None:
                 room["completed_event"] = event
+                self._cache_room(room)
 
     async def room_status(self, room_code):
         async with self.lock:
@@ -459,6 +513,66 @@ class GameRoomManager:
             if len(room["players"]) >= room["max_players"]:
                 return "playing"
             return "waiting"
+
+    @staticmethod
+    def _state_for_player(room, player_id):
+        """Build the same viewer-filtered state used by live broadcasts."""
+        if room["game_type"] == "gomoku":
+            engine_state = room["gomoku"].serialize()
+            public_players = [
+                {
+                    "id": player["id"],
+                    "name": player["name"],
+                    "seat": player.get("seat"),
+                    "color": player.get("color"),
+                    "connected": bool(player.get("connected")),
+                    "rematch_ready": player["id"] in room["rematch_ready"],
+                    "score": room["scores"].get(player["id"], 0),
+                }
+                for player in room["players"].values()
+            ]
+            return {
+                **engine_state,
+                "players": public_players,
+                "outcome": room["outcome"],
+                "round_id": f"{room['room_code']}:{engine_state.get('round', 1)}",
+                "server_timestamp": int(time.time() * 1000),
+                "state_version": int(room.get("state_version") or 1),
+                "mode": room.get("mode", "couple"),
+                "difficulty": room.get("difficulty", "rule"),
+            }
+        public_players = [
+            {
+                "id": player["id"],
+                "name": player["name"],
+                "rolled": player["id"] in room["dice"],
+                "rematch_ready": player["id"] in room["rematch_ready"],
+                "score": room["scores"].get(player["id"], 0),
+            }
+            for player in room["players"].values()
+        ]
+        return {
+            "phase": room["phase"],
+            "players": public_players,
+            "turn_id": room["turn_id"],
+            "current_bid": room["current_bid"],
+            "outcome": room["outcome"],
+            "round": room["round"] + 1,
+            "round_id": f"{room['room_code']}:{room['round'] + 1}",
+            "server_timestamp": int(time.time() * 1000),
+            "state_version": int(room.get("state_version") or 1),
+            "my_dice": deepcopy(room["dice"].get(player_id)),
+            "all_dice": deepcopy(room["dice"]) if room["phase"] == "finished" else None,
+        }
+
+    async def recovery_state(self, room_code, player_id):
+        """Return a reconnect snapshot without exposing private opponent data."""
+        normalized = str(room_code).strip().upper()
+        async with self.lock:
+            room = self.rooms.get(normalized)
+            if not room or player_id not in room["players"]:
+                return None
+            return deepcopy(self._state_for_player(room, player_id))
 
     @staticmethod
     def _gomoku_move(room, player_id, data):
@@ -629,29 +743,7 @@ class GameRoomManager:
     @staticmethod
     def _payloads(room):
         if room["game_type"] == "gomoku":
-            engine_state = room["gomoku"].serialize()
-            public_players = [
-                {
-                    "id": player["id"],
-                    "name": player["name"],
-                    "seat": player.get("seat"),
-                    "color": player.get("color"),
-                    "connected": bool(player.get("connected")),
-                    "rematch_ready": player["id"] in room["rematch_ready"],
-                    "score": room["scores"].get(player["id"], 0),
-                }
-                for player in room["players"].values()
-            ]
-            state = {
-                **engine_state,
-                "players": public_players,
-                "outcome": room["outcome"],
-                "round_id": f"{room['room_code']}:{engine_state.get('round', 1)}",
-                "server_timestamp": int(time.time() * 1000),
-                "state_version": int(room.get("state_version") or 1),
-                "mode": room.get("mode", "couple"),
-                "difficulty": room.get("difficulty", "rule"),
-            }
+            state = GameRoomManager._state_for_player(room, next(iter(room["players"]), ""))
             return [
                 (
                     player["socket"],
@@ -665,31 +757,9 @@ class GameRoomManager:
                 for player in room["players"].values()
                 if player.get("socket") is not None
             ]
-        public_players = [
-            {
-                "id": player["id"],
-                "name": player["name"],
-                "rolled": player["id"] in room["dice"],
-                "rematch_ready": player["id"] in room["rematch_ready"],
-                "score": room["scores"].get(player["id"], 0),
-            }
-            for player in room["players"].values()
-        ]
         payloads = []
         for player_id, player in room["players"].items():
-            state = {
-                "phase": room["phase"],
-                "players": public_players,
-                "turn_id": room["turn_id"],
-                "current_bid": room["current_bid"],
-                "outcome": room["outcome"],
-                "round": room["round"] + 1,
-                "round_id": f"{room['room_code']}:{room['round'] + 1}",
-                "server_timestamp": int(time.time() * 1000),
-                "state_version": int(room.get("state_version") or 1),
-                "my_dice": room["dice"].get(player_id),
-                "all_dice": room["dice"] if room["phase"] == "finished" else None,
-            }
+            state = GameRoomManager._state_for_player(room, player_id)
             if player.get("protocol") == "legacy":
                 payload = {
                     "type": "room_state",

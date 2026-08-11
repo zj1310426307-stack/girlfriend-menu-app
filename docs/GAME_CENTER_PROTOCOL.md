@@ -1,4 +1,4 @@
-# V2.9.1 游戏中心通信协议
+# V2.11.0 游戏中心通信协议
 
 ## 目标与边界
 
@@ -11,9 +11,9 @@
 - `game_players` 保存玩家设备标识、席位、房间局分和加入时间。
 - `game_records` 保存每个房间每一局的胜者、时长和服务端结果快照。
 - `love_scores` 保存五子棋参与、获胜和三连胜积分。
-- `game_states` 保存飞行棋权威 JSONB 快照，`game_events/game_event_logs` 保存互动目录与实际记录。
+- `game_states` 保存飞行棋、大话骰和五子棋权威 JSONB 快照，`game_events/game_event_logs` 保存互动目录与实际记录。
 - `game_sessions` 保存 V2.5 游戏 JSONB、当前回合和乐观锁版本；成就与牌局约定分别持久化。
-- WebSocket 连接对象仍是单进程内存状态；棋盘、骰子、轮次可镜像到 Redis 热快照，重新连接后恢复。未配置 Redis 时自动退回单进程状态，持久房间和记录仍在 PostgreSQL。
+- WebSocket 连接对象仍在实例内；棋盘、骰子、轮次和待结算事件写入 PostgreSQL，Redis 只做可选热缓存。`game_rooms` 数据库租约保证同一房间只有一个写入实例，非归属实例返回 `room_busy`，客户端自动退避重连。
 - `game_reconnect_tokens` 只保存重连令牌哈希，`game_replays` 保存完成对局的通用步骤与最终状态。
 
 ## HTTP API
@@ -23,7 +23,7 @@
 | GET | `/api/games` | 返回全部游戏及 `available/coming_soon/maintenance` 状态 |
 | POST | `/api/games/rooms` | 为已开放游戏创建房间；五子棋支持 `mode=ai` 与 `difficulty` |
 | GET | `/api/games/rooms/{room_code}` | 查询房间元数据、玩家席位和状态 |
-| GET | `/api/games/records/my` | 查询当前设备最近游戏记录，需 `X-Customer-Id` |
+| GET | `/api/games/records/my` | 查询当前设备最近游戏记录，需设备 Bearer token |
 | GET | `/api/admin/games/stats` | 管理端游戏统计，需 Bearer token |
 | POST | `/api/games/flight/create` | 创建飞行棋并让当前设备入座 |
 | POST | `/api/games/flight/join` | 按房间码加入飞行棋 |
@@ -45,6 +45,8 @@
 | GET | `/api/games/memories/my` | 当前设备的游戏记忆 |
 
 2.9.1 创建参数与各游戏的人机能力见 [游戏顺滑与全模式人机](GAME_AI_MODES_2_9_1.md)。旧请求不传 `mode/difficulty` 时继续按情侣规则模式创建，不改变已上传客户端行为。
+
+2.9.2 保持所有既有创建和动作接口兼容。斗地主私有视图新增 `suggested_card_ids`，仅在当前查看者轮到出牌时返回服务端计算的合法提示，不暴露其他玩家手牌。`difficulty` 的 `strategy` 现已在飞行棋、斗地主、斗兽棋和中国象棋界面开放。
 | GET | `/api/games/ai/players` | AI 角色与透明难度目录 |
 | GET | `/api/games/ai/summary` | 基于真实记录的规则日报 |
 
@@ -58,25 +60,27 @@
 }
 ```
 
-房间状态只使用 `waiting`、`playing`、`finished`。房间码由后端生成，为去掉易混字符的 6 位大写字母或数字。
+房间状态使用 `waiting`、`playing`、`finished`、`abandoned`。等待 30 分钟或进行 6 小时仍无活动的房间进入 `abandoned`，保留房间和历史记录但撤销旧重连凭据。房间码由后端生成，为去掉易混字符的 6 位大写字母或数字。
 
 ### 飞行棋 HTTP 动作
 
-飞行棋内部目录类型仍为 `aeroplane`，公开路由使用更直观的 `flight`。所有请求都带 `X-Customer-Id`；创建/加入还带邀请码。动作请求示例：
+飞行棋内部目录类型仍为 `aeroplane`，公开路由使用更直观的 `flight`。所有请求使用设备 Bearer token；旧测试环境可显式开启兼容身份头。动作请求示例：
 
 ```json
-{"room_code":"ABC234","action":"ROLL_DICE"}
+{"room_code":"ABC234","action":"ROLL_DICE","client_action_id":"ga_...","expected_version":3}
 ```
 
 ```json
-{"room_code":"ABC234","action":"MOVE_PIECE","piece_index":2}
+{"room_code":"ABC234","action":"MOVE_PIECE","piece_index":2,"client_action_id":"ga_...","expected_version":4}
 ```
 
 ```json
-{"room_code":"ABC234","action":"COMPLETE_EVENT"}
+{"room_code":"ABC234","action":"COMPLETE_EVENT","client_action_id":"ga_...","expected_version":5}
 ```
 
 客户端不能传骰子点数或目标坐标。服务端生成点数、计算 `movable`、移动和碰撞，并返回完整状态。进行中的飞行棋写入 `game_states`，页面重新打开或服务进程重启后可以恢复。完整字段见 [飞行棋与任务系统](FLIGHT_TASK_SYSTEM.md)。
+
+所有 REST 回合制动作均可携带 `client_action_id`。同一房间、同一玩家、同一 ID 的完全相同请求只执行一次并重放首次响应；重复 ID 与不同内容组合返回 409。旧客户端不传该字段仍兼容，但不具备传输级幂等保证。斗地主、斗兽棋和中国象棋继续携带 `expected_version`；飞行棋从 2.11.0 起也支持该字段。
 
 ## 统一 WebSocket
 

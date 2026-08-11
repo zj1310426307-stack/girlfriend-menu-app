@@ -77,7 +77,19 @@ def get_state(db: Session, room_code: str, player_id: str) -> dict:
     """Authorize one human member and return the persisted board."""
     room = require_room(db, room_code, GAME_TYPE)
     require_member(db, room.id, player_id)
-    session = GameSessionStore(db).get(room.id)
+    store = GameSessionStore(db)
+    session = store.get(room.id)
+    game = AnimalGame(session.state)
+    if game.expire_turn():
+        session = store.save(session, game.serialize(), session.version)
+        settle_session_game(
+            db,
+            room,
+            game.state,
+            game.state.get("winner_id"),
+            game.state.get("difficulty", "rule"),
+        )
+        db.refresh(room)
     return _response(room, session, player_id)
 
 
@@ -97,18 +109,50 @@ def move(
     action_name: str,
     payload: dict,
     expected_version: int,
+    client_action_id: str | None = None,
 ) -> dict:
     """Apply one move/chat/resign, advance AI and compare-and-swap state."""
     room = require_room(db, room_code, GAME_TYPE)
     require_member(db, room.id, player_id)
-    session = GameSessionStore(db).get(room.id)
+    store = GameSessionStore(db)
+    session = store.get(room.id)
+    replayed = store.replay_action(
+        room,
+        player_id,
+        client_action_id,
+        action_name,
+        payload,
+        expected_version,
+    )
+    if replayed:
+        return _response(room, replayed, player_id)
     game = AnimalGame(session.state)
+    if game.expire_turn():
+        expired = store.save(session, game.serialize(), session.version)
+        settle_session_game(
+            db,
+            room,
+            game.state,
+            game.state.get("winner_id"),
+            game.state.get("difficulty", "rule"),
+        )
+        db.refresh(room)
+        return _response(room, expired, player_id)
     try:
         game.apply(player_id, action_name, payload)
         _run_ai(game)
     except GameRuleError as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
-    session = GameSessionStore(db).save(session, game.serialize(), expected_version)
+    committed = store.save_action(
+        session,
+        room,
+        player_id,
+        client_action_id,
+        action_name,
+        payload,
+        game.serialize(),
+        expected_version,
+    )
     if game.state.get("phase") == "finished":
         settle_session_game(
             db,
@@ -118,7 +162,7 @@ def move(
             game.state.get("difficulty", "rule"),
         )
         db.refresh(room)
-    return _response(room, session, player_id)
+    return _response(room, committed, player_id)
 
 
 def get_any_state(db: Session, room_code: str, player_id: str) -> dict:

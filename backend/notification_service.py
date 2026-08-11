@@ -18,6 +18,30 @@ def create_notification(db: Session, user_code: str, kind: str, title: str, cont
     return item
 
 
+def create_notification_once(
+    db: Session,
+    user_code: str,
+    kind: str,
+    title: str,
+    content: str,
+    related_id: int,
+) -> models.Notification:
+    """Create one notification per user/type/source during retryable workflows."""
+    user = ensure_user(db, user_code)
+    existing = (
+        db.query(models.Notification)
+        .filter(
+            models.Notification.user_id == user.id,
+            models.Notification.type == kind,
+            models.Notification.related_id == related_id,
+        )
+        .first()
+    )
+    if existing:
+        return existing
+    return create_notification(db, user_code, kind, title, content, related_id)
+
+
 def list_notifications(db: Session, user_code: str, unread_only: bool = False, limit: int = 50) -> list[models.Notification]:
     """Return newest notifications owned by the current device."""
     user = ensure_user(db, user_code)

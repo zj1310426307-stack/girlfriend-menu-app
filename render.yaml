@@ -42,3 +42,5 @@ services:
         sync: false
       - key: REDIS_URL
         sync: false
+      - key: GAME_ROOM_LEASE_SECONDS
+        value: 30

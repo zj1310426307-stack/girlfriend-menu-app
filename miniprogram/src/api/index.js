@@ -1,5 +1,6 @@
 import Taro from "@tarojs/taro";
 import { API_BASE_URL, API_ORIGIN } from "../config/env";
+import { createGameActionId } from "../utils/gameAction";
 import {
   getCustomerToken,
   clearCustomerSession,
@@ -51,7 +52,12 @@ async function request(path, options = {}, attempt = 0) {
     const message = typeof detail === "string" ? detail : detail?.message || "请求参数不正确";
     const error = new Error(message);
     error.statusCode = response.statusCode;
-    if (response.statusCode === 401 && !options.header?.Authorization && getCustomerToken()) {
+    if (
+      response.statusCode === 401
+      && !options.preserveSession
+      && !options.header?.Authorization
+      && getCustomerToken()
+    ) {
       clearCustomerSession();
     }
     if (detail?.current_version) error.currentVersion = detail.current_version;
@@ -225,12 +231,21 @@ export const getFlightState = (customerId, roomCode) =>
     header: customerHeader(customerId)
   });
 
-export const sendFlightAction = (customerId, roomCode, action, pieceIndex) =>
+export const sendFlightAction = (
+  customerId,
+  roomCode,
+  action,
+  pieceIndex,
+  expectedVersion,
+  clientActionId = createGameActionId("flight")
+) =>
   request("/games/flight/action", {
     method: "POST",
     data: {
       room_code: roomCode,
       action,
+      client_action_id: clientActionId,
+      ...(Number.isInteger(expectedVersion) ? { expected_version: expectedVersion } : {}),
       ...(Number.isInteger(pieceIndex) ? { piece_index: pieceIndex } : {})
     },
     header: customerHeader(customerId)
@@ -256,10 +271,10 @@ export const joinLandlordRoom = (customerId, roomCode, playerName, inviteCode) =
     header: customerHeader(customerId)
   });
 
-export const sendLandlordAction = (customerId, roomCode, version, action, data = {}) =>
+export const sendLandlordAction = (customerId, roomCode, version, action, data = {}, clientActionId = createGameActionId("landlord")) =>
   request("/games/landlord/action", {
     method: "POST",
-    data: { room_code: roomCode, expected_version: version, action, ...data },
+    data: { room_code: roomCode, expected_version: version, client_action_id: clientActionId, action, ...data },
     header: customerHeader(customerId)
   });
 
@@ -277,10 +292,10 @@ export const joinAnimalRoom = (customerId, roomCode, playerName, inviteCode) =>
     header: customerHeader(customerId)
   });
 
-export const sendAnimalMove = (customerId, roomCode, version, action, data = {}) =>
+export const sendAnimalMove = (customerId, roomCode, version, action, data = {}, clientActionId = createGameActionId("animal")) =>
   request("/games/animal/move", {
     method: "POST",
-    data: { room_code: roomCode, expected_version: version, action, ...data },
+    data: { room_code: roomCode, expected_version: version, client_action_id: clientActionId, action, ...data },
     header: customerHeader(customerId)
   });
 
@@ -298,10 +313,10 @@ export const joinChessRoom = (customerId, roomCode, playerName, inviteCode) =>
     header: customerHeader(customerId)
   });
 
-export const sendChessMove = (customerId, roomCode, version, action, data = {}) =>
+export const sendChessMove = (customerId, roomCode, version, action, data = {}, clientActionId = createGameActionId("chess")) =>
   request("/games/chess/move", {
     method: "POST",
-    data: { room_code: roomCode, expected_version: version, action, ...data },
+    data: { room_code: roomCode, expected_version: version, client_action_id: clientActionId, action, ...data },
     header: customerHeader(customerId)
   });
 
@@ -401,7 +416,13 @@ export const issueReconnectToken = (customerId, roomCode) =>
   });
 
 export const reconnectGame = (reconnectToken) =>
-  request("/games/reconnect", { method: "POST", data: { reconnect_token: reconnectToken } });
+  request("/games/reconnect", {
+    method: "POST",
+    data: { reconnect_token: reconnectToken },
+    // An expired room credential is not an expired customer session.  Keep
+    // the device login so gameRecovery can rotate the room token safely.
+    preserveSession: true
+  });
 
 export const getGameReplay = (customerId, recordId) =>
   request(`/games/records/${recordId}/replay`, { header: customerHeader(customerId) });

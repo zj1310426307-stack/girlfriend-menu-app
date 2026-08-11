@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import Taro from "@tarojs/taro";
-import { Canvas, Input, Text, View } from "@tarojs/components";
+import { Canvas, Input, Switch, Text, View } from "@tarojs/components";
 
 import { ensureInvitePassed } from "../../utils/invite";
 import "./index.css";
 
 const STORAGE_KEY = "gf_wheel_items";
+const HISTORY_KEY = "gf_wheel_history";
+const NO_REPEAT_KEY = "gf_wheel_no_repeat";
 const MIN_ITEMS = 2;
 const MAX_ITEMS = 12;
 const DEFAULT_ITEMS = ["吃火锅", "看电影", "喝奶茶", "去散步", "早点睡", "再转一次"];
@@ -24,6 +26,23 @@ function readItems() {
   return DEFAULT_ITEMS;
 }
 
+function readHistory() {
+  try {
+    const saved = Taro.getStorageSync(HISTORY_KEY);
+    return Array.isArray(saved) ? saved.slice(0, 6) : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function readNoRepeat() {
+  try {
+    return Taro.getStorageSync(NO_REPEAT_KEY) !== false;
+  } catch (_) {
+    return true;
+  }
+}
+
 function shortLabel(value, index) {
   const label = String(value || "").trim() || `选项${index + 1}`;
   return label.length > 7 ? `${label.slice(0, 7)}…` : label;
@@ -35,6 +54,8 @@ export default function WheelPage() {
   const [ready, setReady] = useState(false);
   const [spinning, setSpinning] = useState(false);
   const [winner, setWinner] = useState("");
+  const [history, setHistory] = useState(readHistory);
+  const [noRepeat, setNoRepeat] = useState(readNoRepeat);
   const canvasRef = useRef(null);
   const contextRef = useRef(null);
   const sizeRef = useRef(0);
@@ -150,9 +171,22 @@ export default function WheelPage() {
     }
   }, [items]);
 
+  useEffect(() => {
+    try {
+      Taro.setStorageSync(HISTORY_KEY, history);
+      Taro.setStorageSync(NO_REPEAT_KEY, noRepeat);
+    } catch (error) {
+      console.warn("保存转盘偏好失败", error);
+    }
+  }, [history, noRepeat]);
+
   const spin = () => {
     if (!ready || spinning) return;
-    const winnerIndex = Math.floor(Math.random() * items.length);
+    const candidates = items
+      .map((_, index) => index)
+      .filter((index) => !noRepeat || items.length < 2 || items[index] !== history[0]);
+    const pool = candidates.length ? candidates : items.map((_, index) => index);
+    const winnerIndex = pool[Math.floor(Math.random() * pool.length)];
     const segment = (Math.PI * 2) / items.length;
     const current = ((rotationRef.current % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
     const target = ((-(winnerIndex + 0.5) * segment) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
@@ -179,7 +213,9 @@ export default function WheelPage() {
       }
       rotationRef.current = target;
       drawWheel(target);
-      setWinner(String(items[winnerIndex] || `选项${winnerIndex + 1}`).trim());
+      const result = String(items[winnerIndex] || `选项${winnerIndex + 1}`).trim();
+      setWinner(result);
+      setHistory((current) => [result, ...current].slice(0, 6));
       setSpinning(false);
       Taro.vibrateShort({ type: "medium" }).catch(() => {});
     };
@@ -228,6 +264,18 @@ export default function WheelPage() {
         <View className="wheel-result">
           <Text>今晚就选</Text>
           <Text>{winner}</Text>
+        </View>
+      )}
+
+      <View className="wheel-fairness">
+        <View><Text>连续两次不重复</Text><Text>开启后自动避开上一次结果</Text></View>
+        <Switch checked={noRepeat} color="#d85f77" disabled={spinning} onChange={(event) => setNoRepeat(event.detail.value)} />
+      </View>
+
+      {history.length > 0 && (
+        <View className="wheel-history">
+          <View><Text>最近结果</Text><Text onClick={() => setHistory([])}>清空</Text></View>
+          <View>{history.map((item, index) => <Text key={`${item}-${index}`}>{index + 1}. {item}</Text>)}</View>
         </View>
       )}
 

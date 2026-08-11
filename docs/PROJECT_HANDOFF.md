@@ -1,6 +1,6 @@
 # 项目交接与首次完整审计
 
-> 当前源码与微信体验版均为 `2.9.1`，日期 2026-08-10。微信公众平台已显示“体验版”，正式发布证据仍以公众平台和线上健康检查为准。
+> 当前源码与微信体验版均为 `2.11.0`，日期 2026-08-11。开发者工具上传成功，公众平台已核验版本号、项目备注和体验版状态；正式发布证据仍以公众平台审核与线上健康检查为准。
 
 ## 1. 产品定位
 
@@ -17,15 +17,16 @@
 | 项目 | 当前状态 |
 | --- | --- |
 | 小程序技术 | Taro 4 + React 18 |
-| 小程序版本 | 2.9.1（开发者工具上传成功，公众平台已核验为体验版） |
+| 小程序源码版本 | 2.11.0 |
+| 微信体验版 | 2.11.0（2026-08-11 14:27 上传，公众平台已核验） |
 | 后端 | FastAPI + SQLAlchemy 2 |
 | 生产数据库 | Neon PostgreSQL |
 | 本地数据库 | SQLite 回退 |
 | 生产 API | `https://girlfriend-menu-api.onrender.com` |
 | 2026-08-08 健康检查 | `/api/health` 正常；`/api/ready` 返回 PostgreSQL ready |
 | 线上启用菜品 | 19 道 |
-| 后端自动测试 | 59 项通过 |
-| 数据库迁移 | Alembic `20260809_09`；空库、V2.0 基线升级及末级降级/再升级通过 |
+| 后端自动测试 | 70 项通过 |
+| 数据库迁移 | Alembic `20260811_10`；空库升级及末级降级/再升级通过 |
 | 小程序构建 | `npm run build:weapp` 通过 |
 | 正式发布状态 | 代码无法证明；需在微信公众平台“版本管理”确认 |
 
@@ -52,8 +53,8 @@ flowchart LR
   FL --> DB
   GE --> DB
   API --> FS["Render 本地 uploads（临时）"]
-  RT --> REDIS["可选 Redis 热状态"]
-  REDIS --> DB
+  RT --> DB
+  RT --> REDIS["可选 Redis 热缓存"]
   GH["GitHub main"] -->|"自动部署"| API
 ```
 
@@ -62,7 +63,7 @@ flowchart LR
 - 用户端与管理端都在同一个微信小程序包里。
 - HTTP 数据通过 `miniprogram/src/api/index.js` 访问，订单推送和统一游戏协议分别由对应 WebSocket 客户端封装。
 - 订单、菜品、评价、游戏玩家、完成对局、飞行棋状态、V2.5 版本棋局、互动、任务、成就、情侣积分和统计持久化到 PostgreSQL。
-- 实时连接保留在进程内存；大话骰和五子棋热状态可镜像到 Redis 并在进程重启后恢复。Redis 未配置时自动退回单进程模式，PostgreSQL 业务不受影响。
+- 实时连接对象保留在进程内存；大话骰和五子棋权威快照写入 PostgreSQL `game_states`，Redis 只做可选热缓存。单实例进程重启后可恢复进行中棋盘、骰子与轮次。
 - 旧 React/Vite 网页端已退休，不应再作为功能入口。
 
 ## 4. 页面地图
@@ -71,7 +72,7 @@ flowchart LR
 | --- | --- | --- |
 | 首页/邀请码 | `pages/index/index` | 邀请码、智能推荐、最近常点、Top 5、今日菜单 |
 | 菜单 | `pages/menu/index` | 搜索、分类、收藏、加入清单 |
-| 一起玩 | `pages/games/index` | 动态游戏大厅、五子棋创建/加入、转盘和大话骰入口 |
+| 一起玩 | `pages/games/index` | 统一游戏目录、未完房间恢复、人机/双人能力与轻量工具入口 |
 | 我们 | `pages/couple/index` | 默契值、本月互动、共同成长、口味收藏和低强调管理入口 |
 | 积分明细 | `pages/couple/score` | 按日期查看积分来源 |
 | 共同记录 | `pages/couple/records` | 第一次点餐、完成次数、游戏次数和最爱菜品 |
@@ -209,19 +210,19 @@ V2.3 使用 Alembic `20260809_04` 追加 `game_players`、`game_records` 与 `ga
 | GET | `/api/games` | 游戏大厅目录与开放状态 |
 | POST | `/api/games/rooms` | 为开放游戏创建统一房间 |
 | GET | `/api/games/rooms/{room_code}` | 查询房间元数据、玩家席位和状态 |
-| GET | `/api/games/records/my` | 当前设备的历史游戏记录（`X-Customer-Id`） |
-| GET | `/api/favorites` | 当前设备收藏（`X-Customer-Id`） |
-| POST | `/api/favorites/{dish_id}` | 收藏菜品（`X-Customer-Id`） |
-| DELETE | `/api/favorites/{dish_id}` | 取消收藏（`X-Customer-Id`） |
+| GET | `/api/games/records/my` | 当前设备的历史游戏记录（设备 Bearer） |
+| GET | `/api/favorites` | 当前设备收藏（设备 Bearer） |
+| POST | `/api/favorites/{dish_id}` | 收藏菜品（设备 Bearer） |
+| DELETE | `/api/favorites/{dish_id}` | 取消收藏（设备 Bearer） |
 | POST | `/api/orders` | 提交订单 |
-| POST | `/api/orders/repeat/{id}` | 返回可编辑的再次点单草稿（`X-Customer-Id`） |
-| GET | `/api/orders/my/{customer_id}` | 当前设备历史订单 |
+| POST | `/api/orders/{id}/repeat-preview` | 返回可编辑的再次点单草稿（设备 Bearer） |
+| GET | `/api/orders/me` | 当前设备历史订单（设备 Bearer） |
 | GET | `/api/orders/{id}` | 订单详情 |
 | POST | `/api/orders/{id}/review` | 提交评价 |
 | GET | `/api/orders/{id}/review` | 查询评价 |
-| GET | `/api/stats/favorite-ranking` | 当前设备喜欢排行（`X-Customer-Id`） |
-| GET | `/api/couple/score` | 默契值、本月统计和计算分项（`X-Customer-Id`） |
-| GET | `/api/couple/score/history` | 当前设备积分流水（`X-Customer-Id`） |
+| GET | `/api/stats/favorite-ranking` | 当前设备喜欢排行（设备 Bearer） |
+| GET | `/api/couple/score` | 默契值、本月统计和计算分项（设备 Bearer） |
+| GET | `/api/couple/score/history` | 当前设备积分流水（设备 Bearer） |
 | POST | `/api/games/dice/rooms` | 创建双人骰子房间（校验邀请码） |
 
 管理 HTTP（Bearer token）：
@@ -239,7 +240,7 @@ V2.3 使用 Alembic `20260809_04` 追加 `game_players`、`game_records` 与 `ga
 | GET | `/api/stats/dishes` | 每道菜点单次数和最近时间 |
 | GET | `/api/stats/recent` | 最近 10 个订单 |
 | GET | `/api/admin/games/stats` | 总局数、五子棋局数、胜率、最常玩游戏和游戏积分变化 |
-| POST | `/api/couple/score/add` | 为指定设备补录积分（同时要求 `X-Customer-Id`） |
+| POST | `/api/couple/score/add` | 为指定设备补录积分（管理 Bearer） |
 
 WebSocket：
 
@@ -294,30 +295,26 @@ waiting → playing → finished → 双方 rematch/playing
 
 ## 10. 风险与技术债
 
-### P0：上线前优先处理
+### P0：正式发布前外部验收
 
-1. 邀请码硬编码在小程序包中，只是入口体验，不能视为秘密。
-2. 订单详情与评价接口使用可枚举订单号，未校验 `customer_id` 或订单访问凭证；知道订单号的人理论上可以查看或评价。
-3. 双人骰子点数由客户端生成后提交，修改过的客户端可以作弊；娱乐用途可接受，竞技用途不可靠。
+1. 生产图片对象存储仍需配置并完成真实上传、读取和删除验收。
+2. 所有双人游戏仍需两台真机完成加入、弱网、切后台、断线恢复和重开验收。
 
 ### P1：稳定性与维护
 
-1. 订单与游戏 WebSocket 连接、骰子局内状态和进行中的五子棋棋盘只在单进程内存；Render 重启、多实例或扩容会中断当前对局。五子棋玩家席位、已完成记录和积分不会丢失，但不能恢复未完成棋盘。
-2. 房间没有独立 TTL 清理任务；大话骰依赖最后一个连接离开后删除，五子棋为支持重连会保留非等待态内存房间，需要后续增加过期回收。
-3. Render 本地上传文件会随重部署或实例替换丢失。
-4. 旧库仍保留启动时幂等兼容检查；正式版本已经使用 Alembic，后续结构变化必须继续新增迁移版本。
-5. 管理端全量读取订单，订单增多后需要分页。
-6. API 地址固定写在源码里，开发/预发布/生产环境切换不够安全。
-7. 管理 token 是环境变量派生的固定值，无有效期、设备管理或主动撤销机制。
+1. V2.11 已用 PostgreSQL 租约解决多实例同时写入同一实时房间；连接对象仍在实例内，实例切换会经历一次客户端重连，不是无感迁移。
+2. V2.11 已增加每分钟结算补偿、房间 TTL/`abandoned`、REST 动作幂等和象棋/斗兽棋超时和棋；仍需在真实 Render 多实例与双真机上做故障注入验收。
+3. `failed` 结算自动重试上限为 10 次；持续失败目前通过数据库字段和日志排查，管理端尚无专门的失败结算工作台。
+4. 生产图片必须使用 S3-compatible 对象存储；Render 本地目录仅供开发。
 
 ### P2：体验与产品结构
 
-1. “一起玩”会随着游戏增加而变长，后续需按“可玩 / 即将上线”分组，并保持点菜首页不出现游戏堆叠。
+1. 游戏大厅已经收敛为固定六款长期玩法；后续新增游戏必须先满足统一恢复、错误反馈、规则测试和双真机验收，不再直接堆入口。
 2. 已有五项底部主导航；非 Tab 页面仍混用 `navigateTo/redirectTo/reLaunch`，需继续统一返回策略。
 3. 分类、历史和统计缺少搜索、分页和筛选。
 4. 价格在私厨场景是否有价值尚未验证，可考虑改成“难度/准备时间/辣度”。
 5. `desired_time` 是自由文本，无法可靠排序或做提醒。
-6. 五子棋棋盘在进程重启后会丢失；飞行棋已改为数据库持久状态，后续可将同一机制推广到五子棋。
+6. 游戏视觉主题仍不完全统一，后续只在共享状态和触控规范稳定后继续打磨单个棋盘。
 
 ## 11. UI/UX 方向
 

@@ -64,6 +64,16 @@ page { min-height: 100%; color: #5b4844; background: #fff8f5; }
 .wheel-result text { display: block; color: #a17c73; font-size: 22px; }
 .wheel-result text:last-child { margin-top: 7px; color: #d5526d; font-size: 38px; font-weight: 900; }
 
+.wheel-fairness { margin-top: 22px; padding: 20px 24px; display:flex; align-items:center; justify-content:space-between; gap:18px; border:2px solid #f0dfd8; border-radius:24px; background:rgba(255,255,255,.92); }
+.wheel-fairness > view { display:flex; flex-direction:column; gap:5px; }
+.wheel-fairness > view text:first-child { color:#5c4742; font-size:26px; font-weight:900; }
+.wheel-fairness > view text:last-child { color:#a98981; font-size:20px; }
+.wheel-history { margin-top:18px; padding:22px 24px; border:2px solid #f0dfd8; border-radius:24px; background:rgba(255,255,255,.88); }
+.wheel-history > view:first-child { display:flex; align-items:center; justify-content:space-between; color:#5c4742; font-size:25px; font-weight:900; }
+.wheel-history > view:first-child text:last-child { color:#d05c74; font-size:21px; }
+.wheel-history > view:last-child { margin-top:13px; display:flex; flex-wrap:wrap; gap:9px; }
+.wheel-history > view:last-child text { padding:8px 13px; border-radius:16px; color:#856c65; background:#fff2ee; font-size:20px; }
+
 .wheel-editor { margin-top: 30px; padding: 28px 24px; border: 2px solid #f1ded8; border-radius: 30px; background: rgba(255,255,255,.96); box-shadow: 0 16px 38px rgba(111, 70, 62, .09); }
 .wheel-editor-head { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 20px; }
 .wheel-editor-head > view:first-child { display: flex; flex-direction: column; gap: 6px; }

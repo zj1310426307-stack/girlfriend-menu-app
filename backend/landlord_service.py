@@ -104,18 +104,39 @@ def action(
     action_name: str,
     payload: dict,
     expected_version: int,
+    client_action_id: str | None = None,
 ) -> dict:
     """Validate one human action, run the AI and atomically persist the result."""
     room = require_room(db, room_code, GAME_TYPE)
     require_member(db, room.id, player_id)
-    session = GameSessionStore(db).get(room.id)
+    store = GameSessionStore(db)
+    session = store.get(room.id)
+    replayed = store.replay_action(
+        room,
+        player_id,
+        client_action_id,
+        action_name,
+        payload,
+        expected_version,
+    )
+    if replayed:
+        return _response(room, replayed, player_id)
     game = LandlordGame(session.state)
     try:
         game.apply(player_id, action_name, payload)
         _run_ai(game)
     except GameRuleError as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
-    session = GameSessionStore(db).save(session, game.serialize(), expected_version)
+    committed = store.save_action(
+        session,
+        room,
+        player_id,
+        client_action_id,
+        action_name,
+        payload,
+        game.serialize(),
+        expected_version,
+    )
     if game.state.get("phase") == "finished":
         settle_session_game(
             db,
@@ -125,4 +146,4 @@ def action(
             game.state.get("difficulty", "rule"),
         )
         db.refresh(room)
-    return _response(room, session, player_id)
+    return _response(room, committed, player_id)

@@ -10,7 +10,7 @@ from games.core.chat import append_chat
 
 from .card import sort_cards
 from .dealer import deal
-from .rule import beats, classify
+from .rule import beats, classify, suggest_play
 
 
 AI_ID = "ai_landlord"
@@ -171,6 +171,12 @@ class LandlordGame(GameEngine):
         state = self.serialize()
         state["hand_counts"] = {key: len(value) for key, value in state["hands"].items()}
         state["my_hand"] = state["hands"].get(viewer_id, [])
+        state["suggested_card_ids"] = []
+        if state["phase"] == "playing" and state["turn_id"] == viewer_id:
+            previous = state.get("last_play")
+            previous_combo = None if not previous or previous["player_id"] == viewer_id else previous["combo"]
+            suggestion = suggest_play(state["my_hand"], previous_combo)
+            state["suggested_card_ids"] = [card["id"] for card in suggestion or []]
         state.pop("hands", None)
         if state["phase"] == "bidding":
             state["bottom_cards"] = []

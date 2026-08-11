@@ -42,7 +42,7 @@ class DiceRoomOut(BaseModel):
 
 
 GameStatus = Literal["available", "coming_soon", "maintenance"]
-GameRoomStatus = Literal["waiting", "playing", "finished"]
+GameRoomStatus = Literal["waiting", "playing", "finished", "abandoned"]
 
 
 class GameOut(BaseModel):
@@ -156,6 +156,7 @@ class LandlordAction(BaseModel):
     room_code: str = Field(min_length=4, max_length=12, pattern=r"^[A-Za-z0-9]+$")
     action: Literal["BID", "PLAY", "PASS", "CHAT"]
     expected_version: int = Field(ge=1)
+    client_action_id: str | None = Field(default=None, min_length=8, max_length=80, pattern=r"^[A-Za-z0-9_-]+$")
     bid: bool | None = None
     card_ids: list[str] = Field(default_factory=list, max_length=20)
     text: str | None = Field(default=None, max_length=80)
@@ -178,6 +179,7 @@ class AnimalMove(BaseModel):
     room_code: str = Field(min_length=4, max_length=12, pattern=r"^[A-Za-z0-9]+$")
     action: Literal["MOVE", "RESIGN", "CHAT"] = "MOVE"
     expected_version: int = Field(ge=1)
+    client_action_id: str | None = Field(default=None, min_length=8, max_length=80, pattern=r"^[A-Za-z0-9_-]+$")
     piece_id: str | None = Field(default=None, max_length=40)
     x: int | None = Field(default=None, ge=0, le=6)
     y: int | None = Field(default=None, ge=0, le=8)
@@ -207,6 +209,7 @@ class ChessMoveAction(BaseModel):
     room_code: str = Field(min_length=4, max_length=12, pattern=r"^[A-Za-z0-9]+$")
     action: Literal["MOVE", "RESIGN", "CHAT"] = "MOVE"
     expected_version: int = Field(ge=1)
+    client_action_id: str | None = Field(default=None, min_length=8, max_length=80, pattern=r"^[A-Za-z0-9_-]+$")
     from_pos: str | None = Field(default=None, pattern=r"^[a-iA-I](?:10|[1-9])$")
     to_pos: str | None = Field(default=None, pattern=r"^[a-iA-I](?:10|[1-9])$")
     text: str | None = Field(default=None, max_length=80)
@@ -363,6 +366,8 @@ class FlightAction(BaseModel):
     room_code: str = Field(min_length=4, max_length=12, pattern=r"^[A-Za-z0-9]+$")
     action: Literal["ROLL_DICE", "MOVE_PIECE", "COMPLETE_EVENT"]
     piece_index: int | None = Field(default=None, ge=0, le=3)
+    expected_version: int | None = Field(default=None, ge=1)
+    client_action_id: str | None = Field(default=None, min_length=8, max_length=80, pattern=r"^[A-Za-z0-9_-]+$")
 
 
 class FlightStateOut(BaseModel):

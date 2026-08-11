@@ -12,9 +12,10 @@ import {
 import DiceButton from "../../../components/DiceButton";
 import EventPopup from "../../../components/EventPopup";
 import FlightBoard from "../../../components/FlightBoard";
+import GameSyncBar from "../../../components/GameSyncBar";
 import { getCustomerId } from "../../../utils/customer";
 import { ensureInvitePassed } from "../../../utils/invite";
-import { ensureGameRecovery } from "../../../utils/gameRecovery";
+import { ensureGameRecovery, recoverGameRoom } from "../../../utils/gameRecovery";
 import useAdaptiveGamePolling from "../../../hooks/useAdaptiveGamePolling";
 import "./index.css";
 
@@ -29,6 +30,7 @@ export default function FlightPage() {
   const router = useRouter();
   const customerIdRef = useRef(getCustomerId());
   const revisionRef = useRef("");
+  const actionLockRef = useRef(false);
   const [allowed, setAllowed] = useState(false);
   const [playerName, setPlayerName] = useState("我");
   const [mode, setMode] = useState("couple");
@@ -63,7 +65,7 @@ export default function FlightPage() {
     setError("");
   }, []);
 
-  const refresh = useCallback(async (silent = false) => {
+  const refresh = useCallback(async (silent = false, propagate = false) => {
     if (!roomCode) return;
     if (!silent) setConnection("syncing");
     try {
@@ -71,6 +73,7 @@ export default function FlightPage() {
     } catch (requestError) {
       setConnection("offline");
       setError(requestError.message || "棋局同步失败");
+      if (propagate) throw requestError;
     }
   }, [applyResponse, roomCode]);
 
@@ -78,8 +81,27 @@ export default function FlightPage() {
     const passed = ensureInvitePassed();
     setAllowed(passed);
     const sharedRoom = String(router.params?.room || "").trim().toUpperCase();
-    if (sharedRoom) setJoinCode(sharedRoom);
-  }, [router.params?.room]);
+    if (!sharedRoom || !ROOM_PATTERN.test(sharedRoom)) return undefined;
+    setJoinCode(sharedRoom);
+    if (!passed) return undefined;
+    let cancelled = false;
+    setConnection("syncing");
+    recoverGameRoom(
+      customerIdRef.current,
+      sharedRoom,
+      (code) => getFlightState(customerIdRef.current, code)
+    ).then((payload) => {
+      if (!cancelled && payload) applyResponse(payload);
+    }).catch((requestError) => {
+      if (cancelled) return;
+      setConnection("offline");
+      if (requestError?.statusCode !== 403) {
+        setError(requestError.message || "原棋局恢复失败");
+        Taro.showToast({ title: "原棋局暂时无法恢复", icon: "none" });
+      }
+    });
+    return () => { cancelled = true; };
+  }, [applyResponse, router.params?.room]);
 
   useEffect(() => {
     if (!roomCode) return;
@@ -87,8 +109,10 @@ export default function FlightPage() {
   }, [roomCode]);
   useAdaptiveGamePolling({
     enabled: Boolean(roomCode && state.mode !== "ai" && state.phase !== "finished"),
-    load: () => refresh(true),
-    interval: state.phase === "waiting" ? 2400 : 1200
+    load: () => refresh(true, true),
+    interval: state.phase === "waiting" ? 2400 : 1200,
+    onStatus: setConnection,
+    onError: (requestError) => setError(requestError?.message || "棋局同步失败")
   });
 
   useShareAppMessage(() => ({
@@ -97,7 +121,8 @@ export default function FlightPage() {
   }));
 
   const createRoom = async () => {
-    if (busy) return;
+    if (actionLockRef.current || busy) return;
+    actionLockRef.current = true;
     setBusy("create");
     try {
       const result = await createFlightRoom(
@@ -108,6 +133,7 @@ export default function FlightPage() {
     } catch (requestError) {
       Taro.showToast({ title: requestError.message || "创建失败", icon: "none" });
     } finally {
+      actionLockRef.current = false;
       setBusy("");
     }
   };
@@ -118,7 +144,8 @@ export default function FlightPage() {
       Taro.showToast({ title: "请输入正确的 6 位房间码", icon: "none" });
       return;
     }
-    if (busy) return;
+    if (actionLockRef.current || busy) return;
+    actionLockRef.current = true;
     setBusy("join");
     try {
       applyResponse(await joinFlightRoom(customerIdRef.current, normalized, playerName, ""));
@@ -126,17 +153,25 @@ export default function FlightPage() {
     } catch (requestError) {
       Taro.showToast({ title: requestError.message || "加入失败", icon: "none" });
     } finally {
+      actionLockRef.current = false;
       setBusy("");
     }
   };
 
   const act = async (action, pieceIndex) => {
-    if (busy) return;
+    if (actionLockRef.current || busy) return;
+    actionLockRef.current = true;
     setBusy(action);
     try {
       if (action === "ROLL_DICE") Taro.vibrateShort({ type: "medium" }).catch(() => {});
       const previousTurn = state.turn_id;
-      const result = await sendFlightAction(customerIdRef.current, roomCode, action, pieceIndex);
+      const result = await sendFlightAction(
+        customerIdRef.current,
+        roomCode,
+        action,
+        pieceIndex,
+        Number(state.version || 1)
+      );
       applyResponse(result);
       if (action === "ROLL_DICE" && result.state.dice == null && result.state.turn_id !== previousTurn) {
         Taro.showToast({ title: "没有可移动的棋子，轮到对方", icon: "none" });
@@ -149,6 +184,7 @@ export default function FlightPage() {
       Taro.showToast({ title: requestError.message || "操作失败", icon: "none" });
       refresh(true);
     } finally {
+      actionLockRef.current = false;
       setBusy("");
     }
   };
@@ -185,7 +221,7 @@ export default function FlightPage() {
             <View className={mode === "couple" ? "active" : ""} onClick={() => setMode("couple")}><Text>情侣双人</Text><Text>房间码邀请她</Text></View>
             <View className={mode === "ai" ? "active" : ""} onClick={() => setMode("ai")}><Text>人机练习</Text><Text>立即开始</Text></View>
           </View>
-          {mode === "ai" && <View className="flight-difficulty"><Text className={difficulty === "random" ? "active" : ""} onClick={() => setDifficulty("random")}>轻松 AI</Text><Text className={difficulty === "rule" ? "active" : ""} onClick={() => setDifficulty("rule")}>聪明 AI</Text></View>}
+          {mode === "ai" && <View className="flight-difficulty"><Text className={difficulty === "random" ? "active" : ""} onClick={() => setDifficulty("random")}>轻松 AI</Text><Text className={difficulty === "rule" ? "active" : ""} onClick={() => setDifficulty("rule")}>聪明 AI</Text><Text className={difficulty === "strategy" ? "active" : ""} onClick={() => setDifficulty("strategy")}>航线高手</Text></View>}
           <View className={`flight-primary ${busy ? "disabled" : ""}`} onClick={createRoom}><Text>{busy === "create" ? "正在准备跑道…" : mode === "ai" ? "开始人机飞行棋" : "创建飞行棋房间"}</Text></View>
           <Text className="flight-or">或者加入对方的房间</Text>
           <View className="flight-join-row">
@@ -204,8 +240,9 @@ export default function FlightPage() {
         <View><Text>房间 {roomCode}</Text><Text onClick={() => Taro.setClipboardData({ data: roomCode })}>复制</Text></View>
         <View><Text>♥ 默契值</Text><Text>{score}</Text></View>
       </View>
+      <GameSyncBar status={connection} message={error} onRetry={() => refresh()} />
       <View className="flight-status-card">
-        <View className={connection}><Text>{connection === "online" ? "● 已同步" : "● 同步中"}</Text><Text>第 {state.round || 1} 局</Text></View>
+        <View><Text>服务器权威棋局</Text><Text>第 {state.round || 1} 局</Text></View>
         <Text>{statusText}</Text>
         <Text>{me?.name || "我"} · 红色飞机　VS　{opponent?.name || "等待加入"} · 蓝色飞机</Text>
       </View>

@@ -17,6 +17,7 @@ from core.cache import state_cache
 from couple_profile_service import record_memory_once
 from game_recovery_service import save_replay
 from notification_service import create_notification
+from games.core.state import GameSessionStore
 
 
 GAME_TYPE = "aeroplane"
@@ -123,8 +124,11 @@ def join_room(db: Session, room_code: str, player_id: str, player_name: str):
     game.sync_players(
         [_payload(item, known_names.get(item.player_id)) for item in _players(db, room)]
     )
-    row.state = game.serialize()
+    next_state = game.serialize()
+    next_state["version"] = int((row.state or {}).get("version") or 1) + 1
+    row.state = next_state
     row.updated_at = datetime.now()
+    crud.touch_game_room(room)
     if game.state["phase"] == "playing":
         room.status = "playing"
         room.finished_at = None
@@ -209,7 +213,7 @@ def _finish_if_needed(db: Session, room: models.GameRoom, state: dict):
         )
         .first()
     )
-    if existing and (existing.result or {}).get("_settlement") == "complete":
+    if existing and existing.settlement_status == "complete":
         return existing
     record = crud.finish_game_room(
         db,
@@ -219,6 +223,10 @@ def _finish_if_needed(db: Session, room: models.GameRoom, state: dict):
         {"state": state, "_settlement": "pending"},
         state.get("round", 1),
     )
+    record.settlement_status = "pending"
+    record.settlement_attempts = int(record.settlement_attempts or 0) + 1
+    record.settlement_error = None
+    db.commit()
     settle_game_rewards(
         db,
         record,
@@ -250,6 +258,9 @@ def _finish_if_needed(db: Session, room: models.GameRoom, state: dict):
         )
     save_replay(db, record, state)
     record.result = {**(record.result or {}), "_settlement": "complete"}
+    record.settlement_status = "complete"
+    record.settlement_error = None
+    record.settled_at = datetime.now()
     db.commit()
     return record
 
@@ -290,12 +301,45 @@ def perform_action(
     player_id: str,
     action: str,
     piece_index: int | None = None,
+    expected_version: int | None = None,
+    client_action_id: str | None = None,
 ):
     room = crud.get_game_room(db, room_code)
     _validate_flight_room(room)
     if not any(player.player_id == player_id for player in _players(db, room)):
         raise HTTPException(status_code=403, detail="你还没有加入这个房间")
     row = _state_row(db, room, lock=True)
+    current_version = int((row.state or {}).get("version") or 1)
+    request_version = expected_version or current_version
+    action_payload = {
+        **({"piece_index": piece_index} if piece_index is not None else {}),
+    }
+    store = GameSessionStore(db)
+    replayed = store.replay_action(
+        room,
+        player_id,
+        client_action_id,
+        action,
+        action_payload,
+        request_version,
+    )
+    if replayed:
+        return {
+            "room_id": room.id,
+            "room_code": room.room_code,
+            "game_type": GAME_TYPE,
+            "room_status": room.status,
+            "state": replayed.state,
+            "updated_at": replayed.updated_at,
+        }
+    if request_version != current_version:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "棋局已被另一端更新，请同步后重试",
+                "current_version": current_version,
+            },
+        )
     game = FlightGame(row.state)
     game.state["ai_turn_summary"] = []
     completed_log = None
@@ -332,8 +376,25 @@ def perform_action(
     except FlightError as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
 
-    row.state = game.serialize()
+    next_state = game.serialize()
+    next_state["version"] = current_version + 1
+    row.state = next_state
     row.updated_at = datetime.now()
+    if client_action_id:
+        db.add(
+            models.GameAction(
+                room_id=room.id,
+                player_id=player_id,
+                client_action_id=client_action_id,
+                action_type=action,
+                request_hash=store._action_hash(action, action_payload, request_version),
+                request_version=request_version,
+                response_version=current_version + 1,
+                response_state=next_state,
+                created_at=row.updated_at,
+            )
+        )
+    crud.touch_game_room(room)
     if completed_log:
         record_score(
             db,

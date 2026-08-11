@@ -30,6 +30,7 @@ page { min-height:100%; background:#f4efe3; }
 .animal-room-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; color:#667261; font-size:15px; }
 .animal-room-head > view { display:flex; align-items:center; gap:8px; }
 .animal-room-head > view text:last-child { padding:5px 9px; border-radius:10px; color:#8f6746; background:#eadbc4; }
+.animal-room > .game-sync-bar { margin-bottom:10px; }
 .animal-status { margin-bottom:12px; padding:15px 17px; border:2px solid #e6dccb; border-radius:22px; background:#fffaf2; box-shadow:0 9px 20px rgba(77,68,49,.07); }
 .animal-status text:first-child { display:block; color:#40513f; font-size:22px; font-weight:900; }
 .animal-status text:last-child { display:block; margin-top:5px; color:#918578; font-size:14px; }
