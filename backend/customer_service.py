@@ -161,7 +161,11 @@ def authenticate(
     *,
     update_last_seen: bool = True,
 ) -> models.Customer:
-    """Authenticate an active unexpired session, lazily bridging old token hashes."""
+    """Authenticate an active unexpired session, lazily bridging old token hashes.
+
+    Latency-sensitive transports may skip the best-effort activity timestamp;
+    every state-changing game action still persists its own room/player clock.
+    """
     if not token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="请重新验证邀请码")
     token_digest = hash_token(token)

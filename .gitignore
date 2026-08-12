@@ -8,6 +8,7 @@ backend/**/*.py[cod]
 backend/*.db
 backend/tests/*.db
 backend/.pytest-tmp/
+backend/.test-tmp/
 scripts/__pycache__/
 backend/uploads/*
 !backend/uploads/.gitkeep

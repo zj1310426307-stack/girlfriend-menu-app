@@ -476,4 +476,6 @@ python scripts/check_secrets.py
 python scripts/check_release_config.py
 ```
 
+Windows 下推荐运行 `python run_tests.py -q`；脚本会给每次 pytest 分配仓库内唯一的 `.test-tmp/<uuid>`，避免系统临时目录或上次目录的 ACL/句柄残留导致 fixture 失败。直接运行 `pytest` 仍可用，但遇到权限异常时以该脚本结果为准。
+
 完整步骤见 [V2.8 发布清单](docs/RELEASE_CHECKLIST_V2_8.md)、[备份与恢复](docs/BACKUP_AND_RESTORE.md)和[回滚手册](docs/ROLLBACK_V2_8.md)。正式发布前仍需完成双真机和 Neon 临时库恢复验收。
