@@ -62,6 +62,8 @@ class GameRoomManager:
     def __init__(self):
         self.rooms = {}
         self.lock = asyncio.Lock()
+        self._pending_snapshots: dict[str, dict] = {}
+        self._persistence_tasks: dict[str, asyncio.Task] = {}
 
     async def create_room(self, room_code=None, game_type="dice", max_players=2):
         async with self.lock:
@@ -164,6 +166,48 @@ class GameRoomManager:
     @classmethod
     def _cache_room(cls, room):
         game_state_store.set(room["room_code"], cls._snapshot(room), ttl_seconds=900)
+
+    async def _persist_snapshot(self, room_code: str, snapshot: dict) -> None:
+        """Coalesce rapid actions while preserving an awaited durable boundary."""
+        task = self._queue_snapshot(room_code, snapshot)
+        await asyncio.shield(task)
+
+    def _queue_snapshot(self, room_code: str, snapshot: dict) -> asyncio.Task:
+        """Schedule a write-behind snapshot and return the room's drain task."""
+        self._pending_snapshots[room_code] = snapshot
+        task = self._persistence_tasks.get(room_code)
+        if task is None or task.done():
+            task = asyncio.create_task(self._drain_snapshots(room_code))
+            self._persistence_tasks[room_code] = task
+        return task
+
+    async def flush_persistence(self, room_code: str) -> None:
+        """Wait until every snapshot queued for one room is durably mirrored."""
+        while True:
+            task = self._persistence_tasks.get(room_code)
+            if task is None:
+                return
+            await asyncio.shield(task)
+            if room_code not in self._pending_snapshots:
+                return
+
+    async def _drain_snapshots(self, room_code: str) -> None:
+        """Write the newest queued snapshot until no newer room state remains."""
+        try:
+            while True:
+                snapshot = self._pending_snapshots.pop(room_code, None)
+                if snapshot is None:
+                    return
+                await asyncio.to_thread(
+                    game_state_store.set,
+                    room_code,
+                    snapshot,
+                    900,
+                )
+        finally:
+            self._persistence_tasks.pop(room_code, None)
+            if room_code in self._pending_snapshots:
+                self._queue_snapshot(room_code, self._pending_snapshots[room_code])
 
     @staticmethod
     def _restore_snapshot(room, snapshot):
@@ -328,7 +372,8 @@ class GameRoomManager:
             room["phase"] = engine.phase
             room["turn_id"] = engine.turn_id
             room["started_at"] = room["started_at"] or time.monotonic()
-            self._cache_room(room)
+            snapshot = self._snapshot(room)
+        await self._persist_snapshot(room_code, snapshot)
 
     async def join(
         self,
@@ -385,15 +430,11 @@ class GameRoomManager:
         # Joining is already durable in ``game_players``. Send the first
         # viewer-filtered state immediately, then mirror the recoverable engine
         # snapshot off the event loop. No game action can be lost here.
-        await asyncio.to_thread(
-            game_state_store.set,
-            room_code,
-            snapshot,
-            900,
-        )
+        self._queue_snapshot(room_code, snapshot)
         return True, ""
 
     async def leave(self, room_code, player_id, websocket):
+        snapshot = None
         async with self.lock:
             room = self.rooms.get(room_code)
             if not room:
@@ -416,12 +457,15 @@ class GameRoomManager:
                     return
             else:
                 payloads = self._payloads(room)
-            self._cache_room(room)
+            snapshot = self._snapshot(room)
         await self._send_payloads(payloads)
+        if snapshot:
+            await self._persist_snapshot(room_code, snapshot)
 
     async def handle(self, room_code, player_id, message):
         error = None
         should_run_gomoku_ai = False
+        snapshot = None
         async with self.lock:
             room = self.rooms.get(room_code)
             if not room or player_id not in room["players"]:
@@ -457,9 +501,12 @@ class GameRoomManager:
                     and room["phase"] == "playing"
                     and room["turn_id"] == GOMOKU_AI_ID
                 )
-                self._cache_room(room)
+                snapshot = self._snapshot(room)
         if not error:
             await self._send_payloads(payloads)
+            self._queue_snapshot(room_code, snapshot)
+            if snapshot.get("phase") == "finished":
+                await self.flush_persistence(room_code)
         if should_run_gomoku_ai:
             # Let the human stone settle visually before broadcasting the AI
             # response. State is rechecked after the delay to remain safe.
@@ -481,11 +528,14 @@ class GameRoomManager:
                         room["state_version"] = int(room.get("state_version") or 0) + 1
                         room["last_activity_at"] = time.time()
                         payloads = self._payloads(room)
-                        self._cache_room(room)
+                        snapshot = self._snapshot(room)
                     else:
                         payloads = []
             if not error:
                 await self._send_payloads(payloads)
+                self._queue_snapshot(room_code, snapshot)
+                if snapshot.get("phase") == "finished":
+                    await self.flush_persistence(room_code)
         return error
 
     async def consume_completed_event(self, room_code):
@@ -505,8 +555,9 @@ class GameRoomManager:
         """
         async with self.lock:
             room = self.rooms.get(room_code)
-            if room:
-                self._cache_room(room)
+            snapshot = self._snapshot(room) if room else None
+        if snapshot:
+            await self._persist_snapshot(room_code, snapshot)
 
     async def restore_completed_event(self, room_code, event):
         """Put a failed settlement back so the next room action can retry it."""
@@ -514,7 +565,11 @@ class GameRoomManager:
             room = self.rooms.get(room_code)
             if room and room.get("completed_event") is None:
                 room["completed_event"] = event
-                self._cache_room(room)
+                snapshot = self._snapshot(room)
+            else:
+                snapshot = None
+        if snapshot:
+            await self._persist_snapshot(room_code, snapshot)
 
     async def room_status(self, room_code):
         async with self.lock:

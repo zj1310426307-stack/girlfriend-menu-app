@@ -52,6 +52,9 @@ def test_gomoku_board_recovers_from_postgres_after_manager_restart():
                 first_id,
                 {"type": "move", "game": "gomoku", "data": {"x": 7, "y": 7}},
             ) is None
+            # A simulated process restart must wait for the write-behind queue
+            # just as the production shutdown/recovery boundary does.
+            await original.flush_persistence(room_code)
 
             # This object has no shared in-process room dictionary. Its only
             # recovery source is the durable GameStateStore boundary.

@@ -205,6 +205,8 @@ def sync_room_status(
         room = game_persistence_service.get_game_room(db, room_code)
         if room.status == "finished" and room_status != "finished" and not allow_restart:
             return
+        if room.status == room_status:
+            return
         game_persistence_service.update_game_room_status(db, room_code, room_status)
 
 

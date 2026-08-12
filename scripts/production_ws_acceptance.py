@@ -29,6 +29,11 @@ def millis(started_at: float) -> int:
     return round((time.perf_counter() - started_at) * 1000)
 
 
+def progress(stage: str, **metrics) -> None:
+    """Emit credential-free progress so a failed run still identifies its stage."""
+    print(json.dumps({"stage": stage, **metrics}, ensure_ascii=False), flush=True)
+
+
 async def receive_json(socket, timeout: float = 90) -> dict:
     """Receive one JSON frame with a bounded production timeout."""
     return json.loads(await asyncio.wait_for(socket.recv(), timeout))
@@ -70,6 +75,7 @@ async def run() -> dict:
         created.raise_for_status()
         room_code = created.json()["room_code"]
         result["room_code"] = room_code
+        progress("room_created", create_ms=result["create_ms"])
 
         async def connect(session: dict, name: str):
             last_error = None
@@ -82,7 +88,8 @@ async def run() -> dict:
                         f"{WS}/ws/game/{room_code}",
                         open_timeout=90,
                         close_timeout=10,
-                        ping_interval=None,
+                        ping_interval=10,
+                        ping_timeout=20,
                         max_size=2**20,
                     )
                     connect_ms = millis(started_connect)
@@ -153,6 +160,12 @@ async def run() -> dict:
             ws_a_phase=state_a.get("data", {}).get("phase"),
             session_frame_fields=sorted(session_a),
         )
+        progress(
+            "player_a_connected",
+            connect_ms=connect_a,
+            first_state_ms=first_a,
+            attempts=attempts_a,
+        )
         second, connect_b, first_b, state_b, _, attempts_b, busy_b = await connect(
             second_session,
             "验收B",
@@ -165,6 +178,12 @@ async def run() -> dict:
             ws_b_room_busy_retries=busy_b,
             ws_b_phase=state_b.get("data", {}).get("phase"),
             ws_a_after_b_phase=first_ready.get("data", {}).get("phase"),
+        )
+        progress(
+            "player_b_connected",
+            connect_ms=connect_b,
+            first_state_ms=first_b,
+            attempts=attempts_b,
         )
 
         started = time.perf_counter()
@@ -210,6 +229,13 @@ async def run() -> dict:
             ws_reconnect_room_busy_retries=busy_reconnect,
             ws_reconnect_phase=state_a.get("data", {}).get("phase"),
         )
+        progress(
+            "player_a_reconnected",
+            connect_ms=reconnect_connect,
+            first_state_ms=reconnect_first,
+            attempts=attempts_reconnect,
+            room_busy_retries=busy_reconnect,
+        )
 
         async def move(socket, x: int, y: int):
             started_move = time.perf_counter()
@@ -229,9 +255,11 @@ async def run() -> dict:
         for index, black_move in enumerate(black):
             elapsed, final_state = await move(first, *black_move)
             action_times.append(elapsed)
+            progress("move", number=len(action_times), latency_ms=elapsed)
             if index < len(white):
                 elapsed, final_state = await move(second, *white[index])
                 action_times.append(elapsed)
+                progress("move", number=len(action_times), latency_ms=elapsed)
         result.update(
             actions_ms=action_times,
             action_p50_ms=sorted(action_times)[len(action_times) // 2],
@@ -241,7 +269,6 @@ async def run() -> dict:
                 == first_session["customer_id"]
             ),
         )
-
         started = time.perf_counter()
         records = []
         for _ in range(20):
@@ -259,6 +286,12 @@ async def run() -> dict:
             record_settlement=(
                 records[0].get("result", {}).get("_settlement") if records else None
             ),
+        )
+        progress(
+            "settled",
+            final_phase=result["final_phase"],
+            record_found=result["record_found"],
+            settlement_visible_ms=result["settlement_visible_ms"],
         )
         await first.close()
         await second.close()

@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+import time
 
 
 TEST_DB = Path(__file__).with_name("test_girlfriend_menu.db")
@@ -376,4 +377,13 @@ def test_unified_game_catalog_room_and_websocket_protocol():
                 revealed = [value for values in second_finished["data"]["all_dice"].values() for value in values]
                 expected_count = sum(value in {1, 2} for value in revealed)
                 assert second_finished["data"]["outcome"]["actual_count"] == expected_count
-                assert client.get(f"/api/games/rooms/{room_code}").json()["status"] == "finished"
+                deadline = time.monotonic() + 2
+                durable_status = None
+                while time.monotonic() < deadline:
+                    durable_status = client.get(
+                        f"/api/games/rooms/{room_code}"
+                    ).json()["status"]
+                    if durable_status == "finished":
+                        break
+                    time.sleep(0.02)
+                assert durable_status == "finished"

@@ -207,15 +207,22 @@ async def _game_room_socket(
                     pong.update(game=game_type, data={})
                 await websocket.send_json(pong)
                 continue
+            previous_room_status = await game_room_manager.room_status(
+                normalized_room_code
+            )
             error = await game_room_manager.handle(normalized_room_code, player_id, action)
             if error:
                 await _send_game_error(websocket, error, game_type, protocol)
                 continue
-            game_socket_session_service.sync_room_status(
-                normalized_room_code,
-                await game_room_manager.room_status(normalized_room_code),
-                allow_restart=action_type == "rematch",
+            current_room_status = await game_room_manager.room_status(
+                normalized_room_code
             )
+            if current_room_status != previous_room_status or action_type == "rematch":
+                game_socket_session_service.sync_room_status(
+                    normalized_room_code,
+                    current_room_status,
+                    allow_restart=action_type == "rematch",
+                )
             completed_event = await game_room_manager.consume_completed_event(
                 normalized_room_code
             )
