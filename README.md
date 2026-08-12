@@ -421,6 +421,11 @@ wss://girlfriend-menu-api.onrender.com/ws/game/{room_code}
 
 ## 当前边界
 
+Phase 2C Round 3 已拆分实时边界：订单通知归属
+`backend/realtime_events.py`，大话骰/五子棋运行时归属
+`backend/game_runtime/manager.py`，`backend/realtime.py` 仅保留旧导入兼容门面。
+HTTP/WebSocket 路径、消息字段和关闭码均未改变。
+
 - 普通端使用后端设备会话和 Bearer token；数据库只保存 token 哈希。会话默认 90 天有效，支持轮换和主动撤销。旧 `gf_customer_id` 可通过 `/api/customers/recover` 恢复原身份；恢复时撤销该身份的旧会话，避免丢失历史订单、收藏、积分和游戏记录。
 - 邀请码仅发送到后端验证，不再编译进小程序包；它仍是私人应用的设备准入方式，不等同于微信账号登录。
 - 所有已开放游戏的进行中权威状态均写入 PostgreSQL；WebSocket 连接对象仍只存在于当前进程，Redis 仅加速热状态。数据库租约保证一个房间同一时刻只有一个写入实例，跨实例切换依靠客户端重连，不承诺不断线迁移。

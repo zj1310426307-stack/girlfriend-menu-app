@@ -25,7 +25,7 @@ from api.dependencies import (
 )
 from core.cache import state_cache
 from database import get_db
-from realtime import game_room_manager
+from game_runtime import game_room_manager
 from services import game_persistence_service
 
 

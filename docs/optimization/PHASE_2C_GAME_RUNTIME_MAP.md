@@ -75,3 +75,21 @@ token composition, manager attach, durable status sync, disconnect persistence
 and final-socket lease release. The Settlement Service owns the existing
 pending-to-complete side-effect sequence. `realtime.py`, snapshot storage and
 the PostgreSQL CAS lease implementation are unchanged until Round 3.
+
+## Round 3 active boundary
+
+```text
+Order HTTP/WS Routers -> realtime_events.OrderEventHub
+
+Game HTTP/WS Routers -> game_runtime.GameRoomManager
+                     -> durable snapshot store
+
+Legacy callers -> realtime.py compatibility facade -> same singletons
+```
+
+Round 3 is structural only: dice/Gomoku rules, viewer privacy, message fields,
+close codes, leases and snapshot schema stay unchanged. Production acceptance
+also corrected the reconnect membership relationship, moved PostgreSQL snapshot
+writes off the broadcast hot path and fixed `state_version` ordering before the
+split. These fixes are covered by reconnect, durable-recovery and non-blocking
+broadcast regressions.

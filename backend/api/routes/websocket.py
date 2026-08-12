@@ -16,7 +16,8 @@ from api.dependencies import (
     get_admin_invite_code,
     is_admin_token,
 )
-from realtime import game_room_manager, order_event_hub
+from game_runtime import game_room_manager
+from realtime_events import order_event_hub
 from services import game_settlement_service, game_socket_session_service
 
 

@@ -29,7 +29,7 @@ def test_join_sends_first_state_before_durable_snapshot(monkeypatch):
     def persist(room_code, snapshot, ttl_seconds=900):
         events.append(("persist", room_code, ttl_seconds, snapshot["phase"]))
 
-    monkeypatch.setattr("realtime.game_state_store.set", persist)
+    monkeypatch.setattr("game_runtime.manager.game_state_store.set", persist)
 
     async def scenario():
         manager = GameRoomManager()
@@ -58,7 +58,7 @@ def test_move_broadcast_is_not_blocked_by_slow_durable_snapshot(monkeypatch):
         time.sleep(0.2)
         events.append(("persist_finished", snapshot["state_version"]))
 
-    monkeypatch.setattr("realtime.game_state_store.set", persist)
+    monkeypatch.setattr("game_runtime.manager.game_state_store.set", persist)
 
     async def scenario():
         manager = GameRoomManager()

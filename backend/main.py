@@ -25,7 +25,7 @@ from api.router import router as api_router
 from core.game_room_lease import INSTANCE_ID, renew_room_leases
 from core.rate_limit import RateLimitExceeded, rate_limiter
 from database import Base, SessionLocal, engine, ensure_compatible_schema
-from realtime import game_room_manager
+from game_runtime import game_room_manager
 from seed import seed_achievements, seed_dishes, seed_game_events, seed_games
 from storage import UPLOAD_DIR, ensure_upload_directory
 

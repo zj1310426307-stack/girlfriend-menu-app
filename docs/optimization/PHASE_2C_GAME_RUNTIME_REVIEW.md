@@ -265,3 +265,30 @@ latency were not verified in this environment.
 **Round 3 readiness: YES, after explicit approval.** Round 3 may structurally
 split `realtime.py` only; it must not rewrite dice/Gomoku rules, privacy,
 snapshot, recovery, lease or protocol behavior. This execution stops at Round 2.
+
+## 17. Round 3 execution
+
+Round 3 separates the combined module without changing its public contract:
+
+- `backend/realtime_events.py` owns `OrderEventHub` and its singleton;
+- `backend/game_runtime/manager.py` owns `GameRoomManager`, dice/Gomoku state,
+  filtering, recovery, AI and broadcasts;
+- `backend/realtime.py` is a small compatibility facade exporting the same
+  classes and exact singleton objects;
+- production modules import the new owner directly, while historical tests and
+  external scripts remain valid through the facade.
+
+The production gate before Round 3 found and fixed three real defects: an
+existing seat lacked its room relationship during reconnect token rotation,
+durable snapshot writes blocked every broadcast, and state versions were
+incremented after payload creation. The controlled Render run then completed a
+two-client Gomoku round with one disconnect/reconnect, winner match and complete
+settlement. Nine action samples measured p50 97 ms (max 694 ms). First state
+remains about 4.9-9.8 seconds and settlement visibility about 34.5 seconds, both
+tracked as P1 hosted database/platform latency rather than correctness failures.
+
+## 18. Round 3 rollback
+
+Recombine `realtime_events.py` and `game_runtime/manager.py` into `realtime.py`,
+restore direct imports, and remove the facade identity test. No schema or data
+rollback is required.

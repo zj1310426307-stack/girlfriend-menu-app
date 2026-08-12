@@ -17,7 +17,7 @@ from api.dependencies import (
     verify_admin_token,
 )
 from database import get_db
-from realtime import order_event_hub
+from realtime_events import order_event_hub
 from services import order_service, review_service
 
 

@@ -16,7 +16,7 @@ from fastapi import HTTPException
 import customer_service
 from core.game_room_lease import acquire_room_lease, release_room_lease
 from database import SessionLocal
-from realtime import game_room_manager
+from game_runtime import game_room_manager
 from services import game_persistence_service
 
 
