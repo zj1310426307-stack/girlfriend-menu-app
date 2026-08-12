@@ -39,6 +39,7 @@ GET /api/games/rooms/{room_code}
 GET /api/games/tasks/my
 GET /api/games/{room_code}/state
 GET /api/health
+GET /api/images/{image_id}
 GET /api/notifications
 GET /api/notifications/unread-count
 GET /api/orders

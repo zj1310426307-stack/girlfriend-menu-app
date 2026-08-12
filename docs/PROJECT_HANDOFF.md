@@ -36,7 +36,7 @@
 - `CUSTOMER_INVITE_CODE` 只用于普通端准入和身份恢复，不再回退到 `ADMIN_INVITE_CODE`。数据库只保存 token 哈希，恢复成功会撤销该客户的旧会话。
 - 管理端令牌为 12 小时 HMAC 签名载荷。修改 `ADMIN_SECRET` 或 `ADMIN_TOKEN_VERSION` 可整体撤销已有令牌。
 - 生产启动必须先执行 Alembic；应用内 `create_all` 和旧 SQLite 兼容检查仅在 development/test 运行。
-- 图片生产存储为 S3-compatible provider。缺少配置时核心 API 仍可运行，但 `/api/ready` 标记 `release-blocked`，禁止正式发布。
+- 私人部署的图片生产存储使用 PostgreSQL provider；`/api/ready` 会校验 provider。图片量增大时可无损切换到 S3-compatible provider。
 - 当前自动化验证不覆盖微信双真机、Render 冷启动、Neon 恢复演练或真实对象存储，因此版本保持 RC。
 - 以 [V2.8 能力矩阵](CAPABILITY_MATRIX.md)、[发布清单](RELEASE_CHECKLIST_V2_8.md)、[备份恢复](BACKUP_AND_RESTORE.md)和[回滚手册](ROLLBACK_V2_8.md)作为后续交接入口。
 - Phase 2A 已将 HTTP/WebSocket 路由拆分到 `backend/api/routes/`，共享鉴权和客户身份依赖位于 `backend/api/dependencies.py`；`main.py` 只保留应用装配，API 和数据库契约未改变。
@@ -315,7 +315,7 @@ waiting → playing → finished → 双方 rematch/playing
 
 ### P0：正式发布前外部验收
 
-1. 生产图片对象存储仍需配置并完成真实上传、读取和删除验收。
+1. PostgreSQL 图片 provider 仍需完成一次生产上传、读取验收。
 2. 所有双人游戏仍需两台真机完成加入、弱网、切后台、断线恢复和重开验收。
 
 ### P1：稳定性与维护
@@ -323,7 +323,7 @@ waiting → playing → finished → 双方 rematch/playing
 1. V2.11 已用 PostgreSQL 租约解决多实例同时写入同一实时房间；连接对象仍在实例内，实例切换会经历一次客户端重连，不是无感迁移。
 2. V2.11 已增加每分钟结算补偿、房间 TTL/`abandoned`、REST 动作幂等和象棋/斗兽棋超时和棋；仍需在真实 Render 多实例与双真机上做故障注入验收。
 3. `failed` 结算自动重试上限为 10 次；持续失败目前通过数据库字段和日志排查，管理端尚无专门的失败结算工作台。
-4. 生产图片必须使用 S3-compatible 对象存储；Render 本地目录仅供开发。
+4. 生产图片必须使用 PostgreSQL 或 S3-compatible 持久化 provider；Render 本地目录仅供开发。
 
 ### P2：体验与产品结构
 
@@ -362,7 +362,7 @@ waiting → playing → finished → 双方 rematch/playing
 
 - 为订单创建不可枚举访问凭证，历史与评价接口校验凭证或设备身份。
 - API 地址按开发/生产构建环境管理。
-- 图片迁移到对象存储。
+- 图片规模增长后迁移到对象存储。
 - 实时房间增加 TTL、断线重连提示和服务重启提示。
 - 增加订单状态转换测试、图片验证测试和权限测试。
 

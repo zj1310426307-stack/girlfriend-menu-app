@@ -29,7 +29,7 @@ services:
       - key: ALLOW_LEGACY_CUSTOMER_HEADER
         value: false
       - key: UPLOAD_PROVIDER
-        value: s3
+        value: database
       - key: S3_ENDPOINT
         sync: false
       - key: S3_REGION

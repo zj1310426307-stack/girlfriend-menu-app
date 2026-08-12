@@ -42,8 +42,9 @@ Completed against `https://girlfriend-menu-api.onrender.com` after deploying
 Phase 1 and Phase 2A commit `5fe1cf8`:
 
 - `/api/health`: HTTP 200
-- `/api/ready`: HTTP 200; PostgreSQL ready; release remains blocked only by the
-  known missing S3/R2 credentials
+- `/api/ready`: pre-change production returned release-blocked for missing R2;
+  the follow-up release uses the PostgreSQL image provider and must be rechecked
+  after deployment
 - legacy device recovery: stable customer ID, token rotation, old token rejected
 - order submission: passed with controlled order `#2`
 - admin status update: order `#2` changed to `已接单`
@@ -66,4 +67,3 @@ entry points remain compatibility wrappers, so rollback is file-scoped:
 2. restore the Dish/Favorite wrapper bodies in `backend/crud.py`;
 3. remove the new `backend/repositories/` and `backend/services/` files;
 4. rerun the 81-test and 87/3 route gates.
-

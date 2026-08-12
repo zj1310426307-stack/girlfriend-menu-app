@@ -4,7 +4,7 @@ from datetime import date, datetime, time as datetime_time, timedelta, timezone
 from fastapi import HTTPException
 from sqlalchemy import and_, func, or_
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session, noload, selectinload
 
 import models
 import schemas
@@ -103,6 +103,24 @@ def get_game_room(db: Session, room_code: str):
     return room
 
 
+def get_game_room_runtime(db: Session, room_code: str):
+    """Load only room metadata for latency-sensitive runtime paths.
+
+    ``GameRoom`` owns several ``selectin`` relationships used by admin and
+    replay responses. WebSocket setup does not need those collections, so
+    loading them here would turn one lookup into a burst of database queries.
+    """
+    room = (
+        db.query(models.GameRoom)
+        .options(noload("*"))
+        .filter(models.GameRoom.room_code == room_code.strip().upper())
+        .first()
+    )
+    if not room:
+        raise HTTPException(status_code=404, detail="房间不存在或已经失效")
+    return room
+
+
 def update_game_room_status(db: Session, room_code: str, room_status: str):
     room = get_game_room(db, room_code)
     room.state_version = int(room.state_version or 0) + 1
@@ -120,22 +138,41 @@ def update_game_room_status(db: Session, room_code: str, room_status: str):
 
 
 def list_game_players(db: Session, room_code: str):
-    room = get_game_room(db, room_code)
+    room_id = (
+        db.query(models.GameRoom.id)
+        .filter(models.GameRoom.room_code == room_code.strip().upper())
+        .scalar()
+    )
+    if room_id is None:
+        raise HTTPException(status_code=404, detail="房间不存在或已经失效")
     return (
         db.query(models.GamePlayer)
-        .filter(models.GamePlayer.room_id == room.id)
+        .filter(models.GamePlayer.room_id == room_id)
         .order_by(models.GamePlayer.seat)
         .all()
     )
 
 
-def join_game_room(db: Session, room_code: str, player_id: str):
+def join_game_room(
+    db: Session,
+    room_code: str,
+    player_id: str,
+    *,
+    commit: bool = True,
+):
     """Join the first free seat and return the persisted player.
 
     Repeated requests from the same device are idempotent. The database unique
     constraints remain the final protection if two clients race for one seat.
     """
-    room = get_game_room(db, room_code)
+    room = (
+        db.query(models.GameRoom)
+        .options(noload("*"), selectinload(models.GameRoom.players))
+        .filter(models.GameRoom.room_code == room_code.strip().upper())
+        .first()
+    )
+    if not room:
+        raise HTTPException(status_code=404, detail="房间不存在或已经失效")
     player_id = player_id.strip()
     if not player_id:
         raise HTTPException(status_code=400, detail="玩家标识不能为空")
@@ -153,7 +190,10 @@ def join_game_room(db: Session, room_code: str, player_id: str):
         existing.disconnected_at = None
         existing.expires_at = None
         touch_game_room(room, now)
-        db.commit()
+        if commit:
+            db.commit()
+        else:
+            db.flush()
         return existing
     if room.status in {"finished", "abandoned"}:
         raise HTTPException(status_code=409, detail="本房间对局已经结束")
@@ -167,7 +207,7 @@ def join_game_room(db: Session, room_code: str, player_id: str):
         raise HTTPException(status_code=409, detail="房间人数已满")
 
     player = models.GamePlayer(
-        room_id=room.id,
+        room=room,
         player_id=player_id,
         seat=available_seat,
         last_activity_at=datetime.now(timezone.utc),
@@ -178,7 +218,10 @@ def join_game_room(db: Session, room_code: str, player_id: str):
         room.finished_at = None
     touch_game_room(room)
     try:
-        db.commit()
+        if commit:
+            db.commit()
+        else:
+            db.flush()
     except IntegrityError:
         db.rollback()
         existing = (
@@ -192,7 +235,8 @@ def join_game_room(db: Session, room_code: str, player_id: str):
         if existing:
             return existing
         raise HTTPException(status_code=409, detail="房间座位刚刚被其他玩家占用")
-    db.refresh(player)
+    if commit:
+        db.refresh(player)
     if (
         player_id != room.creator
         and room.creator != "legacy_client"
@@ -220,7 +264,12 @@ def join_game_room(db: Session, room_code: str, player_id: str):
     return player
 
 
-def issue_room_session_token(db: Session, player: models.GamePlayer) -> tuple[str, datetime]:
+def issue_room_session_token(
+    db: Session,
+    player: models.GamePlayer,
+    *,
+    commit: bool = True,
+) -> tuple[str, datetime]:
     token = f"gfr_{secrets.token_urlsafe(36)}"
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
     player.room_session_token_hash = hash_token(token)
@@ -228,7 +277,10 @@ def issue_room_session_token(db: Session, player: models.GamePlayer) -> tuple[st
     player.disconnected_at = None
     player.expires_at = expires_at
     touch_game_room(player.room)
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     return token, expires_at
 
 

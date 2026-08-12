@@ -419,7 +419,7 @@ wss://girlfriend-menu-api.onrender.com/ws/game/{room_code}
 - 普通端使用后端设备会话和 Bearer token；数据库只保存 token 哈希。会话默认 90 天有效，支持轮换和主动撤销。旧 `gf_customer_id` 可通过 `/api/customers/recover` 恢复原身份；恢复时撤销该身份的旧会话，避免丢失历史订单、收藏、积分和游戏记录。
 - 邀请码仅发送到后端验证，不再编译进小程序包；它仍是私人应用的设备准入方式，不等同于微信账号登录。
 - 所有已开放游戏的进行中权威状态均写入 PostgreSQL；WebSocket 连接对象仍只存在于当前进程，Redis 仅加速热状态。数据库租约保证一个房间同一时刻只有一个写入实例，跨实例切换依靠客户端重连，不承诺不断线迁移。
-- 生产图片必须配置 S3-compatible 对象存储。`/api/ready` 会把缺失配置标记为 `release-blocked`；Render 本地 `uploads/` 只允许开发使用。
+- 私人部署默认把压缩后的菜品图片持久化到 PostgreSQL；Render 本地 `uploads/` 只允许开发使用。图片量明显增大时再切换 S3-compatible 对象存储。
 - 当前没有微信 OpenID、手机号、订阅消息、支付、库存或采购清单。
 
 更完整的当前产品审计见 [项目交接文档](docs/PROJECT_HANDOFF.md)，未来目标架构和分阶段执行提示词见 [V2.0 产品与架构方案](docs/V2_PRODUCT_PLAN.md)。
@@ -449,7 +449,7 @@ ADMIN_INVITE_CODE
 ADMIN_SECRET
 ALLOW_LEGACY_CUSTOMER_HEADER=false
 CUSTOMER_SESSION_TTL_DAYS=90
-UPLOAD_PROVIDER=s3
+UPLOAD_PROVIDER=database
 S3_ENDPOINT
 S3_REGION
 S3_BUCKET
@@ -457,6 +457,8 @@ S3_ACCESS_KEY_ID
 S3_SECRET_ACCESS_KEY
 S3_PUBLIC_BASE_URL
 ```
+
+私人部署默认使用 `UPLOAD_PROVIDER=database`：后端会先校验并压缩图片，再将少量菜品图片保存到现有 PostgreSQL，通过 `/api/images/{id}` 长缓存访问。这样不需要额外的 R2/S3 账号或密钥。若图片规模增大，可把 `UPLOAD_PROVIDER` 改回 `s3` 并配置上面的 S3/R2 环境变量，现有 `image_url` 不受影响。
 
 `REDIS_URL` 可选；PostgreSQL 是权威状态来源。`GAME_ROOM_LEASE_SECONDS` 默认 30 秒，通常无需修改；`GAME_INSTANCE_ID` 可选，Render 会自动使用实例标识或主机名。正式启动命令先执行 `alembic upgrade head`，生产应用进程不再自动建表或运行手写 `ALTER TABLE`。
 
@@ -474,4 +476,4 @@ python scripts/check_secrets.py
 python scripts/check_release_config.py
 ```
 
-完整步骤见 [V2.8 发布清单](docs/RELEASE_CHECKLIST_V2_8.md)、[备份与恢复](docs/BACKUP_AND_RESTORE.md)和[回滚手册](docs/ROLLBACK_V2_8.md)。双真机、Neon 临时库恢复和真实 S3 上传完成前，不得把版本改为 `2.8.0`。
+完整步骤见 [V2.8 发布清单](docs/RELEASE_CHECKLIST_V2_8.md)、[备份与恢复](docs/BACKUP_AND_RESTORE.md)和[回滚手册](docs/ROLLBACK_V2_8.md)。正式发布前仍需完成双真机和 Neon 临时库恢复验收。

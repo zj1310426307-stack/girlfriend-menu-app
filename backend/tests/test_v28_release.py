@@ -182,6 +182,28 @@ def test_upload_rejects_extension_disguise_and_reencodes_image(monkeypatch, tmp_
         assert unavailable.status_code == 503
 
 
+def test_database_upload_is_persistent_and_public(monkeypatch):
+    monkeypatch.setenv("UPLOAD_PROVIDER", "database")
+    monkeypatch.setenv("APP_ENV", "production")
+    with TestClient(app) as client:
+        admin = admin_headers(client)
+        raw = BytesIO()
+        Image.new("RGB", (8, 8), color=(232, 184, 109)).save(raw, "PNG")
+        uploaded = client.post(
+            "/api/upload/image",
+            headers=admin,
+            files={"file": ("dish.png", raw.getvalue(), "image/png")},
+        )
+        assert uploaded.status_code == 200
+        image_url = uploaded.json()["image_url"]
+        assert image_url.startswith("/api/images/")
+        downloaded = client.get(image_url)
+        assert downloaded.status_code == 200
+        assert downloaded.headers["content-type"] == "image/png"
+        assert downloaded.headers["cache-control"] == "public, max-age=31536000, immutable"
+        assert downloaded.content.startswith(b"\x89PNG")
+
+
 def test_inactive_game_room_hot_state_expires():
     async def scenario():
         manager = GameRoomManager()

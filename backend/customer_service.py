@@ -8,7 +8,7 @@ import secrets
 
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from auth import hash_token, new_customer_credentials
 import models
@@ -155,7 +155,12 @@ def create_session(
     raise HTTPException(status_code=503, detail="暂时无法创建设备会话，请稍后重试")
 
 
-def authenticate(db: Session, token: str | None) -> models.Customer:
+def authenticate(
+    db: Session,
+    token: str | None,
+    *,
+    update_last_seen: bool = True,
+) -> models.Customer:
     """Authenticate an active unexpired session, lazily bridging old token hashes."""
     if not token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="请重新验证邀请码")
@@ -163,11 +168,12 @@ def authenticate(db: Session, token: str | None) -> models.Customer:
     now = utc_now()
     session = (
         db.query(models.CustomerSession)
+        .options(joinedload(models.CustomerSession.customer))
         .filter(models.CustomerSession.token_hash == token_digest)
         .first()
     )
     if session:
-        customer = db.get(models.Customer, session.customer_id)
+        customer = session.customer
         expired = _as_utc(session.expires_at) <= now
         if not customer or not customer.is_active or session.revoked_at is not None or expired:
             if expired and session.revoked_at is None:
@@ -177,9 +183,10 @@ def authenticate(db: Session, token: str | None) -> models.Customer:
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="设备登录已失效，请重新验证邀请码",
             )
-        session.last_seen_at = now
-        customer.last_seen_at = now
-        db.commit()
+        if update_last_seen:
+            session.last_seen_at = now
+            customer.last_seen_at = now
+            db.commit()
         return customer
 
     # Compatibility bridge for databases upgraded before customer_sessions existed.

@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, JSON, LargeBinary, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
@@ -80,6 +80,18 @@ class Dish(Base):
     tags = Column(JSON, nullable=True, default=list)
     is_active = Column(Boolean, nullable=False, default=True, index=True)
     created_at = Column(DateTime, default=datetime.now, nullable=False)
+
+
+class UploadedImage(Base):
+    """Small persistent dish image stored in PostgreSQL as the free fallback."""
+
+    __tablename__ = "uploaded_images"
+
+    id = Column(String(32), primary_key=True)
+    content_type = Column(String(50), nullable=False)
+    content = Column(LargeBinary, nullable=False)
+    size = Column(Integer, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
 
 
 class Order(Base):

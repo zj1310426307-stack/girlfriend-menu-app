@@ -75,6 +75,28 @@ class S3CompatibleStorageProvider(StorageProvider):
         return f"{self.public_base}/{key}"
 
 
+class DatabaseStorageProvider(StorageProvider):
+    """Persist compressed images in PostgreSQL for small private deployments."""
+
+    def save(self, content: bytes, extension: str, content_type: str) -> str:
+        del extension
+        from database import SessionLocal
+        import models
+
+        image_id = uuid4().hex
+        with SessionLocal() as db:
+            db.add(
+                models.UploadedImage(
+                    id=image_id,
+                    content_type=content_type,
+                    content=content,
+                    size=len(content),
+                )
+            )
+            db.commit()
+        return f"/api/images/{image_id}"
+
+
 def _validated_image(content: bytes, requested_extension: str) -> tuple[bytes, str, str]:
     try:
         with Image.open(BytesIO(content)) as candidate:
@@ -110,6 +132,8 @@ def get_storage_provider() -> StorageProvider:
         return LocalStorageProvider()
     if provider in {"s3", "s3-compatible"}:
         return S3CompatibleStorageProvider()
+    if provider in {"database", "postgresql"}:
+        return DatabaseStorageProvider()
     raise ValueError(f"不支持的图片存储类型：{provider}")
 
 
@@ -132,6 +156,12 @@ def storage_readiness() -> dict[str, object]:
             "provider": "s3",
             "status": "ready" if not missing else "release-blocked",
             "missing": missing,
+        }
+    if provider in {"database", "postgresql"}:
+        return {
+            "provider": "database",
+            "status": "ready",
+            "missing": [],
         }
     return {"provider": provider, "status": "invalid", "missing": []}
 

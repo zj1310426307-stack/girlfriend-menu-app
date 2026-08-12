@@ -9,6 +9,7 @@ import asyncio
 from datetime import datetime, timezone
 import logging
 import secrets
+import time
 
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 
@@ -166,10 +167,15 @@ async def _game_room_socket(
     normalized_room_code = room_code.strip().upper()
     game_type = forced_game_type or "unknown"
     room_session = None
+    started_at = time.perf_counter()
+    setup_finished_at = started_at
+    join_received_at = started_at
+    auth_finished_at = started_at
+    membership_finished_at = started_at
     try:
         try:
             with SessionLocal() as db:
-                room_record = crud.get_game_room(db, normalized_room_code)
+                room_record = crud.get_game_room_runtime(db, normalized_room_code)
                 game_type = room_record.game_type
                 is_warm_gomoku_room = (
                     game_type == "gomoku"
@@ -211,12 +217,14 @@ async def _game_room_socket(
                     normalized_room_code,
                     crud.list_game_players(db, normalized_room_code),
                 )
+                setup_finished_at = time.perf_counter()
         except HTTPException as error:
             await _send_game_error(websocket, str(error.detail), game_type, protocol)
             await websocket.close(code=4404)
             return
 
         join_message = await asyncio.wait_for(websocket.receive_json(), timeout=10)
+        join_received_at = time.perf_counter()
         join_data = (
             join_message.get("data")
             if isinstance(join_message.get("data"), dict)
@@ -237,7 +245,11 @@ async def _game_room_socket(
         if customer_token:
             try:
                 with SessionLocal() as db:
-                    player_id = customer_service.authenticate(db, customer_token).id
+                    player_id = customer_service.authenticate(
+                        db,
+                        customer_token,
+                        update_last_seen=False,
+                    ).id
             except HTTPException:
                 await _send_game_error(websocket, "设备登录已失效", game_type, protocol)
                 await websocket.close(code=4401)
@@ -252,6 +264,7 @@ async def _game_room_socket(
             await _send_game_error(websocket, "请重新验证设备后加入房间", game_type, protocol)
             await websocket.close(code=4401)
             return
+        auth_finished_at = time.perf_counter()
         player_name = str(join_data.get("name") or "玩家").strip()[:20] or "玩家"
         if not player_id:
             await _send_game_error(websocket, "玩家标识不能为空", game_type, protocol)
@@ -259,10 +272,21 @@ async def _game_room_socket(
             return
         try:
             with SessionLocal() as db:
-                stored_player = crud.join_game_room(db, normalized_room_code, player_id)
+                stored_player = crud.join_game_room(
+                    db,
+                    normalized_room_code,
+                    player_id,
+                    commit=False,
+                )
                 if customer_token:
-                    room_session = crud.issue_room_session_token(db, stored_player)
+                    room_session = crud.issue_room_session_token(
+                        db,
+                        stored_player,
+                        commit=False,
+                    )
+                db.commit()
                 stored_players = crud.list_game_players(db, normalized_room_code)
+                membership_finished_at = time.perf_counter()
         except HTTPException as error:
             await _send_game_error(websocket, str(error.detail), game_type, protocol)
             await websocket.close(code=4404)
@@ -281,6 +305,19 @@ async def _game_room_socket(
             await websocket.close(code=4404)
             return
         joined_room = True
+        first_state_finished_at = time.perf_counter()
+        logger.info(
+            "game_ws_first_state room=%s game=%s setup_ms=%d client_join_wait_ms=%d "
+            "auth_ms=%d membership_ms=%d manager_join_ms=%d total_ms=%d",
+            normalized_room_code,
+            game_type,
+            round((setup_finished_at - started_at) * 1000),
+            round((join_received_at - setup_finished_at) * 1000),
+            round((auth_finished_at - join_received_at) * 1000),
+            round((membership_finished_at - auth_finished_at) * 1000),
+            round((first_state_finished_at - membership_finished_at) * 1000),
+            round((first_state_finished_at - started_at) * 1000),
+        )
         if room_session:
             await websocket.send_json(
                 {

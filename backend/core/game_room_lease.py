@@ -7,7 +7,7 @@ import os
 import socket
 
 from sqlalchemy import or_, update
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, noload
 
 import models
 
@@ -49,6 +49,7 @@ def acquire_room_lease(
     expires_at = now + timedelta(seconds=max(15, lease_seconds))
     room = (
         db.query(models.GameRoom)
+        .options(noload("*"))
         .filter(models.GameRoom.room_code == normalized)
         .first()
     )

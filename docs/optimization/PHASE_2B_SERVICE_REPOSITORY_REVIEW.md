@@ -12,8 +12,9 @@ Dish and Favorite. Review, Order and Stats were not migrated.
 - Baseline API shape: 87 HTTP operations, 3 WebSocket paths
 - Controlled production smoke: all requested checks passed; full evidence is in
   `PHASE_2B_PRECHECK.md`
-- Known readiness state: PostgreSQL ready; S3/R2 credentials remain an external
-  release blocker
+- Known pre-change readiness state: PostgreSQL ready while S3/R2 was missing.
+  The follow-up release replaces that external blocker with the database image
+  provider and requires a post-deploy readiness/upload smoke.
 
 ## 2. crud.py Before
 
@@ -114,8 +115,8 @@ not a production implementation failure.
 | Issue | Severity | Evidence | Affected code | Recommended phase |
 |---|---|---|---|---|
 | Production WebSocket first state latency about 33–36 seconds | P1 | controlled smoke room `82MJZX` | Render/game gateway path | performance/stability follow-up |
-| Production readiness blocked by missing S3/R2 credentials | release blocker for uploads | `/api/ready` | deployment configuration | deployment operations |
-| Pytest default Windows temp root can be unreadable | local environment | initial 79 passed + 2 setup errors; repository-owned `--basetemp` yields 81/85 passed | developer test command | developer tooling |
+| Production image readiness changed from missing R2 to PostgreSQL provider | deploy verification | `/api/ready` and real upload/read smoke | deployment configuration | deployment operations |
+| Pytest default Windows temp root can be unreadable | resolved locally | `backend/pytest.ini` now pins repository-owned `.pytest-tmp`; 87 passed | developer test command | developer tooling |
 
 No bug was broadened into this refactor.
 
@@ -135,4 +136,3 @@ Round 1 can be rolled back without database work:
 **NO.** Phase 2B is intentionally incomplete. The next authorized work is
 Step 3 Review, Step 4 Order and Step 5 Stats. Phase 2C must remain a separate,
 explicitly reviewed change after Phase 2B completes.
-

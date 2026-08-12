@@ -48,7 +48,7 @@ def test_customer_session_migration_backfills_and_round_trips(tmp_path):
             assert row[2]
             assert row[3] == "migration-bridge"
 
-        command.downgrade(config, "-1")
+        command.downgrade(config, "20260811_10")
         with sqlite3.connect(db_path) as connection:
             tables = {
                 item[0]

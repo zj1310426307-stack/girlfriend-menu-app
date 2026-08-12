@@ -110,7 +110,9 @@ class GameRoomManager:
         existed = await self.has_room(normalized)
         result = await self.create_room(normalized, game_type, max_players)
         if not existed:
-            snapshot = game_state_store.get(normalized)
+            # PostgreSQL is the durable source. Run its lookup off the event
+            # loop so one cold room cannot freeze unrelated live sockets.
+            snapshot = await asyncio.to_thread(game_state_store.get, normalized)
             if snapshot and snapshot.get("game_type") == game_type:
                 async with self.lock:
                     self._restore_snapshot(self.rooms[normalized], snapshot)
@@ -297,7 +299,9 @@ class GameRoomManager:
                 room["turn_id"] = engine.turn_id
                 if engine.phase == "playing" and room["started_at"] is None:
                     room["started_at"] = time.monotonic()
-            self._cache_room(room)
+            # The seats already come from PostgreSQL. Persisting the identical
+            # snapshot here adds a full write before the first WebSocket state
+            # without improving recovery guarantees.
 
     async def configure_gomoku_ai(self, room_code: str, difficulty: str = "rule") -> None:
         """Mark a Gomoku room as solo mode and restore its synthetic opponent."""
@@ -376,8 +380,17 @@ class GameRoomManager:
                 room["phase"] = "rolling"
                 room["started_at"] = time.monotonic()
             payloads = self._payloads(room)
-            self._cache_room(room)
+            snapshot = self._snapshot(room)
         await self._send_payloads(payloads)
+        # Joining is already durable in ``game_players``. Send the first
+        # viewer-filtered state immediately, then mirror the recoverable engine
+        # snapshot off the event loop. No game action can be lost here.
+        await asyncio.to_thread(
+            game_state_store.set,
+            room_code,
+            snapshot,
+            900,
+        )
         return True, ""
 
     async def leave(self, room_code, player_id, websocket):

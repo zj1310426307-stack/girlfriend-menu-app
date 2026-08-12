@@ -2,9 +2,12 @@
 
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
+from sqlalchemy.orm import Session
 
 from api.dependencies import verify_admin_token
+from database import get_db
+import models
 from storage import save_image
 
 
@@ -13,6 +16,21 @@ router = APIRouter()
 ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 ALLOWED_IMAGE_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
 MAX_IMAGE_SIZE = 5 * 1024 * 1024
+
+
+@router.get("/api/images/{image_id}")
+def uploaded_image(image_id: str, db: Session = Depends(get_db)):
+    """Serve one immutable database-backed image without authentication."""
+    if len(image_id) != 32 or not all(char in "0123456789abcdef" for char in image_id):
+        raise HTTPException(status_code=404, detail="图片不存在")
+    item = db.get(models.UploadedImage, image_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="图片不存在")
+    return Response(
+        content=item.content,
+        media_type=item.content_type,
+        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+    )
 
 
 @router.post("/api/upload/image", dependencies=[Depends(verify_admin_token)])
