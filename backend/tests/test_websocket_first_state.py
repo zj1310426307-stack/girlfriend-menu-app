@@ -14,6 +14,14 @@ class RecordingSocket:
         self.events.append(("state", payload["type"]))
 
 
+class VersionSocket:
+    def __init__(self, versions):
+        self.versions = versions
+
+    async def send_json(self, payload):
+        self.versions.append(payload["data"]["state_version"])
+
+
 def test_join_sends_first_state_before_durable_snapshot(monkeypatch):
     """A slow durable mirror must not hold the first renderable packet."""
     events = []
@@ -55,8 +63,9 @@ def test_move_broadcast_is_not_blocked_by_slow_durable_snapshot(monkeypatch):
     async def scenario():
         manager = GameRoomManager()
         await manager.create_room("FAST02", "gomoku", 2)
-        first = RecordingSocket(events)
-        second = RecordingSocket(events)
+        versions = []
+        first = VersionSocket(versions)
+        second = VersionSocket(versions)
         await manager.join(
             "FAST02",
             "gf_fast_black",
@@ -82,7 +91,9 @@ def test_move_broadcast_is_not_blocked_by_slow_durable_snapshot(monkeypatch):
         ) is None
         elapsed = time.perf_counter() - started
         assert elapsed < 0.1
-        assert events[:2] == [("state", "state"), ("state", "state")]
+        assert versions[-2:] == [2, 2]
+        async with manager.lock:
+            assert manager.rooms["FAST02"]["state_version"] == 2
         await manager.flush_persistence("FAST02")
         assert events[-1][0] == "persist_finished"
 

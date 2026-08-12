@@ -491,10 +491,10 @@ class GameRoomManager:
                 return None
             else:
                 error = "不支持的游戏操作"
-            payloads = self._payloads(room) if not error else []
             if not error:
                 room["state_version"] = int(room.get("state_version") or 0) + 1
                 room["last_activity_at"] = time.time()
+                payloads = self._payloads(room)
                 should_run_gomoku_ai = (
                     room["game_type"] == "gomoku"
                     and room.get("mode") == "ai"
@@ -502,6 +502,8 @@ class GameRoomManager:
                     and room["turn_id"] == GOMOKU_AI_ID
                 )
                 snapshot = self._snapshot(room)
+            else:
+                payloads = []
         if not error:
             await self._send_payloads(payloads)
             self._queue_snapshot(room_code, snapshot)

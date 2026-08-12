@@ -39,6 +39,18 @@ async def receive_json(socket, timeout: float = 90) -> dict:
     return json.loads(await asyncio.wait_for(socket.recv(), timeout))
 
 
+async def drain_latest_state(socket, idle_timeout: float = 0.35) -> dict | None:
+    """Discard reconnect presence broadcasts and retain their newest state."""
+    latest = None
+    while True:
+        try:
+            payload = await receive_json(socket, timeout=idle_timeout)
+        except asyncio.TimeoutError:
+            return latest
+        if payload.get("type") == "state":
+            latest = payload
+
+
 async def run() -> dict:
     """Execute the full two-client production acceptance flow."""
     result: dict = {"run": uuid.uuid4().hex[:8]}
@@ -236,28 +248,49 @@ async def run() -> dict:
             attempts=attempts_reconnect,
             room_busy_retries=busy_reconnect,
         )
+        opponent_reconnect_state = await drain_latest_state(second)
+        if opponent_reconnect_state:
+            result["opponent_reconnect_phase"] = opponent_reconnect_state.get(
+                "data", {}
+            ).get("phase")
 
-        async def move(socket, x: int, y: int):
+        async def move(socket, x: int, y: int, minimum_version: int):
             started_move = time.perf_counter()
             await socket.send(
                 json.dumps(
                     {"type": "MOVE", "game": "gomoku", "data": {"x": x, "y": y}}
                 )
             )
-            first_payload = await receive_json(first)
-            await receive_json(second)
-            return millis(started_move), first_payload
+            states = []
+            for viewer in (first, second):
+                while True:
+                    payload = await receive_json(viewer)
+                    version = int(payload.get("data", {}).get("state_version") or 0)
+                    if payload.get("type") == "state" and version >= minimum_version:
+                        states.append(payload)
+                        break
+            assert states[0]["data"]["state_version"] == states[1]["data"][
+                "state_version"
+            ]
+            return millis(started_move), states[0]
 
         action_times = []
         final_state = None
+        state_version = int(state_a.get("data", {}).get("state_version") or 0)
         black = [(3, 7), (4, 7), (5, 7), (6, 7), (7, 7)]
         white = [(0, 0), (0, 1), (0, 2), (0, 3)]
         for index, black_move in enumerate(black):
-            elapsed, final_state = await move(first, *black_move)
+            elapsed, final_state = await move(first, *black_move, state_version + 1)
+            state_version = int(final_state["data"]["state_version"])
             action_times.append(elapsed)
             progress("move", number=len(action_times), latency_ms=elapsed)
             if index < len(white):
-                elapsed, final_state = await move(second, *white[index])
+                elapsed, final_state = await move(
+                    second,
+                    *white[index],
+                    state_version + 1,
+                )
+                state_version = int(final_state["data"]["state_version"])
                 action_times.append(elapsed)
                 progress("move", number=len(action_times), latency_ms=elapsed)
         result.update(
