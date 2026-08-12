@@ -49,6 +49,22 @@ Action meanings:
 | `get_recent_orders` | STATS | admin router | `orders` | no | MOVE |
 | `get_favorite_ranking` | STATS | dishes router | dishes, orders, items, reviews, favorites | no | KEEP |
 
+## Final Phase 2B status
+
+| Domain | Final action | Direct router callers migrated | Compatibility facade |
+|---|---|---:|---:|
+| Dish | migrated | yes | yes |
+| Favorite | migrated | yes | yes |
+| Review | migrated | yes | yes |
+| Order | migrated | yes | yes |
+| Non-game Stats | migrated | yes | yes |
+| Favorite Ranking | KEEP | no | n/a |
+| Game / Realtime | DEFER | no | n/a |
+
+The migrated compatibility wrappers remain intentionally in `crud.py` for
+existing tests and internal callers. Phase 2C may not remove them without a new
+caller audit and explicit compatibility decision.
+
 ## First-round totals
 
 - Total functions: 37

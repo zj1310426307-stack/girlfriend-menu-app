@@ -7,7 +7,6 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 import couple_profile_service
-import crud
 import notification_service
 import schemas
 import user_service
@@ -19,6 +18,7 @@ from api.dependencies import (
 )
 from database import get_db
 from realtime import order_event_hub
+from services import order_service, review_service
 
 
 router = APIRouter()
@@ -41,7 +41,10 @@ async def submit_order(
         logger.warning("deprecated_order_body_customer_id")
     if not customer_id:
         raise HTTPException(status_code=401, detail="请先用邀请码验证设备")
-    order = crud.create_order(db, data.model_copy(update={"customer_id": customer_id}))
+    order = order_service.create_order(
+        db,
+        data.model_copy(update={"customer_id": customer_id}),
+    )
     if order.customer_id:
         user_service.ensure_user(db, order.customer_id)
         couple_profile_service.record_first_memory(
@@ -76,7 +79,7 @@ def repeat_order(
     db: Session = Depends(get_db),
 ):
     """Return an editable repeat-order draft owned by the current customer."""
-    return crud.repeat_order_draft(db, order_id, customer_id)
+    return order_service.repeat_order_draft(db, order_id, customer_id)
 
 
 @router.post(
@@ -91,7 +94,7 @@ def repeat_order_legacy(
 ):
     """Preserve the deprecated repeat-order path for deployed clients."""
     logger.warning("deprecated_endpoint endpoint=/api/orders/repeat/{order_id}")
-    return crud.repeat_order_draft(db, order_id, customer_id)
+    return order_service.repeat_order_draft(db, order_id, customer_id)
 
 
 @router.get(
@@ -101,7 +104,7 @@ def repeat_order_legacy(
 )
 def orders(db: Session = Depends(get_db)):
     """List all orders for the authenticated administrator."""
-    return crud.list_orders(db)
+    return order_service.list_orders(db)
 
 
 @router.get(
@@ -124,7 +127,7 @@ def admin_orders(
         parsed_end = date.fromisoformat(end_date) if end_date else None
     except ValueError as error:
         raise HTTPException(status_code=422, detail="日期必须使用 YYYY-MM-DD") from error
-    return crud.list_admin_orders(
+    return order_service.list_admin_orders(
         db,
         status,
         cursor,
@@ -141,7 +144,7 @@ def my_orders(
     db: Session = Depends(get_db),
 ):
     """List orders owned by the authenticated customer."""
-    return crud.list_customer_orders(db, customer_id)
+    return order_service.list_customer_orders(db, customer_id)
 
 
 @router.get(
@@ -158,7 +161,7 @@ def legacy_my_orders(
     logger.warning("deprecated_endpoint endpoint=/api/orders/my/{customer_id}")
     if legacy_customer_id != customer_id:
         raise HTTPException(status_code=404, detail="订单不存在")
-    return crud.list_customer_orders(db, customer_id)
+    return order_service.list_customer_orders(db, customer_id)
 
 
 @router.get("/api/orders/{order_id}", response_model=schemas.OrderOut)
@@ -168,7 +171,7 @@ def order_detail(
     db: Session = Depends(get_db),
 ):
     """Return one order only when the existing ownership policy allows it."""
-    order = crud.get_order(db, order_id)
+    order = order_service.get_order(db, order_id)
     if not customer_id and allow_legacy_customer_header():
         return order
     if not customer_id or order.customer_id != customer_id:
@@ -187,8 +190,8 @@ async def change_order_status(
     db: Session = Depends(get_db),
 ):
     """Update an order and preserve notification, memory and WebSocket effects."""
-    previous_status = crud.get_order(db, order_id).status
-    order = crud.update_order_status(db, order_id, data.status)
+    previous_status = order_service.get_order(db, order_id).status
+    order = order_service.update_order_status(db, order_id, data.status)
     if order.customer_id and previous_status != order.status:
         notification_service.create_notification(
             db,
@@ -220,7 +223,7 @@ async def change_order_status(
 )
 async def rollback_order_status(order_id: int, db: Session = Depends(get_db)):
     """Rollback an order through the administrator audit service and notify clients."""
-    order = crud.rollback_order_status(db, order_id)
+    order = order_service.rollback_order_status(db, order_id)
     await order_event_hub.broadcast("order_status_changed", order.id)
     return order
 
@@ -237,12 +240,12 @@ async def add_order_review(
     db: Session = Depends(get_db),
 ):
     """Create one owned review and preserve administrator notification and broadcast."""
-    order = crud.get_order(db, order_id)
+    order = order_service.get_order(db, order_id)
     if not customer_id and not allow_legacy_customer_header():
         raise HTTPException(status_code=401, detail="请先用邀请码验证设备")
     if customer_id and order.customer_id != customer_id:
         raise HTTPException(status_code=404, detail="订单不存在")
-    review = crud.create_review(db, order_id, data)
+    review = review_service.create_review(db, order_id, data)
     notification_service.create_notification(
         db,
         "admin",
@@ -262,9 +265,9 @@ def order_review(
     db: Session = Depends(get_db),
 ):
     """Return one review only when the existing order ownership policy allows it."""
-    order = crud.get_order(db, order_id)
+    order = order_service.get_order(db, order_id)
     if not customer_id and not allow_legacy_customer_header():
         raise HTTPException(status_code=401, detail="请先用邀请码验证设备")
     if customer_id and order.customer_id != customer_id:
         raise HTTPException(status_code=404, detail="订单不存在")
-    return crud.get_review(db, order_id)
+    return review_service.get_review(db, order_id)

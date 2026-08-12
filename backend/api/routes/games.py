@@ -12,7 +12,6 @@ from sqlalchemy.orm import Session
 import achievement_service
 import animal_service
 import chess_service
-import crud
 import flight_service
 import game_data_service
 import game_recovery_service
@@ -27,6 +26,7 @@ from api.dependencies import (
 from core.cache import state_cache
 from database import get_db
 from realtime import game_room_manager
+from services import game_persistence_service
 
 
 router = APIRouter()
@@ -40,7 +40,7 @@ def _legacy_invite_allowed(invite_code: str) -> bool:
 @router.get("/api/games", response_model=list[schemas.GameOut])
 def games(db: Session = Depends(get_db)):
     """Return the existing game catalogue."""
-    return crud.list_games(db)
+    return game_persistence_service.list_games(db)
 
 
 @router.get("/api/games/records/my", response_model=list[schemas.GameRecordOut])
@@ -49,7 +49,7 @@ def my_game_records(
     db: Session = Depends(get_db),
 ):
     """Return game records visible to the authenticated customer."""
-    return crud.list_game_records(db, customer_id)
+    return game_persistence_service.list_game_records(db, customer_id)
 
 
 @router.get("/api/games/active", response_model=list[schemas.ActiveGameOut])
@@ -91,7 +91,7 @@ async def reconnect_game(
         )
         await game_room_manager.restore_players(
             room.room_code,
-            crud.list_game_players(db, room.room_code),
+            game_persistence_service.list_game_players(db, room.room_code),
         )
         payload = await game_room_manager.recovery_state(
             room.room_code,
@@ -138,14 +138,14 @@ async def create_game_room(
     creator = customer_id or (data.creator if allow_legacy_customer_header() else None)
     if not creator:
         raise HTTPException(status_code=401, detail="请先用邀请码验证设备")
-    room = crud.create_game_room(db, data.game_type, creator)
+    room = game_persistence_service.create_game_room(db, data.game_type, creator)
     if data.game_type == "gomoku" and data.mode == "ai":
-        crud.join_game_room(db, room.room_code, creator)
-        crud.join_game_room(db, room.room_code, "ai_gomoku")
+        game_persistence_service.join_game_room(db, room.room_code, creator)
+        game_persistence_service.join_game_room(db, room.room_code, "ai_gomoku")
     await game_room_manager.ensure_room(room.room_code, room.game_type, room.max_players)
     await game_room_manager.restore_players(
         room.room_code,
-        crud.list_game_players(db, room.room_code),
+        game_persistence_service.list_game_players(db, room.room_code),
     )
     if data.game_type == "gomoku" and data.mode == "ai":
         await game_room_manager.configure_gomoku_ai(room.room_code, data.difficulty)
@@ -156,7 +156,7 @@ async def create_game_room(
 @router.get("/api/games/rooms/{room_code}", response_model=schemas.GameRoomOut)
 def game_room_detail(room_code: str, db: Session = Depends(get_db)):
     """Return persistent metadata for one room."""
-    return crud.get_game_room(db, room_code)
+    return game_persistence_service.get_game_room(db, room_code)
 
 
 @router.post(
@@ -506,6 +506,10 @@ async def create_dice_room(
         raise HTTPException(status_code=410, detail="请升级小程序后从统一游戏大厅创建房间")
     if not _legacy_invite_allowed(data.invite_code):
         raise HTTPException(status_code=401, detail="邀请码错误")
-    room = crud.create_game_room(db, "dice", "legacy_client")
+    room = game_persistence_service.create_game_room(
+        db,
+        "dice",
+        "legacy_client",
+    )
     await game_room_manager.ensure_room(room.room_code, room.game_type, room.max_players)
     return {"room_code": room.room_code}

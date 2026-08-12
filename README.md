@@ -14,9 +14,12 @@
 - 生产 API：`https://girlfriend-menu-api.onrender.com`
 - 2026-08-08 验证结果：API 健康检查正常、数据库为 PostgreSQL、线上有 19 道启用菜品
 
-后端模块化状态：Phase 2A 已将 Router 从 `main.py` 拆分；Phase 2B 第一轮已将
-Dish 与 Favorite 调用收敛为 `Router -> Service -> Repository`。Review、Order、
-非游戏 Stats 仍按受控迁移计划留待下一轮，游戏与实时持久化不在 Phase 2B 范围。
+后端模块化状态：Phase 2A 已将 Router 从 `main.py` 拆分；Phase 2B 已将 Dish、
+Favorite、Review、Order 与非游戏 Stats 收敛为
+`Router -> Service -> Repository`，并保留 `crud.py` 兼容门面。喜欢排行榜以及
+游戏/实时持久化不在 Phase 2B 范围。Phase 2C Round 1 已抽出游戏目录、房间、
+玩家、房间会话与记录的持久化边界；Round 2 又抽出 WebSocket 会话编排与幂等
+结算服务。协议收发、关闭码、实时 Manager、数据库和公开接口均未变化。
 
 ## 已实现功能
 
@@ -90,7 +93,9 @@ girlfriend-menu-app/
 ├── .github/workflows/ci.yml     # 后端测试与小程序构建
 ├── backend/                     # FastAPI、SQLAlchemy、实时房间
 │   ├── main.py                  # HTTP/WebSocket 路由、鉴权、生命周期
-│   ├── crud.py                  # 菜品、订单、评价、统计业务操作
+│   ├── crud.py                  # 兼容门面、跨域排行榜与游戏持久化
+│   ├── services/                # 非游戏业务规则和事务后编排
+│   ├── repositories/            # 非游戏 SQLAlchemy 查询与持久化
 │   ├── database.py              # PostgreSQL/SQLite 连接与兼容升级
 │   ├── alembic/                 # 正式数据库迁移版本
 │   ├── alembic.ini              # Alembic 配置

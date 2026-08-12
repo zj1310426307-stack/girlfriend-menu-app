@@ -8,6 +8,7 @@ import schemas
 import system_stats_service
 from api.dependencies import verify_admin_token
 from database import get_db
+from services import stats_service
 
 
 router = APIRouter()
@@ -39,7 +40,7 @@ def admin_game_stats(db: Session = Depends(get_db)):
 )
 def stats_summary(db: Session = Depends(get_db)):
     """Return aggregate order counts for the administrator."""
-    return crud.get_stats_summary(db)
+    return stats_service.get_stats_summary(db)
 
 
 @router.get(
@@ -49,7 +50,7 @@ def stats_summary(db: Session = Depends(get_db)):
 )
 def stats_dishes(db: Session = Depends(get_db)):
     """Return per-dish order statistics for the administrator."""
-    return crud.get_dish_stats(db)
+    return stats_service.get_dish_stats(db)
 
 
 @router.get(
@@ -59,4 +60,4 @@ def stats_dishes(db: Session = Depends(get_db)):
 )
 def stats_recent(db: Session = Depends(get_db)):
     """Return the existing recent-order statistics slice."""
-    return crud.get_recent_orders(db)
+    return stats_service.get_recent_orders(db)
