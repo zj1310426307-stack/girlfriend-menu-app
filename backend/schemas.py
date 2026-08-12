@@ -20,10 +20,15 @@ class AdminLoginOut(BaseModel):
 class CustomerSessionCreate(BaseModel):
     invite_code: str = Field(min_length=1, max_length=100)
     display_name: str = Field(default="女朋友", min_length=1, max_length=50)
+    device_label: str | None = Field(default=None, max_length=100)
 
 
 class CustomerLegacyClaim(CustomerSessionCreate):
     legacy_customer_id: str = Field(min_length=3, max_length=100)
+
+
+class CustomerRecovery(CustomerLegacyClaim):
+    """Recover an already claimed legacy identity or claim it for the first time."""
 
 
 class CustomerSessionOut(BaseModel):

@@ -35,7 +35,7 @@
 ## 自动验证
 
 ```text
-backend/.venv-v27/Scripts/python.exe -m pytest -q
+backend/.venv/Scripts/python.exe -m pytest -q
 cd miniprogram
 npm run test:games
 npm run test:landlord

@@ -9,6 +9,7 @@ from PIL import Image
 import auth
 from test_api import admin_headers, app
 import models
+import storage
 from database import SessionLocal
 from realtime import GameRoomManager
 
@@ -133,7 +134,9 @@ def test_order_idempotency_status_audit_and_admin_pagination(monkeypatch):
         assert "next_cursor" in page.json()
 
 
-def test_upload_rejects_extension_disguise_and_reencodes_image(monkeypatch):
+def test_upload_rejects_extension_disguise_and_reencodes_image(monkeypatch, tmp_path):
+    # Keep upload tests isolated so repeated test runs do not pollute the real uploads directory.
+    monkeypatch.setattr(storage, "UPLOAD_DIR", tmp_path / "uploads")
     monkeypatch.setenv("UPLOAD_PROVIDER", "local")
     monkeypatch.setenv("APP_ENV", "test")
     with TestClient(app) as client:

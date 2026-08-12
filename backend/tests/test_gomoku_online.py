@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 import crud
 import models
 from database import SessionLocal
-from main import _persist_completed_game
+from api.routes.websocket import _persist_completed_game
 from test_api import admin_headers, app
 
 

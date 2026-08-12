@@ -2,7 +2,7 @@
 
 这是一个面向情侣私厨场景的微信点菜小程序：她负责选菜、提交点菜单和评价，你通过同一个小程序里的管理端查看订单、更新制作状态和维护菜单。
 
-当前产品界面只保留微信小程序。早期 React/Vite 网页端已停用；`frontend/` 仅保留 Render 旧静态服务的停用提示页，不再包含点菜功能。
+当前产品界面只保留微信小程序。早期 React/Vite 网页端及其停用占位页已从仓库删除，不再作为构建或部署入口。
 
 ## 当前版本与线上状态
 
@@ -40,7 +40,7 @@
 - 持久成就目录、解锁奖励与斗地主局后情侣约定
 - 中国象棋双人/AI 对局：标准 9×10 棋盘、服务端规则、将军与棋谱回放
 - 游戏数据中心：个人战绩、共同房间月榜、AI 角色目录和私人游戏记忆
-- 统一用户档案：旧 `customer_id` 自动映射，不要求重新登录、不丢历史
+- 统一用户档案：旧 `customer_id` 可恢复为有期限、可轮换、可撤销的设备会话，不丢历史订单与互动记录
 - 订单、游戏加入/完成和纪念日站内通知
 - “我们的故事”时间轴、手写共同记忆、纪念日与提前提醒
 - 未完成游戏发现、哈希重连凭证和通用对局回放
@@ -119,7 +119,6 @@ girlfriend-menu-app/
 │   ├── src/utils/               # 邀请码、购物车、设备身份、管理令牌
 │   ├── project.config.json      # 微信项目配置
 │   └── package.json
-├── frontend/                    # 旧网页端停用提示，不是当前产品
 ├── docs/PROJECT_HANDOFF.md      # 完整产品、架构、数据和审计交接
 ├── render.yaml                  # Render 后端部署蓝图
 └── README.md
@@ -209,7 +208,7 @@ npm run test:v27
 npm run test:games
 ```
 
-2026-08-11 本地验证：后端 `65 passed`、实时状态重启/骰子隐私回归通过、Socket 生命周期与游戏恢复契约通过、小程序生产构建通过。
+2026-08-11 本地验证：后端 `79 passed`、设备会话迁移/恢复/撤销、实时状态重启/骰子隐私、Socket 生命周期与游戏恢复契约通过，小程序生产构建通过。
 
 ## 数据库
 
@@ -219,6 +218,8 @@ npm run test:games
 - `orders`：订单状态、备注、希望用餐时间、设备 `customer_id`、再次点单来源
 - `order_items`：下单时的菜名和价格快照、数量
 - `reviews`：每个订单唯一的一条爱心评价
+- `customers`：兼容旧 `customer_id` 的稳定客户档案；旧 token 哈希暂留作迁移桥
+- `customer_sessions`：有期限、可轮换、可撤销的设备会话，只保存 token 哈希
 - `favorite_dishes`：按 `customer_id + dish_id` 唯一保存收藏
 - `games`：游戏名称、图标、类型与开放状态
 - `game_rooms`：房间码、游戏类型、创建者、房间状态、最大人数和完成时间
@@ -238,6 +239,8 @@ npm run test:games
 - `game_replays`：跨游戏的服务端结果和步骤快照
 
 V2.0 使用 Alembic 管理数据库版本。部署启动会先执行迁移，再启动 API；迁移只新增表、字段和索引，不删除或重建旧订单数据。程序内仍保留幂等兼容检查，方便旧的本地 SQLite 直接启动。
+
+后端路由已按职责拆分到 `backend/api/routes/`。`main.py` 只负责应用生命周期、中间件、静态目录和总 Router 注册；认证依赖统一位于 `backend/api/dependencies.py`。本次模块化没有改变任何 API、模型或迁移，完整审查见 [Phase 2A Router 模块化](docs/optimization/PHASE_2A_ROUTER_REVIEW.md)。
 
 完整字段和关系见 `docs/PROJECT_HANDOFF.md`。
 
@@ -259,8 +262,10 @@ alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port $PORT
 | 变量 | 用途 |
 | --- | --- |
 | `DATABASE_URL` | Neon PostgreSQL 连接串 |
+| `CUSTOMER_INVITE_CODE` | 普通端新建设备会话与找回旧身份使用的邀请码；必须与管理凭据分离 |
+| `CUSTOMER_SESSION_TTL_DAYS` | 设备会话有效期，默认 90 天，可配置 1～365 天 |
 | `ADMIN_PASSWORD` | 小程序管理端密码 |
-| `ADMIN_INVITE_CODE` | 管理登录和实时游戏房间使用的邀请码 |
+| `ADMIN_INVITE_CODE` | 仅管理端登录使用的邀请码 |
 | `ADMIN_SECRET` | 生成管理令牌的长随机密钥 |
 
 可选变量：
@@ -407,7 +412,7 @@ wss://girlfriend-menu-api.onrender.com/ws/game/{room_code}
 
 ## 当前边界
 
-- V2.8 使用后端设备会话和 Bearer token；数据库只保存 token 哈希。旧 `gf_customer_id` 可用邀请码认领一次，清缓存前应确保新令牌已保存。
+- 普通端使用后端设备会话和 Bearer token；数据库只保存 token 哈希。会话默认 90 天有效，支持轮换和主动撤销。旧 `gf_customer_id` 可通过 `/api/customers/recover` 恢复原身份；恢复时撤销该身份的旧会话，避免丢失历史订单、收藏、积分和游戏记录。
 - 邀请码仅发送到后端验证，不再编译进小程序包；它仍是私人应用的设备准入方式，不等同于微信账号登录。
 - 所有已开放游戏的进行中权威状态均写入 PostgreSQL；WebSocket 连接对象仍只存在于当前进程，Redis 仅加速热状态。数据库租约保证一个房间同一时刻只有一个写入实例，跨实例切换依靠客户端重连，不承诺不断线迁移。
 - 生产图片必须配置 S3-compatible 对象存储。`/api/ready` 会把缺失配置标记为 `release-blocked`；Render 本地 `uploads/` 只允许开发使用。
@@ -439,6 +444,7 @@ ADMIN_PASSWORD
 ADMIN_INVITE_CODE
 ADMIN_SECRET
 ALLOW_LEGACY_CUSTOMER_HEADER=false
+CUSTOMER_SESSION_TTL_DAYS=90
 UPLOAD_PROVIDER=s3
 S3_ENDPOINT
 S3_REGION
@@ -454,7 +460,7 @@ S3_PUBLIC_BASE_URL
 
 ```powershell
 cd backend
-.venv-v27\Scripts\python.exe -m pytest -q
+.venv\Scripts\python.exe -m pytest -q
 
 cd ..\miniprogram
 cmd /c npm run build:weapp

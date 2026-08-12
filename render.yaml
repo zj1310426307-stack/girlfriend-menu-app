@@ -22,6 +22,8 @@ services:
         generateValue: true
       - key: CUSTOMER_INVITE_CODE
         sync: false
+      - key: CUSTOMER_SESSION_TTL_DAYS
+        value: 90
       - key: APP_ENV
         value: production
       - key: ALLOW_LEGACY_CUSTOMER_HEADER

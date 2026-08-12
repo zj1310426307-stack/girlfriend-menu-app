@@ -9,6 +9,7 @@ if TEST_DB.exists():
 os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB.as_posix()}"
 os.environ["ADMIN_PASSWORD"] = "test-password"
 os.environ["ADMIN_INVITE_CODE"] = "test-invite"
+os.environ["CUSTOMER_INVITE_CODE"] = "test-invite"
 os.environ["ADMIN_SECRET"] = "test-secret-with-enough-entropy"
 os.environ["ALLOW_LEGACY_CUSTOMER_HEADER"] = "true"
 os.environ["APP_ENV"] = "test"

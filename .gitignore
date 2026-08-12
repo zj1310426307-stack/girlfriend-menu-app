@@ -1,8 +1,6 @@
 backend/.venv/
-backend/.venv-v27/
 backups/
 backend/*backup_exercise*.db
-backend/.runtime312/
 backend/.env
 backend/__pycache__/
 backend/**/__pycache__/
@@ -12,8 +10,6 @@ backend/tests/*.db
 scripts/__pycache__/
 backend/uploads/*
 !backend/uploads/.gitkeep
-# Temporary Render retirement page build output (not the removed web app).
-frontend/dist/
 miniprogram/node_modules/
 miniprogram/dist/
 miniprogram/.swc/

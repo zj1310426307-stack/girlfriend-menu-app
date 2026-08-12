@@ -111,9 +111,15 @@ const customerHeader = () => ({});
 export async function establishCustomerSession(inviteCode) {
   if (hasCustomerSession()) return { authenticated: true };
   const legacyCustomerId = getLegacyCustomerId();
-  const session = await request("/customers/claim-legacy", {
+  const session = await request("/customers/recover", {
     method: "POST",
-    data: { invite_code: inviteCode, legacy_customer_id: legacyCustomerId, display_name: "女朋友" }
+    data: {
+      invite_code: inviteCode,
+      legacy_customer_id: legacyCustomerId,
+      display_name: "女朋友",
+      device_label: "微信小程序"
+    },
+    preserveSession: true
   });
   saveCustomerSession(session);
   return session;
@@ -123,6 +129,11 @@ export async function refreshCustomerSession() {
   const session = await request("/customers/refresh", { method: "POST" });
   saveCustomerSession(session);
   return session;
+}
+
+export async function revokeCustomerSession() {
+  await request("/customers/revoke", { method: "POST", preserveSession: true });
+  clearCustomerSession();
 }
 
 export const getFavorites = (customerId) =>

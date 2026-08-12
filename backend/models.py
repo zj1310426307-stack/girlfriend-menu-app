@@ -25,6 +25,45 @@ class Customer(Base):
     updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
     last_seen_at = Column(DateTime(timezone=True), nullable=True, index=True)
 
+    sessions = relationship(
+        "CustomerSession",
+        back_populates="customer",
+        cascade="all, delete-orphan",
+        foreign_keys="CustomerSession.customer_id",
+    )
+
+
+class CustomerSession(Base):
+    """Revocable, expiring bearer session for one authenticated customer device."""
+
+    __tablename__ = "customer_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    customer_id = Column(
+        String(100),
+        ForeignKey("customers.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    token_hash = Column(String(128), nullable=False, unique=True, index=True)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
+    last_seen_at = Column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    revoked_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    rotated_from_id = Column(
+        Integer,
+        ForeignKey("customer_sessions.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    device_label = Column(String(100), nullable=True)
+
+    customer = relationship(
+        "Customer",
+        back_populates="sessions",
+        foreign_keys=[customer_id],
+    )
+
 
 class Dish(Base):
     __tablename__ = "dishes"

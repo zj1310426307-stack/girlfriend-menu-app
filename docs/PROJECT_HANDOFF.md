@@ -25,19 +25,21 @@
 | 生产 API | `https://girlfriend-menu-api.onrender.com` |
 | 2026-08-08 健康检查 | `/api/health` 正常；`/api/ready` 返回 PostgreSQL ready |
 | 线上启用菜品 | 19 道 |
-| 后端自动测试 | 70 项通过 |
-| 数据库迁移 | Alembic `20260811_10`；空库升级及末级降级/再升级通过 |
+| 后端自动测试 | 81 项通过（含 2 项 Router 契约测试） |
+| 数据库迁移 | Alembic `20260811_11`；空库升级及末级降级/再升级通过 |
 | 小程序构建 | `npm run build:weapp` 通过 |
 | 正式发布状态 | 代码无法证明；需在微信公众平台“版本管理”确认 |
 
 ### V2.8 安全与发布边界
 
-- 普通端由 `/api/customers/session` 建立设备会话，业务接口使用 Bearer token；旧 `gf_customer_id` 通过 `/api/customers/claim-legacy` 一次性认领。
+- 普通端由 `/api/customers/session` 建立设备会话，业务接口使用 Bearer token。会话默认 90 天有效，可轮换和撤销；旧 `gf_customer_id` 通过 `/api/customers/recover` 找回原身份和历史数据。
+- `CUSTOMER_INVITE_CODE` 只用于普通端准入和身份恢复，不再回退到 `ADMIN_INVITE_CODE`。数据库只保存 token 哈希，恢复成功会撤销该客户的旧会话。
 - 管理端令牌为 12 小时 HMAC 签名载荷。修改 `ADMIN_SECRET` 或 `ADMIN_TOKEN_VERSION` 可整体撤销已有令牌。
 - 生产启动必须先执行 Alembic；应用内 `create_all` 和旧 SQLite 兼容检查仅在 development/test 运行。
 - 图片生产存储为 S3-compatible provider。缺少配置时核心 API 仍可运行，但 `/api/ready` 标记 `release-blocked`，禁止正式发布。
 - 当前自动化验证不覆盖微信双真机、Render 冷启动、Neon 恢复演练或真实对象存储，因此版本保持 RC。
 - 以 [V2.8 能力矩阵](CAPABILITY_MATRIX.md)、[发布清单](RELEASE_CHECKLIST_V2_8.md)、[备份恢复](BACKUP_AND_RESTORE.md)和[回滚手册](ROLLBACK_V2_8.md)作为后续交接入口。
+- Phase 2A 已将 HTTP/WebSocket 路由拆分到 `backend/api/routes/`，共享鉴权和客户身份依赖位于 `backend/api/dependencies.py`；`main.py` 只保留应用装配，API 和数据库契约未改变。
 
 ## 3. 系统架构
 
@@ -64,7 +66,7 @@ flowchart LR
 - HTTP 数据通过 `miniprogram/src/api/index.js` 访问，订单推送和统一游戏协议分别由对应 WebSocket 客户端封装。
 - 订单、菜品、评价、游戏玩家、完成对局、飞行棋状态、V2.5 版本棋局、互动、任务、成就、情侣积分和统计持久化到 PostgreSQL。
 - 实时连接对象保留在进程内存；大话骰和五子棋权威快照写入 PostgreSQL `game_states`，Redis 只做可选热缓存。单实例进程重启后可恢复进行中棋盘、骰子与轮次。
-- 旧 React/Vite 网页端已退休，不应再作为功能入口。
+- 旧 React/Vite 网页端已退休且源码已清理，不再作为构建、部署或功能入口。
 
 ## 4. 页面地图
 
@@ -104,6 +106,9 @@ flowchart LR
 | --- | --- | --- |
 | `gf_invite_passed` | 是否通过邀请码 | 需要重新输入邀请码 |
 | `gf_customer_id` | 当前设备的匿名客户标识 | “我的点菜单”无法自动找回旧订单 |
+| `gf_authenticated_customer_id` | 后端确认后的稳定客户标识 | 需要用原 `gf_customer_id` 和邀请码重新恢复 |
+| `gf_customer_token` | 设备会话 Bearer 原始令牌 | 需要重新输入邀请码恢复会话 |
+| `gf_customer_expires_at` | 当前设备会话过期时间 | 过期后自动清除已认证状态并进入恢复流程 |
 | `gf_menu_cart` | 未提交的点菜清单 | 清单丢失 |
 | `gf_repeat_order_draft` | 再次点单的来源和备注 | 草稿来源信息丢失 |
 | `gf_admin_token` | 管理登录令牌 | 需要重新登录管理端 |
@@ -112,7 +117,7 @@ flowchart LR
 
 `customer_id` 不是微信账号，也不是 OpenID。它只解决最小版本里“同一台设备再次打开还能找到订单”的需求。
 
-V2.7 的 `users.user_code` 对旧 `customer_id` 做兼容映射，不改变现有 key。清空微信缓存仍会生成新设备身份；本版本没有冒充微信账号或跨设备账号找回能力。
+V2.7 的 `users.user_code` 对旧 `customer_id` 做兼容映射，不改变现有 key。只要设备仍保留原 `gf_customer_id`，会话过期或 token 丢失后可凭普通端邀请码恢复原身份；如果把微信小程序全部本地存储一并清空，则无法仅凭邀请码推断原身份。本版本没有冒充微信账号、手机号或 OpenID，也不是完整账号找回系统。
 
 ## 6. 数据模型
 
@@ -178,6 +183,13 @@ V2.7 的 `users.user_code` 对旧 `customer_id` 做兼容映射，不改变现�
 
 `customer_id + dish_id` 唯一，同一设备不会重复收藏。
 
+### customers / customer_sessions
+
+- `customers` 以唯一 `customer_id` 保存稳定客户档案；原 `token_hash` 字段暂时保留，用于旧会话平滑迁移。
+- `customer_sessions` 保存客户外键、唯一 token 哈希、创建/最后访问/过期/撤销时间、轮换来源和可选设备标签；任何接口都不会返回数据库中的哈希。
+- 新 token 默认 90 天有效，`CUSTOMER_SESSION_TTL_DAYS` 可限制在 1～365 天。刷新会撤销旧 token 并记录轮换链；主动撤销后旧 token 立即失效。
+- Alembic `20260811_11` 只新增会话表，并把旧 `customers.token_hash` 回填为 90 天迁移会话；不会删除客户、订单、收藏、积分或游戏记录，降级仅移除新会话表。
+
 ### games / game_rooms / game_players / game_records
 
 - `games`：游戏名称、文字图标、唯一 `type`、`available/coming_soon/maintenance` 状态；当前大话骰、五子棋、飞行棋、斗地主、斗兽棋与中国象棋可用。
@@ -205,6 +217,11 @@ V2.3 使用 Alembic `20260809_04` 追加 `game_players`、`game_records` 与 `ga
 | --- | --- | --- |
 | GET | `/api/health` | 服务存活检查 |
 | GET | `/api/ready` | 数据库就绪检查 |
+| POST | `/api/customers/session` | 使用普通端邀请码新建设备会话 |
+| POST | `/api/customers/claim-legacy` | 兼容旧客户端的一次性认领接口；重复认领仍返回 409 |
+| POST | `/api/customers/recover` | 使用原 `customer_id` 和普通端邀请码恢复身份，并轮换该客户的旧会话 |
+| POST | `/api/customers/refresh` | 使用当前 Bearer 轮换为新会话 |
+| POST | `/api/customers/revoke` | 主动撤销当前设备会话 |
 | GET | `/api/dishes` | 菜品列表/分类筛选 |
 | GET | `/api/dishes/{id}` | 菜品详情 |
 | GET | `/api/games` | 游戏大厅目录与开放状态 |
