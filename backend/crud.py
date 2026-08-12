@@ -10,6 +10,7 @@ import models
 import schemas
 from auth import hash_token
 from love_score import record_score
+from services import dish_service, favorite_service
 from task_service import complete_task_type
 
 
@@ -560,93 +561,43 @@ def game_stats(db: Session):
 
 
 def list_dishes(db: Session, category: str | None = None):
-    query = db.query(models.Dish).filter(models.Dish.is_active.is_(True))
-    if category:
-        query = query.filter(models.Dish.category == category)
-    return query.order_by(models.Dish.id.desc()).all()
+    """Compatibility facade; migrate callers before removal."""
+    return dish_service.list_dishes(db, category)
 
 
 def get_dish(db: Session, dish_id: int):
-    dish = (
-        db.query(models.Dish)
-        .filter(models.Dish.id == dish_id, models.Dish.is_active.is_(True))
-        .first()
-    )
-    if not dish:
-        raise HTTPException(status_code=404, detail="菜品不存在")
-    return dish
+    """Compatibility facade; migrate callers before removal."""
+    return dish_service.get_dish(db, dish_id)
 
 
 def create_dish(db: Session, data: schemas.DishCreate):
-    dish = models.Dish(**data.model_dump())
-    db.add(dish)
-    db.commit()
-    db.refresh(dish)
-    return dish
+    """Compatibility facade; migrate callers before removal."""
+    return dish_service.create_dish(db, data)
 
 
 def update_dish(db: Session, dish_id: int, data: schemas.DishUpdate):
-    dish = get_dish(db, dish_id)
-    for key, value in data.model_dump().items():
-        setattr(dish, key, value)
-    db.commit()
-    db.refresh(dish)
-    return dish
+    """Compatibility facade; migrate callers before removal."""
+    return dish_service.update_dish(db, dish_id, data)
 
 
 def delete_dish(db: Session, dish_id: int):
-    dish = get_dish(db, dish_id)
-    # Keep historical order items intact. A physical delete can fail on
-    # PostgreSQL once the dish has been ordered because of the foreign key.
-    dish.is_active = False
-    db.commit()
+    """Compatibility facade; migrate callers before removal."""
+    return dish_service.delete_dish(db, dish_id)
 
 
 def list_favorite_dishes(db: Session, customer_id: str):
-    return (
-        db.query(models.Dish)
-        .join(models.FavoriteDish, models.FavoriteDish.dish_id == models.Dish.id)
-        .filter(
-            models.FavoriteDish.customer_id == customer_id,
-            models.Dish.is_active.is_(True),
-        )
-        .order_by(models.FavoriteDish.created_at.desc())
-        .all()
-    )
+    """Compatibility facade; migrate callers before removal."""
+    return favorite_service.list_favorite_dishes(db, customer_id)
 
 
 def add_favorite_dish(db: Session, customer_id: str, dish_id: int):
-    dish = get_dish(db, dish_id)
-    existing = (
-        db.query(models.FavoriteDish)
-        .filter(
-            models.FavoriteDish.customer_id == customer_id,
-            models.FavoriteDish.dish_id == dish_id,
-        )
-        .first()
-    )
-    if existing:
-        return dish
-    db.add(models.FavoriteDish(customer_id=customer_id, dish_id=dish_id))
-    try:
-        db.commit()
-    except IntegrityError:
-        db.rollback()
-    return dish
+    """Compatibility facade; migrate callers before removal."""
+    return favorite_service.add_favorite_dish(db, customer_id, dish_id)
 
 
 def remove_favorite_dish(db: Session, customer_id: str, dish_id: int):
-    favorite = (
-        db.query(models.FavoriteDish)
-        .filter(
-            models.FavoriteDish.customer_id == customer_id,
-            models.FavoriteDish.dish_id == dish_id,
-        )
-        .first()
-    )
-    if favorite:
-        db.delete(favorite)
-        db.commit()
+    """Compatibility facade; migrate callers before removal."""
+    return favorite_service.remove_favorite_dish(db, customer_id, dish_id)
 
 
 def create_order(db: Session, data: schemas.OrderCreate):

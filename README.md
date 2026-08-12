@@ -14,6 +14,10 @@
 - 生产 API：`https://girlfriend-menu-api.onrender.com`
 - 2026-08-08 验证结果：API 健康检查正常、数据库为 PostgreSQL、线上有 19 道启用菜品
 
+后端模块化状态：Phase 2A 已将 Router 从 `main.py` 拆分；Phase 2B 第一轮已将
+Dish 与 Favorite 调用收敛为 `Router -> Service -> Repository`。Review、Order、
+非游戏 Stats 仍按受控迁移计划留待下一轮，游戏与实时持久化不在 Phase 2B 范围。
+
 ## 已实现功能
 
 女朋友端：

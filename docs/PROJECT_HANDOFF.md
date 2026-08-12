@@ -40,6 +40,7 @@
 - 当前自动化验证不覆盖微信双真机、Render 冷启动、Neon 恢复演练或真实对象存储，因此版本保持 RC。
 - 以 [V2.8 能力矩阵](CAPABILITY_MATRIX.md)、[发布清单](RELEASE_CHECKLIST_V2_8.md)、[备份恢复](BACKUP_AND_RESTORE.md)和[回滚手册](ROLLBACK_V2_8.md)作为后续交接入口。
 - Phase 2A 已将 HTTP/WebSocket 路由拆分到 `backend/api/routes/`，共享鉴权和客户身份依赖位于 `backend/api/dependencies.py`；`main.py` 只保留应用装配，API 和数据库契约未改变。
+- Phase 2B 第一轮已将 Dish 与 Favorite 迁移为 `Router -> Service -> Repository`，`crud.py` 暂留兼容 facade；Review、Order、非游戏 Stats 尚未迁移，游戏/实时持久化明确延期到 Phase 2C。
 
 ## 3. 系统架构
 

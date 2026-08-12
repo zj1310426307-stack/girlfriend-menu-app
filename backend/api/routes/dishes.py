@@ -7,6 +7,7 @@ import crud
 import schemas
 from api.dependencies import get_customer_id, verify_admin_token
 from database import get_db
+from services import dish_service, favorite_service
 
 
 router = APIRouter()
@@ -15,13 +16,13 @@ router = APIRouter()
 @router.get("/api/dishes", response_model=list[schemas.DishOut])
 def dishes(category: str | None = None, db: Session = Depends(get_db)):
     """List active dishes, optionally restricted to one category."""
-    return crud.list_dishes(db, category)
+    return dish_service.list_dishes(db, category)
 
 
 @router.get("/api/dishes/{dish_id}", response_model=schemas.DishOut)
 def dish_detail(dish_id: int, db: Session = Depends(get_db)):
     """Return one active dish or the existing not-found response."""
-    return crud.get_dish(db, dish_id)
+    return dish_service.get_dish(db, dish_id)
 
 
 @router.get("/api/favorites", response_model=list[schemas.DishOut])
@@ -30,7 +31,7 @@ def favorite_dishes(
     db: Session = Depends(get_db),
 ):
     """List dishes favorited by the authenticated customer."""
-    return crud.list_favorite_dishes(db, customer_id)
+    return favorite_service.list_favorite_dishes(db, customer_id)
 
 
 @router.post("/api/favorites/{dish_id}", response_model=schemas.DishOut)
@@ -40,7 +41,7 @@ def add_favorite(
     db: Session = Depends(get_db),
 ):
     """Add one dish to the authenticated customer's favorites."""
-    return crud.add_favorite_dish(db, customer_id, dish_id)
+    return favorite_service.add_favorite_dish(db, customer_id, dish_id)
 
 
 @router.delete("/api/favorites/{dish_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -50,7 +51,7 @@ def remove_favorite(
     db: Session = Depends(get_db),
 ):
     """Remove one owned favorite without altering the dish."""
-    crud.remove_favorite_dish(db, customer_id, dish_id)
+    favorite_service.remove_favorite_dish(db, customer_id, dish_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -62,7 +63,7 @@ def remove_favorite(
 )
 def add_dish(data: schemas.DishCreate, db: Session = Depends(get_db)):
     """Create a dish through the administrator-only catalogue endpoint."""
-    return crud.create_dish(db, data)
+    return dish_service.create_dish(db, data)
 
 
 @router.put(
@@ -72,7 +73,7 @@ def add_dish(data: schemas.DishCreate, db: Session = Depends(get_db)):
 )
 def edit_dish(dish_id: int, data: schemas.DishUpdate, db: Session = Depends(get_db)):
     """Update one dish while preserving the existing schema and status codes."""
-    return crud.update_dish(db, dish_id, data)
+    return dish_service.update_dish(db, dish_id, data)
 
 
 @router.delete(
@@ -82,7 +83,7 @@ def edit_dish(dish_id: int, data: schemas.DishUpdate, db: Session = Depends(get_
 )
 def remove_dish(dish_id: int, db: Session = Depends(get_db)):
     """Soft-delete a dish through the administrator-only endpoint."""
-    crud.delete_dish(db, dish_id)
+    dish_service.delete_dish(db, dish_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -95,4 +96,5 @@ def favorite_ranking(
     db: Session = Depends(get_db),
 ):
     """Return the current customer's dish ranking without changing its formula."""
+    # Cross-domain ranking stays in the compatibility facade until the Stats step.
     return crud.get_favorite_ranking(db, customer_id)
