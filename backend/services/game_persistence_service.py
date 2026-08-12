@@ -183,6 +183,12 @@ def join_game_room(
         raise HTTPException(status_code=400, detail="玩家标识不能为空")
     existing = game_runtime_repository.find_player(db, room.id, player_id)
     if existing:
+        # ``find_room_with_players`` intentionally disables unrelated lazy loads,
+        # so a separately queried existing seat has no ``room`` relationship.
+        # Reattach the room before the caller composes room-session issuance in
+        # the same transaction; otherwise reconnecting players crash while the
+        # room TTL is refreshed.
+        existing.room = room
         now = datetime.now(timezone.utc)
         existing.last_activity_at = now
         existing.disconnected_at = None
@@ -223,6 +229,7 @@ def join_game_room(
     except IntegrityError as error:
         existing = game_runtime_repository.find_player(db, room.id, player_id)
         if existing:
+            existing.room = room
             return existing
         raise HTTPException(
             status_code=409,

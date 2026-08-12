@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
 from core import game_room_lease
+from core.rate_limit import MemoryRateLimiter
 from database import SessionLocal
 from realtime import game_room_manager
 from services import game_persistence_service
@@ -176,6 +177,88 @@ def test_customer_session_payload_fields_are_stable():
             assert payload["room_code"] == room_code
             assert set(payload["data"]) == {"room_session_token", "expires_at"}
             assert payload["data"]["room_session_token"].startswith("gfr_")
+
+
+def test_same_player_can_reconnect_while_opponent_stays_online(monkeypatch):
+    """Protect the production reconnect race while another socket owns a seat."""
+    import api.dependencies as api_dependencies
+
+    monkeypatch.setattr(api_dependencies, "rate_limiter", MemoryRateLimiter())
+    with TestClient(app) as client:
+        sessions = [
+            client.post(
+                "/api/customers/session",
+                json={
+                    "invite_code": "test-invite",
+                    "display_name": f"reconnect-{suffix}",
+                    "device_label": f"contract-{uuid.uuid4().hex}",
+                },
+            ).json()
+            for suffix in ("a", "b")
+        ]
+        created = client.post(
+            "/api/games/rooms",
+            headers={"Authorization": f"Bearer {sessions[0]['customer_token']}"},
+            json={
+                "game_type": "gomoku",
+                "creator": sessions[0]["customer_id"],
+                "invite_code": "test-invite",
+            },
+        )
+        room_code = created.json()["room_code"]
+
+        first_context = client.websocket_connect(f"/ws/game/{room_code}")
+        first = first_context.__enter__()
+        try:
+            first.send_json(
+                {
+                    "type": "join",
+                    "game": "gomoku",
+                    "data": {
+                        "customer_token": sessions[0]["customer_token"],
+                        "name": "reconnect-a",
+                    },
+                }
+            )
+            assert first.receive_json()["type"] == "state"
+            assert first.receive_json()["type"] == "session"
+
+            with client.websocket_connect(f"/ws/game/{room_code}") as second:
+                second.send_json(
+                    {
+                        "type": "join",
+                        "game": "gomoku",
+                        "data": {
+                            "customer_token": sessions[1]["customer_token"],
+                            "name": "reconnect-b",
+                        },
+                    }
+                )
+                assert second.receive_json()["type"] == "state"
+                assert second.receive_json()["type"] == "session"
+                assert first.receive_json()["type"] == "state"
+                first.close()
+
+                with client.websocket_connect(f"/ws/game/{room_code}") as reconnected:
+                    reconnected.send_json(
+                        {
+                            "type": "join",
+                            "game": "gomoku",
+                            "data": {
+                                "customer_token": sessions[0]["customer_token"],
+                                "name": "reconnect-a",
+                            },
+                        }
+                    )
+                    state = reconnected.receive_json()
+                    assert state["type"] == "state"
+                    assert state["data"]["phase"] == "playing"
+                    assert reconnected.receive_json()["type"] == "session"
+        finally:
+            try:
+                first.close()
+            finally:
+                first_context.__exit__(None, None, None)
 
 
 def test_non_owner_gets_exact_room_busy_payload_and_close_code(monkeypatch):
