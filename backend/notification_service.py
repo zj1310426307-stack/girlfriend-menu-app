@@ -1,5 +1,5 @@
 """Durable in-app notifications shared by food, games and anniversaries."""
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session

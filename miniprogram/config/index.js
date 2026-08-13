@@ -19,6 +19,11 @@ const config = {
   sourceRoot: "src",
   outputRoot: "dist",
   plugins: [],
+  // Reuse Taro's supported Webpack filesystem cache for repeat local builds.
+  // Taro tracks this config as a build dependency and invalidates stale output.
+  cache: {
+    enable: true
+  },
   defineConstants: {
     __APP_ENV_NAME__: JSON.stringify(environmentName),
     __API_ORIGIN__: JSON.stringify(apiOrigin),

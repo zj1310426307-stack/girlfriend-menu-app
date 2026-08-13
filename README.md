@@ -196,6 +196,7 @@ npm run dev:weapp
 
 ```bat
 cd /d D:\my-project\girlfriend-menu-app\backend
+.venv\Scripts\python.exe -m ruff check . ..\scripts
 .venv\Scripts\python.exe -m pytest -q
 ```
 
@@ -215,6 +216,7 @@ npm run test:v25
 npm run test:v26
 npm run test:v27
 npm run test:games
+npm run test:ci
 ```
 
 2026-08-11 本地验证：后端 `79 passed`、设备会话迁移/恢复/撤销、实时状态重启/骰子隐私、Socket 生命周期与游戏恢复契约通过，小程序生产构建通过。

@@ -4,25 +4,30 @@ import "./FlightBoard.css";
 
 const TRACK_SIZE = 28;
 const START_OFFSETS = [0, 14];
-const EVENT_MARKS = { 4: "♥", 8: "餐", 12: "乐", 16: "挑", 20: "♥", 24: "礼" };
+const EVENT_MARKS = { 4: "♥", 8: "餐", 12: "乐", 16: "挑", 20: "♥", 24: "餐" };
+const EVENT_NAMES = { 4: "爱心", 8: "厨房", 12: "欢乐", 16: "挑战", 20: "爱心", 24: "美食" };
 
-function trackIndex(row, column) {
-  if (row === 0) return column;
-  if (column === 7) return 7 + row;
-  if (row === 7) return 21 - column;
-  if (column === 0) return 28 - row;
-  return null;
-}
-
+/** Normalize persisted and API player identifiers for board rendering. */
 function playerId(player) {
   return player?.id || player?.player_id;
 }
 
+/** Convert one player's local track coordinate into the shared ring. */
 function globalPosition(localPosition, playerIndex) {
   if (localPosition < 0 || localPosition >= TRACK_SIZE) return null;
   return (localPosition + START_OFFSETS[playerIndex]) % TRACK_SIZE;
 }
 
+/** Place the 28 server track squares on a compact rounded flight path. */
+function trackStyle(index) {
+  const angle = -Math.PI / 2 + (index / TRACK_SIZE) * Math.PI * 2;
+  const wave = index % 7 === 0 ? 3 : index % 7 === 3 ? -2 : 0;
+  const x = 50 + (42 + wave) * Math.cos(angle);
+  const y = 49 + (39 - wave) * Math.sin(angle);
+  return { left: `${x}%`, top: `${y}%` };
+}
+
+/** Render the authoritative flight state without inventing client-side moves. */
 export default function FlightBoard({ state, meId, onPiece }) {
   const players = state.players || [];
   const pieces = state.pieces || {};
@@ -57,23 +62,28 @@ export default function FlightBoard({ state, meId, onPiece }) {
   return (
     <View className="flight-board-shell">
       <View className="flight-board">
-        {Array.from({ length: 64 }, (_, cellIndex) => {
-          const row = Math.floor(cellIndex / 8);
-          const column = cellIndex % 8;
-          const index = trackIndex(row, column);
-          const tokens = index == null ? [] : tokensByTrack.get(index) || [];
+        <View className="flight-sky-line one" /><View className="flight-sky-line two" />
+        {Array.from({ length: TRACK_SIZE }, (_, index) => {
+          const tokens = tokensByTrack.get(index) || [];
+          const event = EVENT_MARKS[index];
           return (
-            <View key={cellIndex} className={`flight-cell ${index == null ? "inner" : "track"} ${EVENT_MARKS[index] ? "event" : ""}`}>
-              {index != null && <Text className="flight-cell-index">{EVENT_MARKS[index] || index + 1}</Text>}
+            <View
+              key={index}
+              className={`flight-track-node tone-${index % 4} ${event ? "event" : ""} ${index === 0 || index === 14 ? "start" : ""}`}
+              style={trackStyle(index)}
+            >
+              <Text>{event || (index === 0 || index === 14 ? "起" : index + 1)}</Text>
+              {event && <Text className="flight-event-name">{EVENT_NAMES[index]}</Text>}
               <View className="flight-cell-tokens">{tokens.map(renderToken)}</View>
             </View>
           );
         })}
         <View className="flight-board-center">
-          <Text>COUPLE</Text>
-          <Text>{state.dice || "♥"}</Text>
-          <Text>{state.dice ? `本轮 ${state.dice} 点` : "一起飞向终点"}</Text>
+          <Text>COUPLE FLIGHT</Text>
+          <Text>{state.dice || "✈"}</Text>
+          <Text>{state.dice ? `本轮 ${state.dice} 点` : "绕行 · 互动 · 冲向终点"}</Text>
         </View>
+        <View className="flight-shortcut"><Text>云端捷径</Text><Text>→</Text></View>
       </View>
 
       <View className="flight-hangars">

@@ -116,7 +116,11 @@ def expire_stale_game_rooms(db: Session) -> list[str]:
             last_activity = room.last_activity_at or room.created_at
             if last_activity.tzinfo is None:
                 last_activity = last_activity.replace(tzinfo=timezone.utc)
-            ttl = WAITING_ROOM_TTL if room.status == "waiting" else PLAYING_ROOM_TTL
+            ttl = (
+                game_persistence_service.WAITING_ROOM_TTL
+                if room.status == "waiting"
+                else game_persistence_service.PLAYING_ROOM_TTL
+            )
             expires_at = last_activity + ttl
         elif expires_at.tzinfo is None:
             expires_at = expires_at.replace(tzinfo=timezone.utc)

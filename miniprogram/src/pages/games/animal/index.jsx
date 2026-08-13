@@ -5,7 +5,7 @@ import { Input, Text, View } from "@tarojs/components";
 import { createAnimalRoom, getVersionedGameState, joinAnimalRoom, sendAnimalMove } from "../../../api";
 import AnimalBoard from "../../../components/AnimalBoard";
 import GameSyncBar from "../../../components/GameSyncBar";
-import MoveHint from "../../../components/MoveHint";
+import GameTurnGuide from "../../../components/GameTurnGuide";
 import { getCustomerId } from "../../../utils/customer";
 import { ensureInvitePassed } from "../../../utils/invite";
 import { ensureGameRecovery, recoverGameRoom } from "../../../utils/gameRecovery";
@@ -33,6 +33,7 @@ export default function AnimalPage() {
   const [busy, setBusy] = useState("");
   const [connection, setConnection] = useState("offline");
   const [syncError, setSyncError] = useState("");
+  const [pendingMove, setPendingMove] = useState(null);
 
   useEffect(() => {
     if (roomCode) ensureGameRecovery(customerId, roomCode);
@@ -108,13 +109,14 @@ export default function AnimalPage() {
   const act = async (action, data = {}) => {
     if (actionLockRef.current || busy || !version) return;
     actionLockRef.current = true; setBusy(action);
+    if (action === "MOVE") setPendingMove({ pieceId: data.piece_id, x: data.x, y: data.y });
     try { apply(await sendAnimalMove(customerId, roomCode, version, action, data)); Taro.vibrateShort({ type: "light" }).catch(() => {}); }
     catch (error) { Taro.showToast({ title: error.message || "行棋失败，请同步后重试", icon: "none" }); refresh(); }
-    finally { actionLockRef.current = false; setBusy(""); }
+    finally { actionLockRef.current = false; setBusy(""); setPendingMove(null); }
   };
   const onCell = (piece, x, y) => {
     if (state.phase !== "playing" || state.turn_id !== customerId || busy) return;
-    if (piece?.color === state.my_color) return setSelectedId(piece.id);
+    if (piece?.color === state.my_color) return setSelectedId((current) => current === piece.id ? "" : piece.id);
     if (!selectedId) return Taro.showToast({ title: "请先选择自己的棋子", icon: "none" });
     setSelectedId("");
     act("MOVE", { piece_id: selectedId, x, y });
@@ -133,6 +135,7 @@ export default function AnimalPage() {
 
   const isMyTurn = state.turn_id === customerId;
   const opponentId = state.players?.find((item) => item !== customerId);
+  const selectedPiece = state.pieces?.find((item) => item.id === selectedId);
   const status = useMemo(() => {
     if (state.phase === "finished" && !state.winner_id) {
       const reason = {
@@ -149,6 +152,15 @@ export default function AnimalPage() {
     if (state.phase === "finished") return state.winner_id === customerId ? "你先占领兽穴，赢啦 ♥" : `${state.names?.[state.winner_id] || "对方"} 赢得本局`;
     return isMyTurn ? "轮到你行棋" : `等待 ${state.names?.[state.turn_id] || "对方"} 行棋`;
   }, [customerId, isMyTurn, state]);
+  const turnGuide = useMemo(() => {
+    if (busy === "MOVE") return { marker: "…", title: state.mode === "ai" ? "落子已发送，AI 正在思考" : "正在确认这一步", detail: "请稍等，避免重复点击", tone: "busy" };
+    if (connection === "syncing") return { marker: "…", title: "正在同步棋局", detail: "同步完成后再继续操作", tone: "busy" };
+    if (connection === "offline") return { marker: "!", title: syncError || "棋局暂时离线", detail: "连接恢复前不会提交动作", tone: "danger", actionLabel: "重试", onAction: () => refresh() };
+    if (state.phase === "waiting") return { marker: "码", title: `房间 ${roomCode} 已创建`, detail: "直接邀请她，加入后自动开始", tone: "waiting", shareLabel: "邀请她" };
+    if (!isMyTurn) return { marker: "等", title: status, detail: "轮到你时棋盘会恢复可操作", tone: "waiting" };
+    if (selectedPiece) return { marker: selectedPiece.label, title: `已选择${selectedPiece.label}，再点目标格`, detail: "再次点击当前棋子可取消选择", tone: "active", actionLabel: "取消", onAction: () => setSelectedId("") };
+    return { marker: "1", title: "先点一枚自己的棋子", detail: "选中后再点目标位置完成移动", tone: "active" };
+  }, [busy, connection, isMyTurn, refresh, roomCode, selectedPiece, state.mode, state.phase, status, syncError]);
 
   if (!allowed) return <View className="animal-loading"><Text>正在返回邀请码页面…</Text></View>;
   if (!roomCode) return (
@@ -170,8 +182,8 @@ export default function AnimalPage() {
       <View className="animal-room-head"><View><Text>房间 {roomCode}</Text><Text onClick={() => Taro.setClipboardData({ data: roomCode })}>复制</Text></View><Text>V{version}</Text></View>
       <GameSyncBar status={connection} message={syncError} onRetry={() => refresh()} />
       <View className="animal-status"><Text>{status}</Text><Text>你是{state.my_color === "blue" ? "蓝方" : "红方"} · 对手 {state.names?.[opponentId] || "等待加入"}</Text></View>
-      <AnimalBoard pieces={state.pieces} selectedId={selectedId} disabled={!isMyTurn || state.phase !== "playing" || !!busy} onCell={onCell} />
-      <MoveHint selected={selectedId} myTurn={isMyTurn} waiting={state.phase === "waiting"} />
+      {state.phase !== "finished" && <GameTurnGuide {...turnGuide} />}
+      <AnimalBoard pieces={state.pieces} selectedId={selectedId} pendingMove={pendingMove} disabled={connection !== "online" || !isMyTurn || state.phase !== "playing" || !!busy} onCell={onCell} />
       {state.last_move && <View className="animal-last"><Text>上一手</Text><Text>{state.names?.[state.last_move.player_id] || "对方"} · {state.last_move.piece_id?.split("_")[1]} → ({state.last_move.to.x + 1},{state.last_move.to.y + 1})</Text></View>}
       {state.phase === "finished" && <View className="animal-result"><Text>{status}</Text><Text>参与 +1 · 胜利 +5 · AI 对战额外奖励</Text><View onClick={() => { setRoomCode(""); setState(EMPTY); }}><Text>再来一局</Text></View></View>}
       <View className="animal-footer"><Text onClick={() => refresh()}>立即同步</Text><Text onClick={confirmResign}>认输</Text><Text onClick={() => Taro.switchTab({ url: "/pages/games/index" })}>返回大厅</Text></View>

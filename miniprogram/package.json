@@ -14,6 +14,8 @@
     "test:v28": "node scripts/v27-smoke-test.cjs",
     "test:landlord": "node scripts/landlord-landscape-config-test.cjs",
     "test:games": "node scripts/game-longevity-test.cjs && node scripts/game-socket-test.cjs",
+    "test:ci": "npm run test:landlord && npm run test:games && npm run test:session",
+    "test:game-pages:devtools": "node scripts/game-pages-devtools-acceptance.cjs",
     "test:session": "node scripts/customer-session-contract-test.cjs",
     "test:landlord:devtools": "node scripts/landlord-landscape-smoke.cjs",
     "test:dice": "node scripts/smoke-test.cjs --dice-only",

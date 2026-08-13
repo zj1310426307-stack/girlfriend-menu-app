@@ -8,10 +8,12 @@ const CLI_PATH = "F:/浏览器/微信web开发者工具/cli.bat";
 const PROJECT_PATH = path.resolve(__dirname, "..");
 const HTTP_PORT = Number(process.env.WECHAT_DEVTOOLS_PORT || 9330);
 const CLI_PORT = Number(process.env.WECHAT_DEVTOOLS_CLI_PORT || 9421);
+const TAB_ROUTES = new Set(["/pages/index/index", "/pages/menu/index", "/pages/my-orders/index", "/pages/games/index", "/pages/couple/index"]);
 const SMOKE_API_ORIGIN = (process.env.SMOKE_API_ORIGIN || "").replace(/\/$/, "");
 let smokeSession = { customer_id: "gf_smoke_v28", customer_token: "gft_smoke_offline_token" };
 const timeout = (promise, ms, message) => Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error(message)), ms))]);
 
+/** Optionally obtain a real session when an explicit smoke API is supplied. */
 async function createSmokeSession() {
   if (!SMOKE_API_ORIGIN) return;
   const response = await fetch(`${SMOKE_API_ORIGIN}/api/customers/session`, {
@@ -23,6 +25,7 @@ async function createSmokeSession() {
   smokeSession = await response.json();
 }
 
+/** Wait for React to mount one stable page marker. */
 async function element(page, selector, milliseconds = 8000) {
   const deadline = Date.now() + milliseconds;
   while (Date.now() < deadline) {
@@ -33,6 +36,7 @@ async function element(page, selector, milliseconds = 8000) {
   throw new Error(`页面 ${page.path} 缺少 ${selector}`);
 }
 
+/** Seed the session and navigate with the correct tab-aware API. */
 async function open(miniProgram, route) {
   // Structural smoke runs without contacting production. A deliberately fake
   // session keeps protected pages mounted long enough to verify their shells;
@@ -40,11 +44,13 @@ async function open(miniProgram, route) {
   await miniProgram.callWxMethod("setStorageSync", "gf_invite_passed", "yes");
   await miniProgram.callWxMethod("setStorageSync", "gf_authenticated_customer_id", smokeSession.customer_id);
   await miniProgram.callWxMethod("setStorageSync", "gf_customer_token", smokeSession.customer_token);
-  const page = await timeout(miniProgram.reLaunch(route), 25000, `打开 ${route} 超时`);
+  const navigation = TAB_ROUTES.has(route) ? miniProgram.switchTab(route) : miniProgram.reLaunch(route);
+  const page = await timeout(navigation, 25000, `打开 ${route} 超时`);
   await page.waitFor(900);
   return page;
 }
 
+/** Execute the bounded V2.7/V2.8 structural smoke flow. */
 async function run() {
   console.log("[v28] 连接微信开发者工具（离线结构冒烟）");
   let miniProgram;

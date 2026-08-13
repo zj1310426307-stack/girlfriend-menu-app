@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Taro, { useRouter, useShareAppMessage } from "@tarojs/taro";
-import { Input, PageMeta, Text, View } from "@tarojs/components";
+import { Button, Input, PageMeta, Text, View } from "@tarojs/components";
 
 import {
   createLandlordRoom,
@@ -139,7 +139,7 @@ export default function LandlordPage() {
   const toggle = (id) => setSelected((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
   const useHint = () => {
     const hint = state.suggested_card_ids || [];
-    if (!isMyTurn || state.phase !== "playing") return;
+    if (!canAct || state.phase !== "playing") return;
     if (!hint.length) {
       Taro.showToast({ title: "这手牌压不过，建议不出", icon: "none" });
       return;
@@ -148,6 +148,8 @@ export default function LandlordPage() {
     Taro.vibrateShort({ type: "light" }).catch(() => {});
   };
   const isMyTurn = state.turn_id === customerId;
+  const canAct = connection === "online" && isMyTurn && !busy;
+  const canPass = canAct && Boolean(state.last_play) && state.last_play?.player_id !== customerId;
   const opponents = (state.players || []).filter((id) => id !== customerId);
   const status = useMemo(() => {
     if (state.phase === "waiting") return "等她加入后，由服务器洗牌发牌";
@@ -156,28 +158,41 @@ export default function LandlordPage() {
     return isMyTurn ? "轮到你出牌" : `等待 ${state.names?.[state.turn_id] || "对方"} 出牌`;
   }, [customerId, isMyTurn, state]);
 
-  if (!allowed) return <View className="ll-loading"><PageMeta pageOrientation="landscape" /><Text>正在返回邀请码页面…</Text></View>;
+  if (!allowed) return <><PageMeta pageOrientation="landscape" /><View className="ll-loading"><Text>正在返回邀请码页面…</Text></View></>;
   if (!roomCode) return (
-    <View className="ll-page ll-lobby">
+    <>
       <PageMeta pageOrientation="landscape" />
+      <View className="ll-page ll-lobby">
       <View className="ll-lobby-back" onClick={() => Taro.switchTab({ url: "/pages/games/index" })}><Text>‹</Text><Text>一起玩</Text></View>
-      <View className="ll-hero"><Text>COUPLE LANDLORD</Text><Text>今晚谁是地主</Text><Text>横屏沉浸牌桌。洗牌、发牌、提示与胜负全部由服务器判断。</Text><View><Text>♠</Text><Text>♥</Text><Text>♣</Text><Text>♦</Text></View></View>
+      <View className="ll-hero"><Text>COUPLE LANDLORD</Text><Text>今晚谁是地主</Text><Text>选模式，点开局。洗牌、发牌和胜负都由服务器判断。</Text><View><Text>♠</Text><Text>♥</Text><Text>♣</Text><Text>♦</Text></View></View>
       <View className="ll-lobby-card">
+        <View className="ll-lobby-title"><Text>{mode === "ai" ? "单人快速开局" : "创建情侣牌桌"}</Text><Text>{mode === "ai" ? "立即开始" : "建房后邀请她"}</Text></View>
+        <Button
+          className="ll-main-button"
+          disabled={Boolean(busy)}
+          hoverClass="ll-main-button-pressed"
+          role="button"
+          aria-label="开始斗地主"
+          onClick={create}
+        >
+          <View><Text>{busy === "create" ? "正在洗牌…" : mode === "ai" ? "立即开局 · 人机斗地主" : "创建牌桌 · 邀请她"}</Text><Text>{mode === "ai" ? "你和两位 AI，选好即发牌" : "你们两人加一位 AI，建房后分享"}</Text></View>
+        </Button>
         <View className="ll-lobby-settings">
           <View className="ll-setting-block"><Text>牌桌称呼</Text><View className="ll-choice-row">{["我", "男朋友", "女朋友"].map((item) => <View key={item} className={name === item ? "active" : ""} onClick={() => setName(item)}><Text>{item}</Text></View>)}</View></View>
           <View className="ll-setting-block"><Text>游戏模式</Text><View className="ll-mode-row"><View className={mode === "couple" ? "active" : ""} onClick={() => setMode("couple")}><Text>情侣牌桌</Text><Text>两人 + 1 AI</Text></View><View className={mode === "ai" ? "active" : ""} onClick={() => setMode("ai")}><Text>人机挑战</Text><Text>你 + 2 AI</Text></View></View></View>
           <View className="ll-setting-block"><Text>AI 风格</Text><View className="ll-choice-row">{[["random", "轻松"], ["rule", "规则"], ["strategy", "高手"]].map(([value, label]) => <View key={value} className={difficulty === value ? "active" : ""} onClick={() => setDifficulty(value)}><Text>{label}</Text></View>)}</View></View>
         </View>
-        <View className="ll-main-button" onClick={create}><Text>{busy === "create" ? "正在洗牌…" : mode === "ai" ? "开始人机斗地主" : "创建斗地主房间"}</Text></View>
         <View className="ll-join-line"><Text>加入她的牌桌</Text><View className="ll-join"><Input value={joinCode} maxlength={6} placeholder="输入 6 位房间码" onInput={(event) => setJoinCode(event.detail.value.toUpperCase())} onConfirm={join} /><View onClick={join}><Text>{busy === "join" ? "加入中" : "加入"}</Text></View></View></View>
-        <Text className="ll-rules">支持单张、对子、三带一、顺子、连对、飞机、四带二、炸弹和王炸。手牌只对本人可见。</Text>
+        <Text className="ll-rules">单张、对子、顺子、飞机、炸弹等规则由服务器统一判断，手牌只对本人可见。</Text>
       </View>
-    </View>
+      </View>
+    </>
   );
 
   return (
-    <View className="ll-page ll-room">
+    <>
       <PageMeta pageOrientation="landscape" />
+      <View className="ll-page ll-room">
       <View className="ll-table-glow" />
       <View className="ll-room-head">
         <View className="ll-room-left"><Text onClick={() => Taro.switchTab({ url: "/pages/games/index" })}>‹</Text><Text>房间 {roomCode}</Text><Text onClick={() => Taro.setClipboardData({ data: roomCode })}>复制</Text></View>
@@ -188,13 +203,14 @@ export default function LandlordPage() {
       <View className="ll-opponents">{opponents.map((id) => <LandlordPlayer key={id} name={state.names?.[id]} count={state.hand_counts?.[id] || 0} active={state.turn_id === id} landlord={state.landlord_id === id} ai={id.startsWith("ai_")} />)}</View>
       <LandlordDesk play={state.last_play} name={state.names?.[state.last_play?.player_id]} />
       <View className="ll-action-zone">
-        {state.phase === "waiting" && <View className="ll-wait"><Text>把房间码发给女朋友</Text><Text>她加入后会自动收到 17 张牌</Text></View>}
-        {state.phase === "bidding" && isMyTurn && <View className="ll-bid-actions"><View onClick={() => act("BID", { bid: false })}><Text>不叫</Text></View><View onClick={() => act("BID", { bid: true })}><Text>叫地主</Text></View></View>}
-        {state.phase === "playing" && <View className="ll-play-actions three"><View className={!isMyTurn ? "disabled" : ""} onClick={useHint}><Text>提示</Text></View><View className={!isMyTurn ? "disabled" : ""} onClick={() => isMyTurn && act("PASS")}><Text>不出</Text></View><View className={!isMyTurn || !selected.length ? "disabled" : ""} onClick={() => isMyTurn && selected.length && act("PLAY", { card_ids: selected })}><Text>{busy === "PLAY" ? "出牌中…" : `出牌 ${selected.length || ""}`}</Text></View></View>}
+        {state.phase === "waiting" && <View className="ll-wait"><View><Text>牌桌已准备好</Text><Text>她加入后会自动收到 17 张牌</Text></View><Button openType="share">邀请她加入</Button></View>}
+        {state.phase === "bidding" && isMyTurn && <View className="ll-bid-actions"><View className={!canAct ? "disabled" : ""} onClick={() => canAct && act("BID", { bid: false })}><Text>{busy === "BID" ? "确认中…" : connection !== "online" ? "等待同步" : "不叫"}</Text></View><View className={!canAct ? "disabled" : ""} onClick={() => canAct && act("BID", { bid: true })}><Text>{busy === "BID" ? "确认中…" : connection !== "online" ? "等待同步" : "叫地主"}</Text></View></View>}
+        {state.phase === "playing" && <View className="ll-play-actions three"><View className={!canAct ? "disabled" : ""} onClick={() => canAct && useHint()}><Text>{selected.length ? "换一组" : "提示"}</Text></View><View className={!canPass ? "disabled" : ""} onClick={() => canPass && act("PASS")}><Text>{busy === "PASS" ? "确认中…" : "不出"}</Text></View><View className={!canAct || !selected.length ? "disabled" : ""} onClick={() => canAct && selected.length && act("PLAY", { card_ids: selected })}><Text>{busy === "PLAY" ? "出牌中…" : connection !== "online" ? "等待同步" : selected.length ? `出这 ${selected.length} 张` : "先选牌"}</Text></View></View>}
       </View>
-      <LandlordHand cards={state.my_hand || []} selected={selected} disabled={!isMyTurn || state.phase !== "playing" || !!busy} onToggle={toggle} />
+      <LandlordHand cards={state.my_hand || []} selected={selected} disabled={!canAct || state.phase !== "playing"} onToggle={toggle} />
       <View className="ll-me"><Text>{state.names?.[customerId] || "我"}{state.landlord_id === customerId ? " · 地主" : ""}</Text><Text>{state.hand_counts?.[customerId] || 0} 张</Text></View>
       {state.phase === "finished" && <View className="ll-result"><Text>{status}</Text><Text>参与 +1 · 胜利 +5 · AI 胜利加成 +2</Text><View onClick={() => { setRoomCode(""); setState(EMPTY); }}><Text>再开一桌</Text></View></View>}
-    </View>
+      </View>
+    </>
   );
 }

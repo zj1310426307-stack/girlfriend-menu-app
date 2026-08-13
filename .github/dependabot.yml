@@ -1,0 +1,45 @@
+version: 2
+
+updates:
+  # Group Taro's aligned package family into one compatibility review.
+  - package-ecosystem: "npm"
+    directory: "/miniprogram"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
+      timezone: "Asia/Shanghai"
+    open-pull-requests-limit: 5
+    groups:
+      taro:
+        patterns:
+          - "@tarojs/*"
+          - "babel-preset-taro"
+      routine-npm:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # Keep FastAPI dependencies observable without adding another lock format.
+  - package-ecosystem: "pip"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:15"
+      timezone: "Asia/Shanghai"
+    open-pull-requests-limit: 5
+    groups:
+      routine-python:
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    groups:
+      github-actions:
+        patterns:
+          - "*"

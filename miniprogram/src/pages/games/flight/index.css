@@ -2,11 +2,11 @@ page { min-height: 100%; background: #15231c; }
 .flight-page { min-height: 100vh; padding: 27px 22px calc(65px + env(safe-area-inset-bottom)); box-sizing: border-box; }
 .flight-loading { min-height: 100vh; display: flex; align-items: center; justify-content: center; color: #667265; background: #faf7f2; font-size: 22px; }
 .flight-lobby { color: #f6f1e7; background: radial-gradient(circle at 78% 8%, rgba(212,164,91,.19), transparent 23%), linear-gradient(165deg, #253d30, #111b16 60%, #0d1511); }
-.flight-lobby-hero { padding: 25px 8px 30px; }
+.flight-lobby-hero { padding: 14px 8px 18px; }
 .flight-lobby-hero > text:first-child { display: block; color: #d8b777; font-size: 18px; font-weight: 900; letter-spacing: 5px; }
-.flight-lobby-hero > text:nth-child(2) { display: block; margin-top: 13px; font-size: 43px; font-weight: 900; }
-.flight-lobby-hero > text:nth-child(3) { display: block; margin-top: 13px; color: #b8c6ba; font-size: 22px; line-height: 1.65; }
-.flight-clouds { display: flex; align-items: center; justify-content: center; gap: 35px; height: 115px; margin-top: 24px; border: 1px solid rgba(255,255,255,.1); border-radius: 35px; background: rgba(255,255,255,.06); }
+.flight-lobby-hero > text:nth-child(2) { display: block; margin-top: 8px; font-size: 34px; font-weight: 900; }
+.flight-lobby-hero > text:nth-child(3) { display: block; margin-top: 8px; color: #b8c6ba; font-size: 17px; line-height: 1.5; }
+.flight-clouds { display: none; }
 .flight-clouds text { color: #df8375; font-size: 32px; }
 .flight-clouds text:nth-child(2) { color: #e5c47f; font-size: 51px; transform: rotate(-12deg); }
 .flight-lobby-card { padding: 27px; border-radius: 34px; color: #4d4941; background: #fffaf1; box-shadow: 0 25px 65px rgba(0,0,0,.3); }
@@ -43,7 +43,9 @@ page { min-height: 100%; background: #15231c; }
 .flight-status-card > text:nth-child(2) { display: block; margin-top: 9px; color: #41483f; font-size: 24px; font-weight: 900; }
 .flight-status-card > text:last-child { display: block; margin-top: 6px; color: #91887c; font-size: 16px; }
 .flight-action-panel { margin-top: 16px; }
+.flight-action-panel.priority { margin:0 0 12px; }
 .flight-action-panel > text { display: block; margin-top: 11px; color: #8a847a; font-size: 17px; line-height: 1.5; text-align: center; }
+.flight-ai-note { display:block; margin:10px 0 0; color:#7f887c; font-size:14px; text-align:center; }
 .flight-result-card { margin-top: 16px; padding: 27px; border-radius: 29px; color: #fff; background: linear-gradient(145deg,#71886b,#4c624a); text-align: center; box-shadow: 0 16px 35px rgba(73,96,71,.22); }
 .flight-result-card > text:first-child { display: block; font-size: 29px; font-weight: 900; }
 .flight-result-card > text:nth-child(2) { display: block; margin-top: 9px; color: rgba(255,255,255,.75); font-size: 18px; }

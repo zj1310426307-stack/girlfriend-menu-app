@@ -13,6 +13,7 @@ import DiceButton from "../../../components/DiceButton";
 import EventPopup from "../../../components/EventPopup";
 import FlightBoard from "../../../components/FlightBoard";
 import GameSyncBar from "../../../components/GameSyncBar";
+import GameTurnGuide from "../../../components/GameTurnGuide";
 import { getCustomerId } from "../../../utils/customer";
 import { ensureInvitePassed } from "../../../utils/invite";
 import { ensureGameRecovery, recoverGameRoom } from "../../../utils/gameRecovery";
@@ -52,7 +53,7 @@ export default function FlightPage() {
   const isMyTurn = state.phase === "playing" && state.turn_id === customerIdRef.current;
   const isFinished = state.phase === "finished";
   const pendingForMe = state.pending_event?.player_id === customerIdRef.current ? state.pending_event : null;
-  const canRoll = isMyTurn && state.dice == null && !state.pending_event && !busy;
+  const canRoll = connection === "online" && isMyTurn && state.dice == null && !state.pending_event && !busy;
 
   const applyResponse = useCallback((response) => {
     const revision = String(response?.updated_at || "");
@@ -199,6 +200,17 @@ export default function FlightPage() {
     if (isMyTurn) return "轮到你掷骰子";
     return state.mode === "ai" ? "AI 正在规划航线…" : `等待 ${opponent?.name || "对方"} 掷骰子`;
   }, [connection, error, isFinished, isMyTurn, opponent?.name, state.dice, state.pending_event, state.players, state.winner_id]);
+  const turnGuide = useMemo(() => {
+    if (busy === "ROLL_DICE") return { marker: "…", title: "正在掷骰", detail: "服务器确认点数后会立即显示可移动飞机", tone: "busy" };
+    if (busy === "MOVE_PIECE") return { marker: "…", title: "正在确认移动", detail: "棋盘最终位置以服务器返回为准", tone: "busy" };
+    if (connection === "syncing") return { marker: "…", title: "正在同步棋盘", detail: "同步完成后再继续操作", tone: "busy" };
+    if (connection === "offline") return { marker: "!", title: error || "棋盘暂时离线", detail: "连接恢复前不会提交动作", tone: "danger", actionLabel: "重试", onAction: () => refresh() };
+    if ((state.players || []).length < 2) return { marker: "码", title: `房间 ${roomCode} 已创建`, detail: "直接邀请她，加入后自动开始", tone: "waiting", shareLabel: "邀请她" };
+    if (state.pending_event) return { marker: "♥", title: pendingForMe ? "先完成这次互动" : "等待对方完成互动", detail: "互动结束后继续本回合", tone: "waiting" };
+    if (isMyTurn && state.dice != null) return { marker: state.dice, title: "点击发光的飞机", detail: `本轮 ${state.dice} 点，可移动的飞机正在跳动`, tone: "active" };
+    if (canRoll) return { marker: "骰", title: "轮到你，先掷骰子", detail: "点数和可移动棋子由服务器确认", tone: "active" };
+    return { marker: "等", title: statusText, detail: "棋局会自动同步，无需反复点击", tone: "waiting" };
+  }, [busy, canRoll, connection, error, isMyTurn, pendingForMe, refresh, roomCode, state.dice, state.pending_event, state.players, statusText]);
 
   if (!allowed) return <View className="flight-loading"><Text>正在返回邀请码页面…</Text></View>;
 
@@ -247,16 +259,20 @@ export default function FlightPage() {
         <Text>{me?.name || "我"} · 红色飞机　VS　{opponent?.name || "等待加入"} · 蓝色飞机</Text>
       </View>
 
+      {!isFinished && (
+        <>
+          <GameTurnGuide {...turnGuide} />
+          {(canRoll || busy === "ROLL_DICE") && (
+            <View className="flight-action-panel priority">
+              <DiceButton value={state.dice} disabled={!canRoll} loading={busy === "ROLL_DICE"} onClick={() => act("ROLL_DICE")} />
+            </View>
+          )}
+        </>
+      )}
+
       <FlightBoard state={state} meId={customerIdRef.current} onPiece={(index) => act("MOVE_PIECE", index)} />
 
-      {!isFinished && (
-        <View className="flight-action-panel">
-          <DiceButton value={state.dice} disabled={!canRoll} loading={busy === "ROLL_DICE"} onClick={() => act("ROLL_DICE")} />
-          {state.movable?.length > 0 && isMyTurn && <Text>请点击棋盘上正在跳动的飞机。掷出 6 后还可以再来一次。</Text>}
-          {!isMyTurn && <Text>{state.mode === "ai" ? "AI 行动由服务器完成，请稍等片刻。" : "棋局会自动同步，也可以点下方立即同步。"}</Text>}
-          {state.ai_turn_summary?.length > 0 && <Text>AI 最近掷出 {state.ai_turn_summary[state.ai_turn_summary.length - 1].dice} 点</Text>}
-        </View>
-      )}
+      {!isFinished && state.ai_turn_summary?.length > 0 && <Text className="flight-ai-note">AI 最近掷出 {state.ai_turn_summary[state.ai_turn_summary.length - 1].dice} 点</Text>}
 
       {isFinished && (
         <View className="flight-result-card">

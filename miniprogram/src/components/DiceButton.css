@@ -1,9 +1,10 @@
 .flight-dice-button { min-height: 92px; display: flex; align-items: center; justify-content: center; gap: 17px; border-radius: 27px; color: #fff; background: #71886b; box-shadow: 0 12px 28px rgba(75,98,73,.25); }
 .flight-dice-button.disabled { opacity: .48; box-shadow: none; }
+.flight-dice-button:not(.disabled):active { transform:scale(.985); background:#647d5e; }
 .flight-die { width: 57px; height: 57px; display: grid; grid-template-columns: repeat(3,1fr); grid-template-rows: repeat(3,1fr); gap: 2px; padding: 8px; border-radius: 15px; background: #fffdf8; box-shadow: inset 0 -5px 8px rgba(89,75,60,.12), 0 5px 10px rgba(38,48,38,.2); }
 .flight-die > view { display: flex; align-items: center; justify-content: center; }
 .flight-die > view.dot::after { content: ""; width: 9px; height: 9px; border-radius: 50%; background: #d75f58; box-shadow: inset 0 2px 2px rgba(107,27,25,.25); }
 .flight-dice-button > view:last-child text:first-child { display: block; font-size: 24px; font-weight: 900; }
 .flight-dice-button > view:last-child text:last-child { display: block; margin-top: 4px; color: rgba(255,255,255,.72); font-size: 16px; }
-.flight-dice-button.rolling .flight-die { animation: flight-die-roll .55s ease-in-out infinite; }
-@keyframes flight-die-roll { 0% { transform: rotate(0) translateY(0); } 50% { transform: rotate(18deg) translateY(-6px); } 100% { transform: rotate(0) translateY(0); } }
+.flight-dice-button.rolling .flight-die { animation: flight-die-roll .24s linear infinite; }
+@keyframes flight-die-roll { 0% { transform:rotate(0) scale(.94); } 50% { transform:rotate(95deg) translateY(-4px) scale(1.04); } 100% { transform:rotate(180deg) scale(.94); } }

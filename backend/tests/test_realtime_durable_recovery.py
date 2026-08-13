@@ -107,6 +107,8 @@ def test_dice_reconnect_after_manager_restart_hides_opponent_values():
 
                 first.send_json({"type": "roll", "game": "dice", "data": {}})
                 first_rolled = first.receive_json()["data"]
+                assert len(first_rolled["my_dice"]) == 5
+                assert first_rolled["all_dice"] is None
                 second.receive_json()
                 second.send_json({"type": "roll", "game": "dice", "data": {}})
                 first_bidding = first.receive_json()["data"]

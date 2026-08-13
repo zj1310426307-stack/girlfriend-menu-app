@@ -25,6 +25,9 @@ def test_initial_board_and_piece_specific_blocking_rules():
     pieces = initial_pieces()
     assert len(pieces) == 32
     assert len({piece["id"] for piece in pieces}) == 32
+    expected_back_rank = ["rook", "horse", "elephant", "guard", "king", "guard", "elephant", "horse", "rook"]
+    assert [next(piece for piece in pieces if piece["color"] == "black" and piece["x"] == x and piece["y"] == 0)["kind"] for x in range(9)] == expected_back_rank
+    assert [next(piece for piece in pieces if piece["color"] == "red" and piece["x"] == x and piece["y"] == 9)["kind"] for x in range(9)] == expected_back_rank
     with pytest.raises(GameRuleError, match="不能这样走"):
         validate_move(pieces, "red_rook_0", 0, 5, "red")
     with pytest.raises(GameRuleError, match="不能这样走"):

@@ -14,7 +14,6 @@ import time
 import uuid
 
 import httpx
-import websockets
 from websockets.exceptions import ConnectionClosed
 from websockets.legacy.client import connect as legacy_connect
 

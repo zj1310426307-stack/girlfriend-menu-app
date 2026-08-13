@@ -1,0 +1,12 @@
+[tool.ruff]
+target-version = "py312"
+extend-exclude = [
+    "backend/alembic/versions",
+    "backend/.pytest-tmp",
+    "backend/.test-tmp",
+]
+
+[tool.ruff.lint]
+# Start with correctness-focused Pyflakes checks. Formatting and stricter
+# rule families can be adopted incrementally without rewriting the repository.
+select = ["F"]

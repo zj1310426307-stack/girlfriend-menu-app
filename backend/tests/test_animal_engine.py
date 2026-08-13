@@ -1,7 +1,7 @@
 import pytest
 
 from games.animal.board import DENS
-from games.animal.engine import AI_ID, AnimalGame
+from games.animal.engine import AnimalGame
 from games.animal.piece import initial_pieces
 from games.animal.rule import can_capture, legal_moves, validate_move
 from games.core.engine import GameRuleError

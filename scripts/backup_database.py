@@ -11,7 +11,6 @@ import os
 from pathlib import Path
 import sqlite3
 import subprocess
-from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, inspect, text

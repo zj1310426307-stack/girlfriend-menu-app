@@ -9,12 +9,32 @@ const CLI_PATH = "F:/浏览器/微信web开发者工具/cli.bat";
 const PROJECT_PATH = path.resolve(__dirname, "..");
 const HTTP_PORT = Number(process.env.WECHAT_DEVTOOLS_PORT || 9330);
 const CLI_PORT = Number(process.env.WECHAT_DEVTOOLS_CLI_PORT || 9421);
+const TAB_ROUTES = new Set(["/pages/index/index", "/pages/menu/index", "/pages/my-orders/index", "/pages/games/index", "/pages/couple/index"]);
+const SMOKE_CUSTOMER_ID = "gf_v25_smoke";
+const SMOKE_CUSTOMER_TOKEN = "gft_v25_smoke_offline_token";
+
+/** Seed the minimum offline session required by protected page guards. */
+async function seedSmokeSession(miniProgram) {
+  await timeout(miniProgram.callWxMethod("setStorageSync", "gf_invite_passed", "yes"), 8000, "写入测试邀请码状态超时");
+  await timeout(miniProgram.callWxMethod("setStorageSync", "gf_authenticated_customer_id", SMOKE_CUSTOMER_ID), 8000, "写入测试用户超时");
+  await timeout(miniProgram.callWxMethod("setStorageSync", "gf_customer_token", SMOKE_CUSTOMER_TOKEN), 8000, "写入测试令牌超时");
+}
+
+/** Connect to an existing automation socket before asking the CLI to launch. */
+async function connectOrLaunch() {
+  try { return { miniProgram: await automator.connect({ wsEndpoint: `ws://127.0.0.1:${HTTP_PORT}` }), ownsDevtools: false }; }
+  catch (_) {
+    const miniProgram = await automator.launch({ cliPath: CLI_PATH, projectPath: PROJECT_PATH, args: ["--port", String(CLI_PORT)], port: HTTP_PORT, trustProject: true, timeout: 120000 });
+    return { miniProgram, ownsDevtools: true };
+  }
+}
 
 const timeout = (promise, milliseconds, message) => Promise.race([
   promise,
   new Promise((_, reject) => setTimeout(() => reject(new Error(message)), milliseconds))
 ]);
 
+/** Wait for React to mount one stable page marker. */
 async function element(page, selector, milliseconds = 7000) {
   const deadline = Date.now() + milliseconds;
   while (Date.now() < deadline) {
@@ -25,30 +45,21 @@ async function element(page, selector, milliseconds = 7000) {
   throw new Error(`页面 ${page.path} 缺少 ${selector}`);
 }
 
+/** Navigate with the API required by tab and non-tab routes. */
 async function open(miniProgram, route) {
-  const page = await timeout(miniProgram.reLaunch(route), 18000, `打开 ${route} 超时`);
+  await seedSmokeSession(miniProgram);
+  const navigation = TAB_ROUTES.has(route) ? miniProgram.switchTab(route) : miniProgram.reLaunch(route);
+  const page = await timeout(navigation, 18000, `打开 ${route} 超时`);
   await page.waitFor(900);
   return page;
 }
 
+/** Execute the bounded V2.5 structural smoke flow. */
 async function run() {
   console.log("[v25] 连接微信开发者工具");
-  let miniProgram;
-  let ownsDevtools = false;
-  try {
-    miniProgram = await automator.launch({
-      cliPath: CLI_PATH,
-      projectPath: PROJECT_PATH,
-      args: ["--port", String(CLI_PORT)],
-      port: HTTP_PORT,
-      trustProject: true,
-      timeout: 120000
-    });
-    ownsDevtools = true;
-  } catch (error) {
-    if (!/port .* in use/i.test(error?.message || "")) throw error;
-    miniProgram = await automator.connect({ wsEndpoint: `ws://127.0.0.1:${HTTP_PORT}` });
-  }
+  const connection = await connectOrLaunch();
+  const miniProgram = connection.miniProgram;
+  const ownsDevtools = connection.ownsDevtools;
   miniProgram.on("exception", (entry) => console.error("[devtools exception]", entry));
   try {
     await new Promise((resolve) => setTimeout(resolve, 4000));
@@ -61,7 +72,7 @@ async function run() {
       await new Promise((resolve) => setTimeout(resolve, 5000));
       await timeout(miniProgram.reLaunch("/pages/index/index"), 45000, "冷启动重试首页仍然超时");
     }
-    await timeout(miniProgram.callWxMethod("setStorageSync", "gf_invite_passed", "yes"), 8000, "写入测试邀请码状态超时");
+    await seedSmokeSession(miniProgram);
 
     let page = await open(miniProgram, "/pages/games/index");
     await element(page, ".v25-game-grid");

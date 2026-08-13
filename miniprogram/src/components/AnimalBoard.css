@@ -4,4 +4,8 @@
 .animal-cell.trap { background: #d8a76f; }
 .animal-cell.den { background: radial-gradient(circle,#b87952 0 34%,#d0a46e 36%); }
 .animal-cell > text { color: rgba(86,52,28,.54); font-size: 14px; font-weight: 900; }
-.animal-board.disabled { opacity: .83; }
+.animal-board.disabled { opacity:.92; }
+.animal-move-target { position:absolute; z-index:5; inset:4px; display:flex; align-items:center; justify-content:center; border:3px solid rgba(255,244,182,.95); border-radius:50%; color:#fff8cf; background:rgba(63,94,61,.72); box-shadow:0 0 0 5px rgba(255,228,125,.24); animation:animal-target-pulse .5s ease-in-out infinite alternate; }
+.animal-move-target.blue { color:#eaf6ff; background:rgba(42,82,126,.82); }.animal-move-target.red { color:#fff0e8; background:rgba(151,58,50,.82); }
+.animal-move-target text { font-size:19px; font-weight:900; }
+@keyframes animal-target-pulse { from { transform:scale(.82); opacity:.6; } to { transform:scale(1); opacity:1; } }

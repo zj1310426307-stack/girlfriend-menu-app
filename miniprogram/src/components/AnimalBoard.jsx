@@ -8,20 +8,25 @@ const DENS = new Set(["3-0", "3-8"]);
 const TRAPS = new Set(["2-0", "4-0", "3-1", "2-8", "4-8", "3-7"]);
 
 /** Responsive 7x9 board; rules remain fully authoritative on the backend. */
-export default function AnimalBoard({ pieces = [], selectedId, disabled = false, onCell }) {
+export default function AnimalBoard({ pieces = [], selectedId, pendingMove, disabled = false, onCell }) {
   const cells = Array.from({ length: 63 }, (_, index) => ({ x: index % 7, y: Math.floor(index / 7) }));
   const living = new Map(pieces.filter((item) => item.alive).map((item) => [`${item.x}-${item.y}`, item]));
   return (
     <View className={`animal-board ${disabled ? "disabled" : ""}`}>
       {cells.map(({ x, y }) => {
         const key = `${x}-${y}`;
-        const piece = living.get(key);
+        const currentPiece = living.get(key);
+        const movingPiece = pendingMove ? pieces.find((item) => item.id === pendingMove.pieceId) : null;
+        const isMovingSource = currentPiece?.id === pendingMove?.pieceId;
+        const isMovingTarget = pendingMove?.x === x && pendingMove?.y === y;
+        const piece = isMovingSource ? null : currentPiece;
         const terrain = RIVER.has(key) ? "river" : DENS.has(key) ? "den" : TRAPS.has(key) ? "trap" : "land";
         return (
           <View key={key} className={`animal-cell ${terrain}`} data-x={x} data-y={y} onClick={() => !disabled && onCell?.(piece, x, y)}>
             {terrain === "den" && !piece && <Text>穴</Text>}
             {terrain === "trap" && !piece && <Text>陷</Text>}
             <AnimalPiece piece={piece} selected={piece?.id === selectedId} />
+            {isMovingTarget && <View className={`animal-move-target ${movingPiece?.color || ""}`}><Text>{movingPiece?.label || "落"}</Text></View>}
           </View>
         );
       })}

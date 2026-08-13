@@ -1,12 +1,23 @@
-.chess-board { position:relative; width:100%; overflow:hidden; border:9px solid #70472c; border-radius:15px; background:#d6a25d; box-shadow:0 18px 34px rgba(41,27,18,.28),inset 0 0 28px rgba(99,53,21,.22); box-sizing:border-box; }
-.chess-grid { position:relative; z-index:2; display:grid; grid-template-columns:repeat(9,1fr); }
-.chess-cell { position:relative; aspect-ratio:1; box-sizing:border-box; border-right:1px solid rgba(74,43,22,.7); border-bottom:1px solid rgba(74,43,22,.7); }
-.chess-cell:nth-child(9n) { border-right:0; }
-.chess-cell.row-9 { border-bottom:0; }
+.chess-board { position:relative; width:100%; padding:10px; overflow:hidden; border:9px solid #70472c; border-radius:15px; background:linear-gradient(145deg,#e2b66f,#c98d48); box-shadow:0 18px 34px rgba(41,27,18,.28),inset 0 0 28px rgba(99,53,21,.22); box-sizing:border-box; }
+.chess-board-surface { position:relative; width:82%; margin:5.5% auto; aspect-ratio:8/9; }
+.chess-lines,.chess-points { position:absolute; inset:0; }
+.chess-lines { z-index:2; }
+.chess-points { z-index:5; }
+.chess-line { position:absolute; background:#704018; box-shadow:0 0 0 .5px rgba(71,37,15,.24); pointer-events:none; }
+.chess-line.horizontal { z-index:2; left:0; width:100%; height:3px; transform:translateY(-1.5px); }
+.chess-file { position:absolute; z-index:3; top:0; bottom:0; width:3px; transform:translateX(-1.5px); pointer-events:none; }
+.chess-line.vertical { left:0; width:3px; }
+.chess-line.vertical.full { top:0; height:100%; }
+.chess-line.vertical.top { top:0; height:44.445%; }
+.chess-line.vertical.bottom { bottom:0; height:44.445%; }
+.chess-point { position:absolute; z-index:5; width:12.5%; height:11.111%; display:flex; align-items:center; justify-content:center; transform:translate(-50%,-50%); box-sizing:border-box; }
 .chess-board.disabled { filter:saturate(.88); }
-.chess-river { position:absolute; z-index:1; top:45%; left:0; right:0; height:10%; display:flex; align-items:center; justify-content:space-around; border-top:1px solid rgba(74,43,22,.7); border-bottom:1px solid rgba(74,43,22,.7); background:#d9aa67; }
-.chess-river text { color:rgba(66,40,22,.82); font-family:serif; font-size:19px; font-weight:900; letter-spacing:7px; }
-.chess-palace { position:absolute; z-index:1; left:39%; width:22%; height:20%; background:linear-gradient(45deg,transparent 49%,rgba(74,43,22,.65) 50%,transparent 51%),linear-gradient(-45deg,transparent 49%,rgba(74,43,22,.65) 50%,transparent 51%); }
-.chess-palace.top { top:0; }
-.chess-palace.bottom { bottom:0; }
-@media (max-width:360px) { .chess-piece text { font-size:18px; } .chess-river text { font-size:16px; } }
+.chess-pending-piece { position:absolute; inset:4px; z-index:6; display:flex; align-items:center; justify-content:center; border:3px solid currentColor; border-radius:50%; background:rgba(255,239,199,.9); box-shadow:0 0 0 5px rgba(255,232,142,.48); animation:chess-pending-pulse .5s ease-in-out infinite alternate; }
+.chess-pending-piece text { font-family:serif; font-size:21px; font-weight:900; }.chess-pending-piece.red { color:#a63d31; }.chess-pending-piece.black { color:#28342d; }
+.chess-river { position:absolute; z-index:4; top:44.444%; left:0; right:0; height:11.112%; display:flex; align-items:center; justify-content:space-around; color:rgba(66,40,22,.9); background:transparent; pointer-events:none; }
+.chess-river text { font-family:serif; font-size:19px; font-weight:900; letter-spacing:7px; }
+.chess-palace { position:absolute; z-index:2; left:50%; width:35.355%; height:1px; background:rgba(70,40,20,.72); transform-origin:center; pointer-events:none; }
+.chess-palace.first { transform:translateX(-50%) rotate(45deg); }.chess-palace.second { transform:translateX(-50%) rotate(-45deg); }
+.chess-palace.top { top:11.111%; }.chess-palace.bottom { bottom:11.111%; }
+@media (max-width:360px) { .chess-board { padding:8px; border-width:7px; } .chess-piece text { font-size:18px; } .chess-river text { font-size:16px; } }
+@keyframes chess-pending-pulse { from { opacity:.62; transform:scale(.88); } to { opacity:1; transform:scale(1); } }

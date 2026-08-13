@@ -117,7 +117,7 @@ def join_room(db: Session, room_code: str, player_id: str, player_name: str):
     row = _state_row(db, room, lock=True)
     if row.state.get("mode") == "ai":
         raise HTTPException(status_code=409, detail="AI 练习房不能再加入第二位玩家")
-    player = crud.join_game_room(db, room.room_code, player_id)
+    crud.join_game_room(db, room.room_code, player_id)
     game = FlightGame(row.state)
     known_names = {item["id"]: item["name"] for item in game.state["players"]}
     known_names[player_id] = player_name

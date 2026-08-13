@@ -167,7 +167,8 @@ def test_landlord_finish_settles_record_rewards_achievement_and_love_task():
             "/api/games/landlord/join",
             headers=_headers(girl),
             json={"room_code": created["room_code"], "player_name": "她", "invite_code": "test-invite"},
-        ).json()
+        )
+        assert joined.status_code == 200
         with SessionLocal() as db:
             room = db.query(models.GameRoom).filter(models.GameRoom.room_code == created["room_code"]).one()
             session = db.query(models.GameSession).filter(models.GameSession.room_id == room.id).one()

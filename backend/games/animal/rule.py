@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from games.core.engine import GameRuleError
 
-from .board import DENS, RIVER, TRAPS, inside, opponent, piece_at
+from .board import DENS, RIVER, TRAPS, inside, piece_at
 
 
 def _jump_target(piece: dict, dx: int, dy: int, pieces: list[dict]) -> tuple[int, int] | None:

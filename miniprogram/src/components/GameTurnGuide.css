@@ -1,0 +1,11 @@
+.game-turn-guide { min-height:72px; display:flex; align-items:center; gap:12px; margin:0 0 12px; padding:11px 13px; box-sizing:border-box; border:2px solid #d9e5d5; border-radius:22px; color:#40513f; background:#f2f7ef; box-shadow:0 8px 18px rgba(67,83,63,.08); }
+.game-turn-marker { width:42px; height:42px; flex:0 0 42px; display:flex; align-items:center; justify-content:center; border-radius:50%; color:#fff; background:#71886b; font-size:19px; font-weight:900; box-shadow:0 5px 12px rgba(75,105,72,.24); }
+.game-turn-copy { min-width:0; flex:1; }
+.game-turn-copy > text:first-child { display:block; color:inherit; font-size:18px; font-weight:900; line-height:1.25; }
+.game-turn-copy > text:last-child { display:block; margin-top:4px; color:#7f897b; font-size:13px; line-height:1.35; }
+.game-turn-action { min-width:80px; min-height:42px; display:flex; align-items:center; justify-content:center; padding:0 10px; border-radius:14px; color:#fff; background:#71886b; font-size:13px; font-weight:900; }
+.game-turn-action.share { height:42px; margin:0; border:0; line-height:42px; }.game-turn-action.share::after { border:0; }
+.game-turn-guide.waiting { color:#6f5b43; border-color:#eadbc5; background:#fff8ed; }.game-turn-guide.waiting .game-turn-marker,.game-turn-guide.waiting .game-turn-action { background:#b27b4f; }
+.game-turn-guide.busy { color:#4d6074; border-color:#d5e2eb; background:#f1f7fa; }.game-turn-guide.busy .game-turn-marker { background:#66869e; animation:game-turn-pulse .65s ease-in-out infinite alternate; }
+.game-turn-guide.danger { color:#8e4439; border-color:#efd0c9; background:#fff3ef; }.game-turn-guide.danger .game-turn-marker { background:#b75b4d; }
+@keyframes game-turn-pulse { from { opacity:.58; transform:scale(.92); } to { opacity:1; transform:scale(1); } }

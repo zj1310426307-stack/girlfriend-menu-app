@@ -733,7 +733,6 @@ class GameRoomManager:
         room["outcome"] = resolve_challenge(all_values, bid, player_id)
         actual_count = room["outcome"]["actual_count"]
         winner_id = room["outcome"]["winner_id"]
-        loser_id = room["outcome"]["loser_id"]
         room["scores"][winner_id] = room["scores"].get(winner_id, 0) + 1
         room["phase"] = "finished"
         room["turn_id"] = None

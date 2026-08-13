@@ -14,5 +14,6 @@ backend/uploads/*
 !backend/uploads/.gitkeep
 miniprogram/node_modules/
 miniprogram/dist/
+miniprogram/.test-tmp/
 miniprogram/.swc/
 miniprogram/project.private.config.json

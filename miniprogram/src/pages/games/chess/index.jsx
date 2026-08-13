@@ -5,6 +5,7 @@ import { Input, Text, View } from "@tarojs/components";
 import { createChessRoom, getVersionedGameState, joinChessRoom, sendChessMove } from "../../../api";
 import ChessBoard from "../../../components/ChessBoard";
 import GameSyncBar from "../../../components/GameSyncBar";
+import GameTurnGuide from "../../../components/GameTurnGuide";
 import MoveHistory from "../../../components/MoveHistory";
 import { getCustomerId } from "../../../utils/customer";
 import { ensureInvitePassed } from "../../../utils/invite";
@@ -34,6 +35,7 @@ export default function ChessPage() {
   const [busy, setBusy] = useState("");
   const [connection, setConnection] = useState("offline");
   const [syncError, setSyncError] = useState("");
+  const [pendingMove, setPendingMove] = useState(null);
 
   useEffect(() => {
     if (roomCode) ensureGameRecovery(customerId, roomCode);
@@ -118,15 +120,16 @@ export default function ChessPage() {
     } catch (error) {
       Taro.showToast({ title: error.message || "落子失败，请同步后重试", icon: "none" });
       refresh();
-    } finally { actionLockRef.current = false; setBusy(""); }
+    } finally { actionLockRef.current = false; setBusy(""); setPendingMove(null); }
   };
   const onCell = (piece, x, y) => {
-    if (state.phase !== "playing" || state.turn_id !== customerId || busy) return;
-    if (piece?.color === state.my_color) { setSelectedId(piece.id); return; }
+    if (state.phase !== "playing" || state.turn_id !== customerId || busy || !version) return;
+    if (piece?.color === state.my_color) { setSelectedId((current) => current === piece.id ? "" : piece.id); return; }
     if (!selectedId) return Taro.showToast({ title: "请先选择自己的棋子", icon: "none" });
     const selected = state.pieces.find((item) => item.id === selectedId);
     if (selected) {
       setSelectedId("");
+      setPendingMove({ pieceId: selected.id, x, y, label: selected.label, color: selected.color });
       act("MOVE", { from_pos: position(selected.x, selected.y), to_pos: position(x, y) });
     }
   };
@@ -143,6 +146,7 @@ export default function ChessPage() {
   };
 
   const isMyTurn = state.turn_id === customerId;
+  const selectedPiece = state.pieces?.find((item) => item.id === selectedId);
   const statusText = useMemo(() => {
     if (state.phase === "finished" && !state.winner_id) {
       const reason = {
@@ -160,6 +164,15 @@ export default function ChessPage() {
     if (state.check_color) return state.check_color === state.my_color ? "将军！请先应将" : "你将军了";
     return isMyTurn ? "轮到你落子" : `等待 ${state.names?.[state.turn_id] || "对方"} 落子`;
   }, [customerId, isMyTurn, state]);
+  const turnGuide = useMemo(() => {
+    if (busy === "MOVE") return { marker: "…", title: state.mode === "ai" ? "落子已发送，AI 正在应对" : "正在确认落子", detail: "服务器确认后棋盘会自动更新", tone: "busy" };
+    if (connection === "syncing") return { marker: "…", title: "正在同步棋局", detail: "同步完成后再继续操作", tone: "busy" };
+    if (connection === "offline") return { marker: "!", title: syncError || "棋局暂时离线", detail: "连接恢复前不会提交动作", tone: "danger", actionLabel: "重试", onAction: () => refresh() };
+    if (state.phase === "waiting") return { marker: "码", title: `房间 ${roomCode} 已创建`, detail: "直接邀请她，加入后由红方先行", tone: "waiting", shareLabel: "邀请她" };
+    if (!isMyTurn) return { marker: "等", title: statusText, detail: "轮到你时棋子会恢复可操作", tone: "waiting" };
+    if (selectedPiece) return { marker: selectedPiece.label, title: `已选择${selectedPiece.label}，再点落点`, detail: "再次点击当前棋子可取消选择", tone: state.check_color ? "danger" : "active", actionLabel: "取消", onAction: () => setSelectedId("") };
+    return { marker: state.check_color ? "将" : "1", title: state.check_color ? "正在被将军，请先应将" : "先点一枚自己的棋子", detail: "选中后再点目标交叉点", tone: state.check_color ? "danger" : "active" };
+  }, [busy, connection, isMyTurn, refresh, roomCode, selectedPiece, state.check_color, state.mode, state.phase, statusText, syncError]);
 
   if (!allowed) return <View className="chess-loading"><Text>正在返回邀请码页面…</Text></View>;
   if (!roomCode) return (
@@ -181,7 +194,8 @@ export default function ChessPage() {
       <View className="chess-room-head"><View><Text>房间 {roomCode}</Text><Text onClick={() => Taro.setClipboardData({ data: roomCode })}>复制</Text></View><Text>V{version}</Text></View>
       <GameSyncBar status={connection} message={syncError} onRetry={() => refresh()} />
       <View className={`chess-status ${state.check_color ? "checking" : ""}`}><Text>{statusText}</Text><Text>你执{state.my_color === "red" ? "红" : "黑"} · {state.move_count || 0} 步 · {state.mode === "ai" ? "AI 陪练" : "情侣对局"}</Text></View>
-      <ChessBoard pieces={state.pieces} myColor={state.my_color} selectedId={selectedId} lastMove={state.last_move} disabled={!isMyTurn || state.phase !== "playing" || !!busy} onCell={onCell} />
+      {state.phase !== "finished" && <GameTurnGuide {...turnGuide} />}
+      <ChessBoard pieces={state.pieces} myColor={state.my_color} selectedId={selectedId} lastMove={state.last_move} pendingMove={pendingMove} disabled={connection !== "online" || !isMyTurn || state.phase !== "playing" || !!busy} onCell={onCell} />
       <MoveHistory moves={state.move_history} names={state.names} />
       {state.phase === "finished" && <View className="chess-result"><Text>{statusText}</Text><Text>参与 +1 · 胜利 +5 · 成就奖励自动结算</Text><View onClick={() => { setRoomCode(""); setState(EMPTY); }}><Text>再来一局</Text></View></View>}
       <View className="chess-footer"><Text onClick={() => refresh()}>同步棋局</Text><Text onClick={confirmResign}>认输</Text><Text onClick={() => Taro.navigateTo({ url: "/pages/games/ranking/index" })}>排行榜</Text></View>

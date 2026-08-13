@@ -29,6 +29,7 @@ jobs:
       - run: DATABASE_URL=sqlite:///migration_ci.db python -m alembic -c alembic.ini upgrade head
       - run: DATABASE_URL=sqlite:///migration_from_v2_ci.db python -m alembic -c alembic.ini upgrade 20260808_01
       - run: DATABASE_URL=sqlite:///migration_from_v2_ci.db python -m alembic -c alembic.ini upgrade head
+      - run: python -m ruff check . ../scripts
       - run: python -m compileall -q .
       - run: python -m pytest -q
 
@@ -46,6 +47,7 @@ jobs:
           cache-dependency-path: miniprogram/package-lock.json
       - run: npm ci
       - run: npm run build:weapp
+      - run: npm run test:ci
 
   release-safety:
     runs-on: ubuntu-latest
