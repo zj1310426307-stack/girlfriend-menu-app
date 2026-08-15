@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-import os
 import secrets
 
 from fastapi import HTTPException, status
@@ -11,10 +10,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from auth import hash_token, new_customer_credentials
+from core.settings import load_settings
 import models
-
-
-DEFAULT_SESSION_TTL_DAYS = 90
 
 
 def utc_now() -> datetime:
@@ -24,11 +21,7 @@ def utc_now() -> datetime:
 
 def _session_ttl() -> timedelta:
     """Read a bounded session lifetime while keeping private-app defaults usable."""
-    try:
-        days = int(os.getenv("CUSTOMER_SESSION_TTL_DAYS", str(DEFAULT_SESSION_TTL_DAYS)))
-    except ValueError:
-        days = DEFAULT_SESSION_TTL_DAYS
-    return timedelta(days=min(max(days, 1), 365))
+    return timedelta(days=load_settings().customer_session_ttl_days)
 
 
 def _as_utc(value: datetime) -> datetime:
@@ -50,7 +43,7 @@ def _legacy_id(value: str) -> str:
 
 def verify_invite(invite_code: str) -> None:
     """Validate only the customer invite code; never fall back to admin secrets."""
-    expected = os.getenv("CUSTOMER_INVITE_CODE")
+    expected = load_settings().customer_invite_code_value
     if not expected:
         raise HTTPException(status_code=503, detail="后端尚未配置 CUSTOMER_INVITE_CODE")
     if not secrets.compare_digest(invite_code, expected):

@@ -5,11 +5,12 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from io import BytesIO
 import logging
-import os
 from pathlib import Path
 from uuid import uuid4
 
 from PIL import Image, ImageOps, UnidentifiedImageError
+
+from core.settings import Settings, load_settings
 
 
 logger = logging.getLogger(__name__)
@@ -43,10 +44,17 @@ class LocalStorageProvider(StorageProvider):
 
 
 class S3CompatibleStorageProvider(StorageProvider):
-    def __init__(self):
+    def __init__(self, settings: Settings | None = None):
+        """Build an S3 client from the configuration visible at construction time."""
         import boto3
 
-        required = {name: os.getenv(name) for name in S3_REQUIRED_ENV}
+        settings = settings or load_settings()
+        required = {
+            "S3_BUCKET": settings.s3_bucket,
+            "S3_ACCESS_KEY_ID": settings.s3_access_key_id_value,
+            "S3_SECRET_ACCESS_KEY": settings.s3_secret_access_key_value,
+            "S3_PUBLIC_BASE_URL": settings.s3_public_base_url,
+        }
         missing = [name for name, value in required.items() if not value]
         if missing:
             raise ValueError(f"对象存储缺少配置：{', '.join(missing)}")
@@ -57,8 +65,8 @@ class S3CompatibleStorageProvider(StorageProvider):
         self.public_base = public_base
         self.client = boto3.client(
             "s3",
-            endpoint_url=os.getenv("S3_ENDPOINT") or None,
-            region_name=os.getenv("S3_REGION") or None,
+            endpoint_url=settings.s3_endpoint or None,
+            region_name=settings.s3_region or None,
             aws_access_key_id=required["S3_ACCESS_KEY_ID"],
             aws_secret_access_key=required["S3_SECRET_ACCESS_KEY"],
         )
@@ -125,13 +133,15 @@ def _validated_image(content: bytes, requested_extension: str) -> tuple[bytes, s
 
 
 def get_storage_provider() -> StorageProvider:
-    provider = os.getenv("UPLOAD_PROVIDER", "local").strip().lower()
+    """Select a provider from the runtime-observable upload configuration."""
+    settings = load_settings()
+    provider = settings.upload_provider_name
     if provider == "local":
-        if os.getenv("APP_ENV", "development").lower() == "production":
+        if settings.is_production:
             logger.error("production_storage_is_local uploaded files may be lost on ephemeral disks")
         return LocalStorageProvider()
     if provider in {"s3", "s3-compatible"}:
-        return S3CompatibleStorageProvider()
+        return S3CompatibleStorageProvider(settings)
     if provider in {"database", "postgresql"}:
         return DatabaseStorageProvider()
     raise ValueError(f"不支持的图片存储类型：{provider}")
@@ -139,17 +149,23 @@ def get_storage_provider() -> StorageProvider:
 
 def storage_readiness() -> dict[str, object]:
     """Return configuration readiness without making a network request."""
-    provider = os.getenv("UPLOAD_PROVIDER", "local").strip().lower()
+    settings = load_settings()
+    provider = settings.upload_provider_name
     if provider == "local":
-        production = os.getenv("APP_ENV", "development").lower() == "production"
         return {
             "provider": provider,
-            "status": "release-blocked" if production else "ready",
+            "status": "release-blocked" if settings.is_production else "ready",
             "missing": [],
         }
     if provider in {"s3", "s3-compatible"}:
-        missing = [name for name in S3_REQUIRED_ENV if not os.getenv(name)]
-        public_base = os.getenv("S3_PUBLIC_BASE_URL", "")
+        values = {
+            "S3_BUCKET": settings.s3_bucket,
+            "S3_ACCESS_KEY_ID": settings.s3_access_key_id_value,
+            "S3_SECRET_ACCESS_KEY": settings.s3_secret_access_key_value,
+            "S3_PUBLIC_BASE_URL": settings.s3_public_base_url,
+        }
+        missing = [name for name in S3_REQUIRED_ENV if not values[name]]
+        public_base = settings.s3_public_base_url
         if public_base and not public_base.startswith("https://"):
             missing.append("S3_PUBLIC_BASE_URL(HTTPS)")
         return {

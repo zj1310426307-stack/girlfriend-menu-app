@@ -3,19 +3,22 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-import os
-import socket
 
 from sqlalchemy import or_, update
 from sqlalchemy.orm import Session, noload
 
 import models
+from core.settings import get_settings
+from core.telemetry import set_span_attribute, trace_span
 
 
-LEASE_SECONDS = max(15, int(os.getenv("GAME_ROOM_LEASE_SECONDS", "30")))
-INSTANCE_ID = os.getenv("GAME_INSTANCE_ID", "").strip() or (
-    f"{os.getenv('RENDER_INSTANCE_ID') or socket.gethostname()}:{os.getpid()}"
-)
+def configured_lease_seconds() -> int:
+    """Return the current bounded lease duration through the settings cache."""
+    return get_settings().game_room_lease_seconds
+
+
+LEASE_SECONDS = configured_lease_seconds()
+INSTANCE_ID = get_settings().resolved_game_instance_id()
 
 
 @dataclass(frozen=True)
@@ -35,8 +38,29 @@ def _now() -> datetime:
 def acquire_room_lease(
     db: Session,
     room_code: str,
-    owner_instance_id: str = INSTANCE_ID,
-    lease_seconds: int = LEASE_SECONDS,
+    owner_instance_id: str | None = None,
+    lease_seconds: int | None = None,
+) -> RoomLease:
+    """Trace and execute one lease CAS without exposing room or owner identity."""
+    with trace_span(
+        "game.lease.acquire",
+        {"result": "error", "retry.count": 0},
+    ) as span:
+        lease = _acquire_room_lease(
+            db,
+            room_code,
+            owner_instance_id=owner_instance_id,
+            lease_seconds=lease_seconds,
+        )
+        set_span_attribute(span, "result", "acquired" if lease.acquired else "busy")
+        return lease
+
+
+def _acquire_room_lease(
+    db: Session,
+    room_code: str,
+    owner_instance_id: str | None = None,
+    lease_seconds: int | None = None,
 ) -> RoomLease:
     """Acquire or renew one active room lease with a database compare-and-set.
 
@@ -44,6 +68,8 @@ def acquire_room_lease(
     instance receives ``acquired=False`` and asks the client to reconnect; an
     expired owner can be replaced without manual cleanup.
     """
+    owner_instance_id = owner_instance_id or INSTANCE_ID
+    lease_seconds = lease_seconds if lease_seconds is not None else configured_lease_seconds()
     normalized = room_code.strip().upper()
     now = _now()
     expires_at = now + timedelta(seconds=max(15, lease_seconds))
@@ -111,10 +137,12 @@ def acquire_room_lease(
 def renew_room_leases(
     db: Session,
     room_codes: list[str],
-    owner_instance_id: str = INSTANCE_ID,
-    lease_seconds: int = LEASE_SECONDS,
+    owner_instance_id: str | None = None,
+    lease_seconds: int | None = None,
 ) -> int:
     """Heartbeat every locally active room without taking ownership from peers."""
+    owner_instance_id = owner_instance_id or INSTANCE_ID
+    lease_seconds = lease_seconds if lease_seconds is not None else configured_lease_seconds()
     normalized = {code.strip().upper() for code in room_codes if code.strip()}
     if not normalized:
         return 0
@@ -135,9 +163,10 @@ def renew_room_leases(
 def release_room_lease(
     db: Session,
     room_code: str,
-    owner_instance_id: str = INSTANCE_ID,
+    owner_instance_id: str | None = None,
 ) -> bool:
     """Release ownership only when no local socket remains in the room."""
+    owner_instance_id = owner_instance_id or INSTANCE_ID
     result = db.execute(
         update(models.GameRoom)
         .where(

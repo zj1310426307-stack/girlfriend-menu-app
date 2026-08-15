@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from collections import defaultdict, deque
-import os
 from threading import Lock
 import time
+
+from core.settings import get_settings
 
 
 class RateLimitExceeded(Exception):
@@ -47,7 +48,7 @@ class RedisRateLimiter:
 
 
 def _build_limiter():
-    redis_url = os.getenv("REDIS_URL", "").strip()
+    redis_url = get_settings().redis_url_value
     if redis_url:
         try:
             limiter = RedisRateLimiter(redis_url)

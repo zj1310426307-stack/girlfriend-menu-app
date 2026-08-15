@@ -1,0 +1,31 @@
+[importlinter]
+root_packages =
+    api
+    games
+    repositories
+    services
+include_external_packages = True
+
+[importlinter:contract:repositories-boundary]
+name = Repositories do not depend on API or service orchestration
+type = forbidden
+source_modules =
+    repositories
+forbidden_modules =
+    api
+    services
+    notification_service
+
+[importlinter:contract:pure-game-rules]
+name = Pure game rules do not depend on web or persistence frameworks
+type = forbidden
+source_modules =
+    games.*.rule
+    games.*.engine
+    games.*.ai
+forbidden_modules =
+    fastapi
+    sqlalchemy
+    database
+    models
+as_packages = False

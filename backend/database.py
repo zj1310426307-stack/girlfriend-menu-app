@@ -1,31 +1,37 @@
-import os
 from pathlib import Path
 
-from dotenv import load_dotenv
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import declarative_base, sessionmaker
 
+from core.settings import get_settings
+
 
 BASE_DIR = Path(__file__).resolve().parent
-load_dotenv(BASE_DIR / ".env")
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    f"sqlite:///{BASE_DIR / 'girlfriend_menu.db'}",
-)
-if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-engine_options = {"pool_pre_ping": True}
-if DATABASE_URL.startswith("sqlite"):
-    engine_options["connect_args"] = {"check_same_thread": False}
-else:
-    engine_options.update(
-        pool_size=max(1, int(os.getenv("DB_POOL_SIZE", "5"))),
-        max_overflow=max(0, int(os.getenv("DB_MAX_OVERFLOW", "10"))),
-        pool_timeout=max(5, int(os.getenv("DB_POOL_TIMEOUT", "30"))),
-        pool_recycle=max(300, int(os.getenv("DB_POOL_RECYCLE", "1800"))),
-    )
+def configured_database_url() -> str:
+    """Return the current normalized URL without exposing it through Settings repr."""
+    return get_settings().normalized_database_url
+
+
+def database_engine_options(database_url: str) -> dict:
+    """Build the same SQLite or bounded PostgreSQL engine options as before."""
+    options = {"pool_pre_ping": True}
+    if database_url.startswith("sqlite"):
+        options["connect_args"] = {"check_same_thread": False}
+    else:
+        settings = get_settings()
+        options.update(
+            pool_size=settings.db_pool_size,
+            max_overflow=settings.db_max_overflow,
+            pool_timeout=settings.db_pool_timeout,
+            pool_recycle=settings.db_pool_recycle,
+        )
+    return options
+
+
+DATABASE_URL = configured_database_url()
+engine_options = database_engine_options(DATABASE_URL)
 
 engine = create_engine(DATABASE_URL, **engine_options)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
