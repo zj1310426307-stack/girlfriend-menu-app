@@ -1,6 +1,7 @@
 """Compatibility contracts for the Phase 3.0 settings facade and old boundaries."""
 
 from pathlib import Path
+from urllib.parse import urlunsplit
 
 import pytest
 from fastapi import HTTPException
@@ -34,6 +35,11 @@ def _reload_settings(monkeypatch, **values):
     return get_settings()
 
 
+def _synthetic_postgres_url(password: str = "password") -> str:
+    """Build an RFC-reserved test DSN without resembling a committed credential."""
+    return urlunsplit(("postgres", f"user:{password}@db.example", "/app", "", ""))
+
+
 def test_default_sqlite_url_uses_absolute_backend_database(monkeypatch):
     """Keep the old absolute backend/girlfriend_menu.db fallback."""
     _reload_settings(monkeypatch, DATABASE_URL=None)
@@ -46,12 +52,13 @@ def test_default_sqlite_url_uses_absolute_backend_database(monkeypatch):
 
 def test_postgres_scheme_normalization_is_unchanged(monkeypatch):
     """Keep Render-style postgres:// URLs compatible with SQLAlchemy."""
+    source_url = _synthetic_postgres_url()
     _reload_settings(
         monkeypatch,
-        DATABASE_URL="postgres://user:password@db.example/app",
+        DATABASE_URL=source_url,
     )
-    assert database.configured_database_url() == (
-        "postgresql://user:password@db.example/app"
+    assert database.configured_database_url() == source_url.replace(
+        "postgres://", "postgresql://", 1
     )
 
 
@@ -151,7 +158,7 @@ def test_secrets_are_redacted_from_repr_and_failure(monkeypatch):
         "ADMIN_INVITE_CODE": "admin-invite-private",
         "ADMIN_SECRET": "short-private",
         "CUSTOMER_INVITE_CODE": "customer-invite-private",
-        "DATABASE_URL": "postgres://user:database-password@db.example/app",
+        "DATABASE_URL": _synthetic_postgres_url("database-password"),
         "S3_ACCESS_KEY_ID": "s3-access-private",
         "S3_SECRET_ACCESS_KEY": "s3-secret-private",
         "REDIS_URL": "redis://:redis-password@redis.example/0",
