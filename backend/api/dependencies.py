@@ -5,7 +5,6 @@ legacy-header handling or rate-limit behavior after router modularization.
 """
 
 import logging
-import os
 
 from fastapi import Depends, Header, HTTPException, Request, status
 from sqlalchemy.orm import Session
@@ -15,6 +14,7 @@ import user_service
 from auth import verify_admin_token_value
 from core.cache import state_cache
 from core.rate_limit import RateLimitExceeded, rate_limiter
+from core.settings import load_settings
 from database import get_db
 
 
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 def get_admin_password() -> str:
     """Return the configured administrator password or fail closed."""
-    password = os.getenv("ADMIN_PASSWORD")
+    password = load_settings().admin_password_value
     if not password:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -34,7 +34,7 @@ def get_admin_password() -> str:
 
 def get_admin_invite_code() -> str:
     """Return the administrator-only invite code or fail closed."""
-    invite_code = os.getenv("ADMIN_INVITE_CODE")
+    invite_code = load_settings().admin_invite_code_value
     if not invite_code:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -60,11 +60,7 @@ def is_admin_token(token: str | None) -> bool:
 
 def allow_legacy_customer_header() -> bool:
     """Expose the deprecated customer header only in explicitly enabled environments."""
-    return os.getenv("ALLOW_LEGACY_CUSTOMER_HEADER", "false").lower() in {
-        "1",
-        "true",
-        "yes",
-    }
+    return load_settings().allow_legacy_customer_header
 
 
 def bearer_token(authorization: str | None) -> str | None:

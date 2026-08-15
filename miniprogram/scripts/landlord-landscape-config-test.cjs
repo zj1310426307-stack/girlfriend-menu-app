@@ -4,6 +4,16 @@ const path = require("path");
 
 const ROOT = path.resolve(__dirname, "..");
 const read = (...segments) => fs.readFileSync(path.resolve(ROOT, ...segments), "utf8");
+const nativeMainButtonPattern = /<Button\s+className=["']ll-main-button["']/;
+const busyDisabledPattern = /disabled=\{Boolean\(busy\)\}/;
+
+// Keep the source contract independent from checkout-specific line endings.
+const lfMainButtonFixture = '<Button\n  className="ll-main-button"\n  disabled={Boolean(busy)}>';
+const crlfMainButtonFixture = lfMainButtonFixture.replace(/\n/g, "\r\n");
+for (const [lineEnding, fixture] of [["LF", lfMainButtonFixture], ["CRLF", crlfMainButtonFixture]]) {
+  assert(nativeMainButtonPattern.test(fixture), `${lineEnding} fixture 必须识别原生斗地主开局按钮`);
+  assert(busyDisabledPattern.test(fixture), `${lineEnding} fixture 必须识别开局按钮禁用契约`);
+}
 
 const config = JSON.parse(read("dist", "pages", "games", "landlord", "index.json"));
 assert.equal(config.pageOrientation, "landscape", "斗地主页面必须编译为横屏");
@@ -15,7 +25,8 @@ for (const marker of ["PageMeta", "ll-lobby-settings", "ll-opponents", "ll-actio
   assert(jsx.includes(marker), `斗地主页面缺少结构：${marker}`);
 }
 assert(jsx.includes('aria-label="开始斗地主"'), "斗地主开始按钮缺少稳定可访问点击目标");
-assert(jsx.includes('<Button\n          className="ll-main-button"') && jsx.includes('disabled={Boolean(busy)}'), "斗地主开局入口必须使用可禁用的原生微信按钮");
+assert(nativeMainButtonPattern.test(jsx), "斗地主开局入口必须使用原生微信按钮");
+assert(busyDisabledPattern.test(jsx), "斗地主开局入口必须保留忙碌禁用态");
 assert(jsx.includes('openType="share"'), "斗地主等待牌桌缺少一键邀请入口");
 assert(jsx.includes("canPass") && jsx.includes("先选牌"), "斗地主操作栏缺少合法不出状态或选牌指引");
 assert(/if \(!roomCode\) return \(\s*<>\s*<PageMeta[^>]*\/>\s*<View className="ll-page ll-lobby">/.test(jsx), "PageMeta 不能作为斗地主 Grid 的子项占用首个格子");

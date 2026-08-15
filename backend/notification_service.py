@@ -1,21 +1,44 @@
 """Durable in-app notifications shared by food, games and anniversaries."""
+from contextlib import nullcontext
 from datetime import date, datetime
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 import models
+from core.telemetry import trace_span
 from user_service import ensure_user
 
 
-def create_notification(db: Session, user_code: str, kind: str, title: str, content: str, related_id: int | None = None) -> models.Notification:
+def create_notification(
+    db: Session,
+    user_code: str,
+    kind: str,
+    title: str,
+    content: str,
+    related_id: int | None = None,
+    *,
+    trace_persist: bool = False,
+) -> models.Notification:
     """Create one durable notification for a unified identity."""
-    user = ensure_user(db, user_code)
-    item = models.Notification(user_id=user.id, type=kind, title=title[:100], content=content, related_id=related_id)
-    db.add(item)
-    db.commit()
-    db.refresh(item)
-    return item
+    scope = (
+        trace_span("notification.persist", {"result": "created"})
+        if trace_persist
+        else nullcontext()
+    )
+    with scope:
+        user = ensure_user(db, user_code)
+        item = models.Notification(
+            user_id=user.id,
+            type=kind,
+            title=title[:100],
+            content=content,
+            related_id=related_id,
+        )
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+        return item
 
 
 def create_notification_once(
@@ -25,6 +48,8 @@ def create_notification_once(
     title: str,
     content: str,
     related_id: int,
+    *,
+    trace_persist: bool = False,
 ) -> models.Notification:
     """Create one notification per user/type/source during retryable workflows."""
     user = ensure_user(db, user_code)
@@ -39,7 +64,15 @@ def create_notification_once(
     )
     if existing:
         return existing
-    return create_notification(db, user_code, kind, title, content, related_id)
+    return create_notification(
+        db,
+        user_code,
+        kind,
+        title,
+        content,
+        related_id,
+        trace_persist=trace_persist,
+    )
 
 
 def list_notifications(db: Session, user_code: str, unread_only: bool = False, limit: int = 50) -> list[models.Notification]:
@@ -85,4 +118,12 @@ def generate_anniversary_reminders(db: Session, user_code: str) -> None:
         if 0 <= days <= item.reminder_days:
             exists = db.query(models.Notification.id).filter(models.Notification.user_id == user.id, models.Notification.type == "ANNIVERSARY", models.Notification.related_id == item.id, models.Notification.created_at >= datetime.combine(today, datetime.min.time())).first()
             if not exists:
-                create_notification(db, user_code, "ANNIVERSARY", f"距离{item.title}还有 {days} 天", "准备一个只属于你们的小纪念吧。", item.id)
+                create_notification(
+                    db,
+                    user_code,
+                    "ANNIVERSARY",
+                    f"距离{item.title}还有 {days} 天",
+                    "准备一个只属于你们的小纪念吧。",
+                    item.id,
+                    trace_persist=True,
+                )

@@ -16,6 +16,7 @@ from api.dependencies import (
     get_admin_invite_code,
     is_admin_token,
 )
+from core.telemetry import set_span_attribute, trace_span
 from game_runtime import game_room_manager
 from realtime_events import order_event_hub
 from services import game_settlement_service, game_socket_session_service
@@ -90,99 +91,120 @@ async def _game_room_socket(
     auth_finished_at = started_at
     membership_finished_at = started_at
     try:
-        try:
-            setup = await game_socket_session_service.load_room_and_acquire_lease(
-                normalized_room_code,
-                forced_game_type,
-            )
-            game_type = setup.game_type
-            await game_socket_session_service.restore_room_runtime(setup)
-            setup_finished_at = time.perf_counter()
-        except game_socket_session_service.SocketSessionError as error:
-            game_type = error.game_type or game_type
-            if error.close_code == 4429:
-                await websocket.send_json(
-                    {
-                        "type": "room_busy",
-                        "game": game_type,
-                        "room_code": normalized_room_code,
-                        "message": "房间正在另一台游戏服务器上运行，正在重新连接",
-                        "retry_after_ms": 1200,
-                    }
+        with trace_span(
+            "game.websocket.join",
+            {"game.type": game_type, "result": "error"},
+        ) as join_span:
+            try:
+                setup = await game_socket_session_service.load_room_and_acquire_lease(
+                    normalized_room_code,
+                    forced_game_type,
                 )
-            else:
-                await _send_game_error(websocket, error.message, game_type, protocol)
-            await websocket.close(code=error.close_code)
-            return
+                game_type = setup.game_type
+                set_span_attribute(join_span, "game.type", game_type)
+                await game_socket_session_service.restore_room_runtime(setup)
+                setup_finished_at = time.perf_counter()
+            except game_socket_session_service.SocketSessionError as error:
+                game_type = error.game_type or game_type
+                set_span_attribute(join_span, "game.type", game_type)
+                set_span_attribute(
+                    join_span,
+                    "result",
+                    "busy" if error.close_code == 4429 else "rejected",
+                )
+                if error.close_code == 4429:
+                    await websocket.send_json(
+                        {
+                            "type": "room_busy",
+                            "game": game_type,
+                            "room_code": normalized_room_code,
+                            "message": "房间正在另一台游戏服务器上运行，正在重新连接",
+                            "retry_after_ms": 1200,
+                        }
+                    )
+                else:
+                    await _send_game_error(websocket, error.message, game_type, protocol)
+                await websocket.close(code=error.close_code)
+                return
 
-        join_message = await asyncio.wait_for(websocket.receive_json(), timeout=10)
-        join_received_at = time.perf_counter()
-        join_data = (
-            join_message.get("data")
-            if isinstance(join_message.get("data"), dict)
-            else join_message
-        )
-        requested_game = str(
-            join_message.get("game") or forced_game_type or game_type
-        ).lower()
-        if str(join_message.get("type") or "").lower() != "join":
-            await _send_game_error(websocket, "请先加入房间", game_type, protocol)
-            await websocket.close(code=4400)
-            return
-        if requested_game != game_type:
-            await _send_game_error(websocket, "游戏类型与房间不匹配", game_type, protocol)
-            await websocket.close(code=4400)
-            return
-        try:
-            allow_legacy = allow_legacy_customer_header()
-            authenticated_player = game_socket_session_service.authenticate_player(
-                join_data,
-                allow_legacy_identity=allow_legacy,
-                legacy_invite_code=get_admin_invite_code() if allow_legacy else "",
-                game_type=game_type,
+            join_message = await asyncio.wait_for(websocket.receive_json(), timeout=10)
+            join_received_at = time.perf_counter()
+            join_data = (
+                join_message.get("data")
+                if isinstance(join_message.get("data"), dict)
+                else join_message
             )
-            player_id = authenticated_player.player_id
-        except game_socket_session_service.SocketSessionError as error:
-            await _send_game_error(websocket, error.message, game_type, protocol)
-            await websocket.close(code=error.close_code)
-            return
-        auth_finished_at = time.perf_counter()
-        try:
-            membership = game_socket_session_service.persist_membership(
+            requested_game = str(
+                join_message.get("game") or forced_game_type or game_type
+            ).lower()
+            if str(join_message.get("type") or "").lower() != "join":
+                set_span_attribute(join_span, "result", "rejected")
+                await _send_game_error(websocket, "请先加入房间", game_type, protocol)
+                await websocket.close(code=4400)
+                return
+            if requested_game != game_type:
+                set_span_attribute(join_span, "result", "rejected")
+                await _send_game_error(websocket, "游戏类型与房间不匹配", game_type, protocol)
+                await websocket.close(code=4400)
+                return
+            try:
+                allow_legacy = allow_legacy_customer_header()
+                authenticated_player = game_socket_session_service.authenticate_player(
+                    join_data,
+                    allow_legacy_identity=allow_legacy,
+                    legacy_invite_code=get_admin_invite_code() if allow_legacy else "",
+                    game_type=game_type,
+                )
+                player_id = authenticated_player.player_id
+            except game_socket_session_service.SocketSessionError as error:
+                set_span_attribute(
+                    join_span,
+                    "result",
+                    "unauthorized" if error.close_code == 4401 else "rejected",
+                )
+                await _send_game_error(websocket, error.message, game_type, protocol)
+                await websocket.close(code=error.close_code)
+                return
+            auth_finished_at = time.perf_counter()
+            try:
+                membership = game_socket_session_service.persist_membership(
+                    setup,
+                    authenticated_player,
+                )
+                room_session = membership.room_session
+                membership_finished_at = time.perf_counter()
+            except game_socket_session_service.SocketSessionError as error:
+                set_span_attribute(join_span, "result", "rejected")
+                await _send_game_error(websocket, error.message, game_type, protocol)
+                await websocket.close(code=error.close_code)
+                return
+            joined, message = await game_socket_session_service.join_runtime(
                 setup,
                 authenticated_player,
+                websocket,
+                protocol,
+                membership.players,
             )
-            room_session = membership.room_session
-            membership_finished_at = time.perf_counter()
-        except game_socket_session_service.SocketSessionError as error:
-            await _send_game_error(websocket, error.message, game_type, protocol)
-            await websocket.close(code=error.close_code)
-            return
-        joined, message = await game_socket_session_service.join_runtime(
-            setup,
-            authenticated_player,
-            websocket,
-            protocol,
-            membership.players,
-        )
-        if not joined:
-            await _send_game_error(websocket, message, game_type, protocol)
-            await websocket.close(code=4404)
-            return
-        joined_room = True
-        first_state_finished_at = time.perf_counter()
-        logger.info(
-            "game_ws_first_state room=%s game=%s setup_ms=%d client_join_wait_ms=%d "
-            "auth_ms=%d membership_ms=%d manager_join_ms=%d total_ms=%d",
-            normalized_room_code,
-            game_type,
-            round((setup_finished_at - started_at) * 1000),
-            round((join_received_at - setup_finished_at) * 1000),
-            round((auth_finished_at - join_received_at) * 1000),
-            round((membership_finished_at - auth_finished_at) * 1000),
-            round((first_state_finished_at - membership_finished_at) * 1000),
-            round((first_state_finished_at - started_at) * 1000),
-        )
+            if not joined:
+                set_span_attribute(join_span, "result", "rejected")
+                await _send_game_error(websocket, message, game_type, protocol)
+                await websocket.close(code=4404)
+                return
+            joined_room = True
+            first_state_finished_at = time.perf_counter()
+            logger.info(
+                "game_ws_first_state room=%s game=%s setup_ms=%d client_join_wait_ms=%d "
+                "auth_ms=%d membership_ms=%d manager_join_ms=%d total_ms=%d",
+                normalized_room_code,
+                game_type,
+                round((setup_finished_at - started_at) * 1000),
+                round((join_received_at - setup_finished_at) * 1000),
+                round((auth_finished_at - join_received_at) * 1000),
+                round((membership_finished_at - auth_finished_at) * 1000),
+                round((first_state_finished_at - membership_finished_at) * 1000),
+                round((first_state_finished_at - started_at) * 1000),
+            )
+            set_span_attribute(join_span, "result", "success")
         if room_session:
             await websocket.send_json(
                 {

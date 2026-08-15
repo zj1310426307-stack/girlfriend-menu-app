@@ -7,7 +7,6 @@ lifecycle, middleware, static mounting and top-level router registration.
 import asyncio
 from contextlib import asynccontextmanager, suppress
 import logging
-import os
 import time
 import uuid
 
@@ -24,6 +23,8 @@ import user_service
 from api.router import router as api_router
 from core.game_room_lease import INSTANCE_ID, renew_room_leases
 from core.rate_limit import RateLimitExceeded, rate_limiter
+from core.settings import get_settings, load_settings
+from core.telemetry import configure_tracing, shutdown_tracing
 from database import Base, SessionLocal, engine, ensure_compatible_schema
 from game_runtime import game_room_manager
 from seed import seed_achievements, seed_dishes, seed_game_events, seed_games
@@ -92,38 +93,41 @@ async def _game_lease_heartbeat_loop():
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     """Initialize local compatibility schema, seed catalogues and own background tasks."""
-    ensure_upload_directory()
-    # Production startup runs ``alembic upgrade head`` before Uvicorn. The
-    # compatibility path remains restricted to local development and tests.
-    if os.getenv("APP_ENV", "development").lower() != "production":
-        Base.metadata.create_all(bind=engine)
-        ensure_compatible_schema()
-    with SessionLocal() as db:
-        seed_dishes(db)
-        seed_games(db)
-        seed_game_events(db)
-        seed_achievements(db)
-        game_data_service.ensure_ai_catalog(db)
-        user_service.seed_system_users(db)
-    tasks = [
-        asyncio.create_task(_maintenance_loop()),
-        asyncio.create_task(_game_cleanup_loop()),
-        asyncio.create_task(_game_lease_heartbeat_loop()),
-    ]
+    configure_tracing()
     try:
-        yield
+        ensure_upload_directory()
+        # Production startup runs ``alembic upgrade head`` before Uvicorn. The
+        # compatibility path remains restricted to local development and tests.
+        if not get_settings().is_production:
+            Base.metadata.create_all(bind=engine)
+            ensure_compatible_schema()
+        with SessionLocal() as db:
+            seed_dishes(db)
+            seed_games(db)
+            seed_game_events(db)
+            seed_achievements(db)
+            game_data_service.ensure_ai_catalog(db)
+            user_service.seed_system_users(db)
+        tasks = [
+            asyncio.create_task(_maintenance_loop()),
+            asyncio.create_task(_game_cleanup_loop()),
+            asyncio.create_task(_game_lease_heartbeat_loop()),
+        ]
+        try:
+            yield
+        finally:
+            for task in tasks:
+                task.cancel()
+            for task in tasks:
+                with suppress(asyncio.CancelledError):
+                    await task
     finally:
-        for task in tasks:
-            task.cancel()
-        for task in tasks:
-            with suppress(asyncio.CancelledError):
-                await task
+        shutdown_tracing()
 
 
 def get_frontend_origins() -> list[str]:
     """Parse the optional allow-list for diagnostics or a future browser client."""
-    raw_urls = os.getenv("FRONTEND_URL", "")
-    return [url.strip().rstrip("/") for url in raw_urls.split(",") if url.strip()]
+    return load_settings().frontend_origins
 
 
 app = FastAPI(title="情侣智能厨房管家 API", version="2.11.0", lifespan=lifespan)

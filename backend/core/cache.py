@@ -3,9 +3,10 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import time
 from typing import Any
+
+from core.settings import get_settings
 
 
 logger = logging.getLogger(__name__)
@@ -20,7 +21,7 @@ class StateCache:
     """Store transient game state and presence when REDIS_URL is configured."""
 
     def __init__(self):
-        self.url = os.getenv("REDIS_URL", "").strip()
+        self.url = get_settings().redis_url_value
         self.client = None
         self.last_attempt = 0.0
         self._connect()

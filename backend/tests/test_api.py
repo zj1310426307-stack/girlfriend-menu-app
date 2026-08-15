@@ -1,13 +1,6 @@
 import os
-from pathlib import Path
 import time
 
-
-TEST_DB = Path(__file__).with_name("test_girlfriend_menu.db")
-if TEST_DB.exists():
-    TEST_DB.unlink()
-
-os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB.as_posix()}"
 os.environ["ADMIN_PASSWORD"] = "test-password"
 os.environ["ADMIN_INVITE_CODE"] = "test-invite"
 os.environ["CUSTOMER_INVITE_CODE"] = "test-invite"
@@ -16,18 +9,8 @@ os.environ["ALLOW_LEGACY_CUSTOMER_HEADER"] = "true"
 os.environ["APP_ENV"] = "test"
 
 from fastapi.testclient import TestClient  # noqa: E402
-import pytest  # noqa: E402
 
-from database import engine  # noqa: E402
 from main import app  # noqa: E402
-
-
-@pytest.fixture(scope="session", autouse=True)
-def cleanup_test_database():
-    yield
-    engine.dispose()
-    if TEST_DB.exists():
-        TEST_DB.unlink()
 
 
 def admin_headers(client: TestClient):

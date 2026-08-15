@@ -30,6 +30,7 @@ jobs:
       - run: DATABASE_URL=sqlite:///migration_from_v2_ci.db python -m alembic -c alembic.ini upgrade 20260808_01
       - run: DATABASE_URL=sqlite:///migration_from_v2_ci.db python -m alembic -c alembic.ini upgrade head
       - run: python -m ruff check . ../scripts
+      - run: lint-imports
       - run: python -m compileall -q .
       - run: python -m pytest -q
 

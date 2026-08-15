@@ -11,6 +11,7 @@ import time
 from sqlalchemy.exc import IntegrityError
 
 from core.cache import state_cache
+from core.telemetry import set_span_attribute, trace_span
 
 
 logger = logging.getLogger(__name__)
@@ -142,22 +143,30 @@ class ResilientGameStateStore(GameStateStore):
         # Reads are limited to room creation/recovery, so preferring the
         # durable source avoids reviving a stale Redis value after a partial
         # cache outage or a rolling deploy.
-        try:
-            durable = self.database.get(room_code)
-        except Exception as error:
-            logger.warning("Game-state database read failed for %s: %s", room_code, error)
-            durable = None
-        if durable:
-            self.memory.set(room_code, durable)
+        with trace_span("game.snapshot.load", {"result": "error"}) as span:
+            try:
+                durable = self.database.get(room_code)
+            except Exception as error:
+                logger.warning("Game-state database read failed for %s: %s", room_code, error)
+                durable = None
+            if durable:
+                self.memory.set(room_code, durable)
+                if state_cache.enabled:
+                    self.redis.set(room_code, durable)
+                set_span_attribute(span, "state.source", "postgresql")
+                set_span_attribute(span, "result", "hit")
+                return durable
             if state_cache.enabled:
-                self.redis.set(room_code, durable)
-            return durable
-        if state_cache.enabled:
-            remote = self.redis.get(room_code)
-            if remote:
-                self.memory.set(room_code, remote)
-                return remote
-        return self.memory.get(room_code)
+                remote = self.redis.get(room_code)
+                if remote:
+                    self.memory.set(room_code, remote)
+                    set_span_attribute(span, "state.source", "redis")
+                    set_span_attribute(span, "result", "hit")
+                    return remote
+            local = self.memory.get(room_code)
+            set_span_attribute(span, "state.source", "memory" if local else "none")
+            set_span_attribute(span, "result", "hit" if local else "miss")
+            return local
 
     def set(self, room_code: str, state: dict, ttl_seconds: int = 900) -> None:
         self.memory.set(room_code, state, ttl_seconds)
