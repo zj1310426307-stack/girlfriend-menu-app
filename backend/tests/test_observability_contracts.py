@@ -12,6 +12,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
 )
 
 import notification_service
+from api.routes import websocket as websocket_routes
 from core.settings import get_settings, reset_settings_cache
 from core.telemetry import (
     configure_tracing,
@@ -208,6 +209,34 @@ def test_websocket_join_snapshot_and_lease_spans_preserve_payload(monkeypatch):
         "memory",
         "none",
     }
+
+
+def test_websocket_first_state_log_keeps_metrics_without_room_code(monkeypatch):
+    """Keep hosted latency evidence useful without logging a raw room code."""
+    _clear_trace_flags(monkeypatch)
+    messages = []
+    monkeypatch.setattr(
+        websocket_routes.logger,
+        "info",
+        lambda template, *values: messages.append(template % values),
+    )
+    with TestClient(app) as client:
+        room_code, _ = _join_room(client)
+
+    assert len(messages) == 1
+    message = messages[0]
+    assert room_code not in message
+    assert " room=" not in message
+    for field in (
+        "game=dice",
+        "setup_ms=",
+        "client_join_wait_ms=",
+        "auth_ms=",
+        "membership_ms=",
+        "manager_join_ms=",
+        "total_ms=",
+    ):
+        assert field in message
 
 
 def test_settlement_tree_notification_and_privacy(monkeypatch):

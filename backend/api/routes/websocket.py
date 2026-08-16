@@ -193,9 +193,8 @@ async def _game_room_socket(
             joined_room = True
             first_state_finished_at = time.perf_counter()
             logger.info(
-                "game_ws_first_state room=%s game=%s setup_ms=%d client_join_wait_ms=%d "
+                "game_ws_first_state game=%s setup_ms=%d client_join_wait_ms=%d "
                 "auth_ms=%d membership_ms=%d manager_join_ms=%d total_ms=%d",
-                normalized_room_code,
                 game_type,
                 round((setup_finished_at - started_at) * 1000),
                 round((join_received_at - setup_finished_at) * 1000),
