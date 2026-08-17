@@ -39,6 +39,7 @@ class AIProvider:
     levels: tuple[str, ...] = AI_LEVELS
     aliases: tuple[str, ...] = ()
     personas: tuple[AIPersona, ...] = ()
+    decision_budget_ms: float = 100.0
 
     def __post_init__(self) -> None:
         """Validate difficulty metadata once during registry construction."""
@@ -46,6 +47,8 @@ class AIProvider:
             raise ValueError(f"游戏 {self.game_type} 声明了不支持的 AI 难度")
         if any(persona.level not in self.levels for persona in self.personas):
             raise ValueError(f"游戏 {self.game_type} 的 AI 人设与能力不一致")
+        if self.decision_budget_ms <= 0:
+            raise ValueError(f"游戏 {self.game_type} 的 AI 时延预算必须大于零")
 
     def create(self, level: str) -> LocalAIStrategy:
         """Create a local strategy after validating the selected level."""
@@ -65,6 +68,12 @@ class AIDecision:
     level: str
     action: dict
     duration_ms: float
+    budget_ms: float
+
+    @property
+    def within_budget(self) -> bool:
+        """Report latency compliance without changing the chosen game action."""
+        return self.duration_ms <= self.budget_ms
 
 
 class AIProviderRegistry:
@@ -84,6 +93,7 @@ class AIProviderRegistry:
                 aliases[normalized] = provider.game_type
         self._providers: Mapping[str, AIProvider] = MappingProxyType(by_type)
         self._aliases: Mapping[str, str] = MappingProxyType(aliases)
+        self._strategies: dict[tuple[str, str], LocalAIStrategy] = {}
 
     def resolve(self, game_type: str) -> AIProvider:
         """Resolve a canonical game type or stable compatibility alias."""
@@ -103,13 +113,23 @@ class AIProviderRegistry:
     ) -> AIDecision:
         """Measure one in-process decision while preserving its action payload."""
         provider = self.resolve(game_type)
-        strategy = provider.create(level)
+        strategy_key = (provider.game_type, level)
+        strategy = self._strategies.get(strategy_key)
+        if strategy is None:
+            strategy = provider.create(level)
+            self._strategies[strategy_key] = strategy
         started = time.perf_counter()
         action = strategy.choose_action(state, player_id)
         duration_ms = round((time.perf_counter() - started) * 1000, 3)
         if not isinstance(action, dict) or not action.get("action"):
             raise TypeError(f"游戏 {provider.game_type} 的 AI 返回了无效动作")
-        return AIDecision(provider.game_type, level, action, duration_ms)
+        return AIDecision(
+            provider.game_type,
+            level,
+            action,
+            duration_ms,
+            provider.decision_budget_ms,
+        )
 
     def providers(self) -> tuple[AIProvider, ...]:
         """Return providers in deterministic registration order."""
@@ -121,6 +141,18 @@ class AIProviderRegistry:
             (provider.game_type, persona.level, persona.name, {"style": persona.style})
             for provider in self._providers.values()
             for persona in provider.personas
+        )
+
+    def manifest(self) -> tuple[dict, ...]:
+        """Return low-cardinality AI capabilities for architecture audits."""
+        return tuple(
+            {
+                "game_type": provider.game_type,
+                "aliases": list(provider.aliases),
+                "levels": list(provider.levels),
+                "decision_budget_ms": provider.decision_budget_ms,
+            }
+            for provider in self._providers.values()
         )
 
 

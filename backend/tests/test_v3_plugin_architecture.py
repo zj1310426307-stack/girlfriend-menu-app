@@ -80,7 +80,7 @@ def test_registry_rejects_duplicate_identifiers() -> None:
 def test_ai_registry_preserves_personas_and_returns_timed_local_actions() -> None:
     """Use the unified in-process path without changing existing action payloads."""
     personas = AI_PROVIDERS.persona_catalog()
-    assert len(personas) == 11
+    assert len(personas) == 14
     assert ("gomoku", "strategy", "五子棋挑战者", {"style": "strategy"}) in personas
     board = [[0 for _ in range(15)] for _ in range(15)]
     decision = AI_PROVIDERS.choose_action(

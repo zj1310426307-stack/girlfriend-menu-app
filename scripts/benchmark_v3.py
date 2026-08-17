@@ -35,7 +35,7 @@ def measure(callable_, samples: int) -> list[float]:
 
 
 def main() -> int:
-    """Compare the V3 home aggregation with V2 requests and time local rule AI."""
+    """Measure V3 API, AI, room recovery and replay serialization budgets."""
     with tempfile.TemporaryDirectory(prefix="loveos-v3-benchmark-") as directory:
         database_path = (Path(directory) / "benchmark.db").as_posix()
         os.environ.update(
@@ -101,11 +101,32 @@ def main() -> int:
             ),
             100,
         )
+        from game_runtime.manager import GameRoomManager
+
+        manager = GameRoomManager()
+
+        def create_room_state() -> dict:
+            return manager._new_room("BENCH1", "gomoku", 2)
+
+        room = create_room_state()
+        snapshot = manager._snapshot(room)
+
+        def recover_room_state() -> None:
+            restored = create_room_state()
+            manager._restore_snapshot(restored, snapshot)
+
+        room_creation_ms = measure(create_room_state, 100)
+        reconnect_ms = measure(recover_room_state, 100)
+        replay_ms = measure(lambda: json.dumps(snapshot), 100)
         engine.dispose()
 
         result = {
             "environment": "local TestClient + isolated SQLite; not hosted or real-device",
-            "samples": {"api": 30, "ai": 100},
+            "samples": {
+                "api": 30,
+                "ai": 100,
+                "room_lifecycle": 100,
+            },
             "bootstrap_ms": {
                 "mean": round(statistics.mean(bootstrap_ms), 3),
                 "p95": percentile(bootstrap_ms, 0.95),
@@ -118,12 +139,36 @@ def main() -> int:
                 "mean": round(statistics.mean(ai_ms), 3),
                 "p95": percentile(ai_ms, 0.95),
             },
-            "budgets_ms": {"ordinary_api_p95": 300, "local_ai_p95": 100},
+            "room_creation_ms": {
+                "mean": round(statistics.mean(room_creation_ms), 3),
+                "p95": percentile(room_creation_ms, 0.95),
+            },
+            "reconnect_snapshot_ms": {
+                "mean": round(statistics.mean(reconnect_ms), 3),
+                "p95": percentile(reconnect_ms, 0.95),
+            },
+            "replay_serialization_ms": {
+                "mean": round(statistics.mean(replay_ms), 3),
+                "p95": percentile(replay_ms, 0.95),
+            },
+            "budgets_ms": {
+                "ordinary_api_p95": 300,
+                "local_ai_p95": 100,
+                "room_creation_p95": 300,
+                "reconnect_p95": 3000,
+                "replay_p95": 1000,
+            },
         }
         print(json.dumps(result, ensure_ascii=True, indent=2))
         if result["bootstrap_ms"]["p95"] >= 300:
             return 1
         if result["gomoku_strategy_ai_ms"]["p95"] >= 100:
+            return 1
+        if result["room_creation_ms"]["p95"] >= 300:
+            return 1
+        if result["reconnect_snapshot_ms"]["p95"] >= 3000:
+            return 1
+        if result["replay_serialization_ms"]["p95"] >= 1000:
             return 1
         return 0
 

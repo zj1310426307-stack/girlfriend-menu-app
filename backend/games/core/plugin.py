@@ -7,6 +7,12 @@ from types import MappingProxyType
 from typing import Callable, Iterable, Mapping
 
 from .engine import GameEngine
+from .lifecycle import (
+    GameStateAdapter,
+    GameTransport,
+    LifecycleOperation,
+    STANDARD_LIFECYCLE,
+)
 
 
 EngineFactory = Callable[[dict], GameEngine]
@@ -27,6 +33,12 @@ class GamePlugin:
     replay: bool = True
     engine_factory: EngineFactory | None = None
     legacy_api_prefixes: tuple[str, ...] = ()
+    state_adapter: GameStateAdapter = GameStateAdapter.VERSIONED_SESSION
+    transports: tuple[GameTransport, ...] = (
+        GameTransport.HTTP,
+        GameTransport.WEBSOCKET,
+    )
+    lifecycle: tuple[LifecycleOperation, ...] = STANDARD_LIFECYCLE
 
     def __post_init__(self) -> None:
         """Reject ambiguous descriptors before application startup."""
@@ -34,6 +46,17 @@ class GamePlugin:
             raise ValueError("game_type 必须是非空小写标识")
         if self.max_players < 1:
             raise ValueError("max_players 必须大于零")
+        if len(set(self.transports)) != len(self.transports) or not self.transports:
+            raise ValueError(f"游戏 {self.game_type} 的 transport 声明无效")
+        if len(set(self.lifecycle)) != len(self.lifecycle):
+            raise ValueError(f"游戏 {self.game_type} 的 lifecycle 声明重复")
+        required = set(STANDARD_LIFECYCLE) - {LifecycleOperation.REPLAY}
+        if not required.issubset(self.lifecycle):
+            raise ValueError(f"游戏 {self.game_type} 缺少基础 lifecycle 能力")
+        if self.replay != (LifecycleOperation.REPLAY in self.lifecycle):
+            raise ValueError(f"游戏 {self.game_type} 的 replay 能力声明不一致")
+        if self.realtime != (GameTransport.WEBSOCKET in self.transports):
+            raise ValueError(f"游戏 {self.game_type} 的 realtime 能力声明不一致")
         identifiers = (self.game_type, *self.aliases)
         if len(set(identifiers)) != len(identifiers):
             raise ValueError(f"游戏 {self.game_type} 的别名重复")
@@ -54,6 +77,24 @@ class GamePlugin:
             "icon": self.icon,
             "type": self.game_type,
             "status": "available",
+        }
+
+    def supports(self, operation: LifecycleOperation) -> bool:
+        """Report one lifecycle capability without coupling callers to storage."""
+        return operation in self.lifecycle
+
+    def platform_manifest(self) -> dict:
+        """Return a JSON-safe architecture manifest for audits and guardrails."""
+        return {
+            "game_type": self.game_type,
+            "aliases": list(self.aliases),
+            "modes": list(self.modes),
+            "ai_levels": list(self.ai_levels),
+            "max_players": self.max_players,
+            "state_adapter": self.state_adapter.value,
+            "transports": [transport.value for transport in self.transports],
+            "lifecycle": [operation.value for operation in self.lifecycle],
+            "legacy_api_prefixes": list(self.legacy_api_prefixes),
         }
 
 
@@ -91,6 +132,10 @@ class GamePluginRegistry:
     def all(self) -> tuple[GamePlugin, ...]:
         """Return plugins in deterministic registration order."""
         return tuple(self._plugins.values())
+
+    def manifest(self) -> tuple[dict, ...]:
+        """Project the complete platform contract in registration order."""
+        return tuple(plugin.platform_manifest() for plugin in self._plugins.values())
 
 
 __all__ = ["EngineFactory", "GamePlugin", "GamePluginRegistry"]

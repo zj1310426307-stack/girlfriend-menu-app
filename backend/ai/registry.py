@@ -1,6 +1,7 @@
 """Production registry for every network-free LoveOS game AI."""
 
 from ai.animal_ai import AnimalAI
+from ai.dice_ai import DiceAI
 from ai.flight_ai import FlightAI
 from ai.gomoku_ai import GomokuAI
 from ai.landlord_ai import LandlordAI
@@ -10,6 +11,15 @@ from games.chess.ai import ChessAI
 
 AI_PROVIDERS = AIProviderRegistry(
     (
+        AIProvider(
+            game_type="dice",
+            factory=DiceAI,
+            personas=(
+                AIPersona("random", "骰子新手", "random"),
+                AIPersona("rule", "概率陪练", "probability"),
+                AIPersona("strategy", "读心搭档", "probability_history_ready"),
+            ),
+        ),
         AIProvider(
             game_type="chinese_chess",
             aliases=("chess",),

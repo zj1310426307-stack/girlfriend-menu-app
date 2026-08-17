@@ -3,6 +3,7 @@
 from games.animal.engine import AnimalGame
 from games.chess.engine import ChessGame
 from games.core.plugin import GamePlugin, GamePluginRegistry
+from games.core.lifecycle import GameStateAdapter, GameTransport
 from games.landlord.engine import LandlordGame
 
 
@@ -13,8 +14,11 @@ GAME_PLUGINS = GamePluginRegistry(
             name="大话骰",
             icon="骰",
             max_players=2,
+            modes=("couple", "ai"),
+            ai_levels=("random", "rule", "strategy"),
             realtime=True,
-            replay=False,
+            state_adapter=GameStateAdapter.REALTIME_ROOM,
+            transports=(GameTransport.HTTP, GameTransport.WEBSOCKET),
             legacy_api_prefixes=("/api/games/dice", "/ws/games/dice"),
         ),
         GamePlugin(
@@ -24,6 +28,8 @@ GAME_PLUGINS = GamePluginRegistry(
             max_players=2,
             modes=("couple", "ai"),
             ai_levels=("random", "rule", "strategy"),
+            state_adapter=GameStateAdapter.REALTIME_ROOM,
+            transports=(GameTransport.HTTP, GameTransport.WEBSOCKET),
             legacy_api_prefixes=("/api/games/rooms", "/ws/game"),
         ),
         GamePlugin(
@@ -34,6 +40,9 @@ GAME_PLUGINS = GamePluginRegistry(
             aliases=("flight",),
             modes=("couple", "ai"),
             ai_levels=("random", "rule", "strategy"),
+            realtime=False,
+            state_adapter=GameStateAdapter.FLIGHT_STATE,
+            transports=(GameTransport.HTTP,),
             legacy_api_prefixes=("/api/games/flight",),
         ),
         GamePlugin(
@@ -43,6 +52,8 @@ GAME_PLUGINS = GamePluginRegistry(
             max_players=3,
             modes=("couple", "ai"),
             ai_levels=("random", "rule", "strategy"),
+            realtime=False,
+            transports=(GameTransport.HTTP,),
             engine_factory=LandlordGame,
             legacy_api_prefixes=("/api/games/landlord",),
         ),
@@ -54,6 +65,8 @@ GAME_PLUGINS = GamePluginRegistry(
             aliases=("animal",),
             modes=("couple", "ai"),
             ai_levels=("random", "rule", "strategy"),
+            realtime=False,
+            transports=(GameTransport.HTTP,),
             engine_factory=AnimalGame,
             legacy_api_prefixes=("/api/games/animal",),
         ),
@@ -65,6 +78,8 @@ GAME_PLUGINS = GamePluginRegistry(
             aliases=("chess",),
             modes=("couple", "ai"),
             ai_levels=("random", "rule", "strategy"),
+            realtime=False,
+            transports=(GameTransport.HTTP,),
             engine_factory=ChessGame,
             legacy_api_prefixes=("/api/games/chess",),
         ),

@@ -1,6 +1,7 @@
 """Server-side Gomoku opponent used by the solo training mode."""
 from __future__ import annotations
 
+from collections import OrderedDict
 import random
 
 from ai.base import AIPlayer
@@ -13,6 +14,10 @@ class GomokuAI(AIPlayer):
     immediate wins, then block immediate losses, before evaluating nearby
     cells. The engine remains authoritative; this class never mutates state.
     """
+
+    def __init__(self, level: str = "rule"):
+        super().__init__(level)
+        self._action_cache: OrderedDict[tuple, tuple[int, int]] = OrderedDict()
 
     @staticmethod
     def _line_profiles(
@@ -74,7 +79,20 @@ class GomokuAI(AIPlayer):
                     x, y = stone_x + dx, stone_y + dy
                     if 0 <= x < size and 0 <= y < size and board[y][x] == 0:
                         candidates.add((x, y))
-        return list(candidates)
+        return sorted(candidates)
+
+    def _cached_action(self, key: tuple) -> dict | None:
+        coordinates = self._action_cache.get(key)
+        if coordinates is None:
+            return None
+        self._action_cache.move_to_end(key)
+        return {"action": "MOVE", "x": coordinates[0], "y": coordinates[1]}
+
+    def _remember_action(self, key: tuple, x: int, y: int) -> None:
+        self._action_cache[key] = (x, y)
+        self._action_cache.move_to_end(key)
+        while len(self._action_cache) > 256:
+            self._action_cache.popitem(last=False)
 
     def choose_action(self, state: dict, player_id: str) -> dict:
         board = state.get("board") or []
@@ -92,6 +110,15 @@ class GomokuAI(AIPlayer):
         if self.level == "random":
             x, y = random.choice(candidates)
             return {"action": "MOVE", "x": x, "y": y}
+
+        cache_key = (
+            self.level,
+            my_color,
+            tuple(tuple(int(value) for value in row) for row in board),
+        )
+        cached = self._cached_action(cache_key)
+        if cached is not None:
+            return cached
 
         center = len(board) // 2
         ranked = []
@@ -113,6 +140,35 @@ class GomokuAI(AIPlayer):
                 priority = attack * attack_weight + defense * defense_weight - 0.4 * (
                     abs(x - center) + abs(y - center)
                 )
-            ranked.append((priority, random.random(), x, y))
-        _, _, x, y = max(ranked)
+            ranked.append((priority, x, y))
+
+        if self.level == "strategy":
+            # Search only the strongest candidates. This bounded second ply
+            # catches forks while preserving the phone-game latency budget.
+            top = sorted(ranked, reverse=True)[:8]
+            searched = []
+            for priority, x, y in top:
+                board[y][x] = my_color
+                reply_risk = max(
+                    (
+                        self._line_score(board, rx, ry, opponent_color)
+                        + self._threat_score(board, rx, ry, opponent_color)
+                        for rx, ry in self._candidate_cells(board)
+                    ),
+                    default=0,
+                )
+                board[y][x] = 0
+                searched.append((priority - reply_risk * 0.8, x, y))
+            ranked = searched
+
+        _, x, y = max(
+            ranked,
+            key=lambda item: (
+                item[0],
+                -(abs(item[1] - center) + abs(item[2] - center)),
+                -item[2],
+                -item[1],
+            ),
+        )
+        self._remember_action(cache_key, x, y)
         return {"action": "MOVE", "x": x, "y": y}
