@@ -2,7 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import Taro from "@tarojs/taro";
 import { Input, ScrollView, Text, View } from "@tarojs/components";
 
-import { establishCustomerSession, getCoupleScore, getDishes, getFavoriteRanking } from "../../api";
+import {
+  establishCustomerSession,
+  getCoupleScore,
+  getDishes,
+  getFavoriteRanking,
+  getHomeBootstrap
+} from "../../api";
 import DishCard from "../../components/DishCard";
 import LoveScoreCard from "../../components/LoveScoreCard";
 import AsyncState from "../../components/AsyncState";
@@ -28,16 +34,24 @@ export default function Index() {
     setLoading(true);
     setError("");
     try {
-      const customerId = getCustomerId();
-      const [dishResult, rankingResult, scoreResult] = await Promise.allSettled([
-        getDishes(),
-        getFavoriteRanking(customerId),
-        getCoupleScore(customerId)
-      ]);
-      if (dishResult.status === "rejected") throw dishResult.reason;
-      setDishes(dishResult.value);
-      setRanking(rankingResult.status === "fulfilled" ? rankingResult.value : []);
-      setCoupleScore(scoreResult.status === "fulfilled" ? scoreResult.value : null);
+      try {
+        const bootstrap = await getHomeBootstrap();
+        setDishes(bootstrap.dishes);
+        setRanking(bootstrap.favorite_ranking);
+        setCoupleScore(bootstrap.couple_score);
+      } catch (bootstrapError) {
+        if (bootstrapError?.statusCode === 401) throw bootstrapError;
+        const customerId = getCustomerId();
+        const [dishResult, rankingResult, scoreResult] = await Promise.allSettled([
+          getDishes(),
+          getFavoriteRanking(customerId),
+          getCoupleScore(customerId)
+        ]);
+        if (dishResult.status === "rejected") throw dishResult.reason;
+        setDishes(dishResult.value);
+        setRanking(rankingResult.status === "fulfilled" ? rankingResult.value : []);
+        setCoupleScore(scoreResult.status === "fulfilled" ? scoreResult.value : null);
+      }
     } catch (requestError) {
       setError(requestError.message || "菜单暂时走丢了");
     } finally {

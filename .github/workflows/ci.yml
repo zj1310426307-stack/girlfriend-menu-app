@@ -32,7 +32,10 @@ jobs:
       - run: python -m ruff check . ../scripts
       - run: lint-imports
       - run: python -m compileall -q .
+      - run: python ../scripts/export_v3_schema.py --check
+      - run: python ../scripts/export_openapi.py --check
       - run: python -m pytest -q
+      - run: python ../scripts/benchmark_v3.py
 
   miniprogram:
     runs-on: ubuntu-latest

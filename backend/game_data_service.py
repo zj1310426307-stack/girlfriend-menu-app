@@ -9,21 +9,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 import models
+from ai.registry import AI_PROVIDERS
 
 
-AI_CATALOG = (
-    ("chinese_chess", "random", "象棋练习生", {"style": "random"}),
-    ("chinese_chess", "rule", "象棋陪练官", {"style": "capture_check"}),
-    ("jungle", "random", "森林新手", {"style": "random"}),
-    ("jungle", "rule", "森林向导", {"style": "rule"}),
-    ("landlord", "random", "牌桌新手", {"style": "random"}),
-    ("landlord", "rule", "牌桌搭档", {"style": "rule"}),
-    ("aeroplane", "random", "飞行棋新手", {"style": "random"}),
-    ("aeroplane", "rule", "飞行棋领航员", {"style": "rule"}),
-    ("gomoku", "random", "五子棋新手", {"style": "random"}),
-    ("gomoku", "rule", "五子棋陪练", {"style": "rule"}),
-    ("gomoku", "strategy", "五子棋挑战者", {"style": "strategy"}),
-)
+AI_CATALOG = AI_PROVIDERS.persona_catalog()
 
 
 def ensure_ai_catalog(db: Session) -> list[models.AIPlayer]:

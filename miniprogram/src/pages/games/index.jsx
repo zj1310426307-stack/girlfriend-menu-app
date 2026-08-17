@@ -3,6 +3,7 @@ import Taro, { useDidShow } from "@tarojs/taro";
 import { Text, View } from "@tarojs/components";
 
 import { getActiveGames, getGames } from "../../api";
+import { ROUTES } from "../../config/routes";
 import { getCustomerId } from "../../utils/customer";
 import { ensureInvitePassed } from "../../utils/invite";
 import "./index.css";
@@ -13,7 +14,7 @@ const GAME_CATALOG = [
     icon: "五",
     name: "五子棋",
     description: "15×15 标准棋盘，落子清楚，适合随时来一局。",
-    route: "/pages/games/gomoku/index",
+    route: ROUTES.GOMOKU,
     tone: "ink",
     modes: "双人 · 人机"
   },
@@ -22,7 +23,7 @@ const GAME_CATALOG = [
     icon: "飞",
     name: "飞行棋",
     description: "服务器掷骰，四枚棋子与情侣互动事件。",
-    route: "/pages/games/flight/index",
+    route: ROUTES.FLIGHT,
     tone: "sky",
     modes: "双人 · 人机"
   },
@@ -31,7 +32,7 @@ const GAME_CATALOG = [
     icon: "牌",
     name: "斗地主",
     description: "横屏牌桌，提示、合法牌型和胜负都由服务器判断。",
-    route: "/pages/games/landlord/index",
+    route: ROUTES.LANDLORD,
     tone: "amber",
     modes: "双人+AI · 人机"
   },
@@ -40,7 +41,7 @@ const GAME_CATALOG = [
     icon: "兽",
     name: "斗兽棋",
     description: "标准 7×9 棋盘，河流、陷阱和兽穴规则完整。",
-    route: "/pages/games/animal/index",
+    route: ROUTES.ANIMAL,
     tone: "forest",
     modes: "双人 · 人机"
   },
@@ -49,7 +50,7 @@ const GAME_CATALOG = [
     icon: "象",
     name: "中国象棋",
     description: "服务端校验走法，棋谱保存，断线后可以继续。",
-    route: "/pages/games/chess/index",
+    route: ROUTES.CHESS,
     tone: "clay",
     modes: "双人 · 人机"
   },
@@ -58,8 +59,8 @@ const GAME_CATALOG = [
     icon: "骰",
     name: "大话骰",
     description: "自己的骰子只自己可见，开盅后再公开结果。",
-    route: "/pages/dice/index",
-    onlineRoute: "/pages/dice-online/index",
+    route: ROUTES.DICE,
+    onlineRoute: ROUTES.DICE_ONLINE,
     tone: "night",
     modes: "单机 · 双人"
   }
@@ -183,15 +184,15 @@ export default function GamesPage() {
         <Text>不占用在线房间</Text>
       </View>
       <View className="game-tool-list">
-        <View onClick={() => Taro.navigateTo({ url: "/pages/wheel/index" })}>
+        <View onClick={() => Taro.navigateTo({ url: ROUTES.WHEEL })}>
           <View className="game-tool-icon coral"><Text>转</Text></View>
           <View><Text>今晚转盘</Text><Text>自定义选项，帮你们结束纠结</Text></View><Text>›</Text>
         </View>
-        <View className="game-data-card" onClick={() => Taro.navigateTo({ url: "/pages/games/ranking/index" })}>
+        <View className="game-data-card" onClick={() => Taro.navigateTo({ url: ROUTES.GAME_RANKING })}>
           <View className="game-tool-icon green"><Text>榜</Text></View>
           <View><Text>游戏记录</Text><Text>查看局数、胜率和共同回忆</Text></View><Text>›</Text>
         </View>
-        <View onClick={() => Taro.navigateTo({ url: "/pages/games/ai/index" })}>
+        <View onClick={() => Taro.navigateTo({ url: ROUTES.GAME_AI })}>
           <View className="game-tool-icon amber"><Text>伴</Text></View>
           <View><Text>今日小结</Text><Text>根据真实记录生成，不猜测心情</Text></View><Text>›</Text>
         </View>

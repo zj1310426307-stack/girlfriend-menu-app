@@ -77,7 +77,7 @@ class Dish(Base):
     cook_time = Column(Integer, nullable=True)
     difficulty = Column(Integer, nullable=True)
     spicy_level = Column(Integer, nullable=True, default=0)
-    tags = Column(JSON, nullable=True, default=list)
+    tags = Column(JSON().with_variant(JSONB, "postgresql"), nullable=True, default=list)
     is_active = Column(Boolean, nullable=False, default=True, index=True)
     created_at = Column(DateTime, default=datetime.now, nullable=False)
 
@@ -295,7 +295,7 @@ class GameRecord(Base):
     game_type = Column(String(50), nullable=False, index=True)
     winner = Column(String(100), nullable=True, index=True)
     duration = Column(Integer, nullable=False, default=0)
-    result = Column(JSON, nullable=False, default=dict)
+    result = Column(JSON().with_variant(JSONB, "postgresql"), nullable=False, default=dict)
     settlement_status = Column(String(20), nullable=False, default="pending", index=True)
     settlement_attempts = Column(Integer, nullable=False, default=0)
     settlement_error = Column(Text, nullable=True)

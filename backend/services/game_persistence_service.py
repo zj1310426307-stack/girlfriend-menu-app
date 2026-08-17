@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 import models
 from auth import hash_token
+from games.registry import GAME_PLUGINS
 from repositories import game_runtime as game_runtime_repository
 
 
@@ -21,12 +22,7 @@ ROOM_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
 WAITING_ROOM_TTL = timedelta(minutes=30)
 PLAYING_ROOM_TTL = timedelta(hours=6)
 GAME_MAX_PLAYERS = {
-    "dice": 2,
-    "gomoku": 2,
-    "aeroplane": 2,
-    "landlord": 3,
-    "jungle": 2,
-    "chinese_chess": 2,
+    plugin.game_type: plugin.max_players for plugin in GAME_PLUGINS.all()
 }
 
 
@@ -53,7 +49,13 @@ def list_games(db: Session) -> list[models.Game]:
 
 def get_game(db: Session, game_type: str) -> models.Game:
     """Return one game catalogue row or preserve its established 404."""
-    game = game_runtime_repository.find_game(db, game_type)
+    try:
+        resolved_type = GAME_PLUGINS.canonical_type(game_type)
+    except LookupError:
+        # The durable catalogue remains extensible for maintenance/coming-soon
+        # entries that do not have a production runtime plugin yet.
+        resolved_type = game_type
+    game = game_runtime_repository.find_game(db, resolved_type)
     if not game:
         raise HTTPException(status_code=404, detail="游戏不存在")
     return game
@@ -66,6 +68,7 @@ def create_game_room(
 ) -> models.GameRoom:
     """Validate a catalogue entry and create a collision-safe six-character room."""
     game = get_game(db, game_type)
+    game_type = game.type
     if game.status != "available":
         raise HTTPException(status_code=409, detail="这个游戏还在准备中")
     creator = creator.strip()

@@ -4,7 +4,7 @@ import secrets
 import time
 from collections import OrderedDict
 
-from ai.gomoku_ai import GomokuAI
+from ai.registry import AI_PROVIDERS
 from gomoku import GomokuError, GomokuGame
 from core.game_state_store import game_state_store
 from dice_rules import is_higher_bid, resolve_challenge
@@ -490,9 +490,12 @@ class GameRoomManager:
                     and room.get("phase") == "playing"
                     and room.get("turn_id") == GOMOKU_AI_ID
                 ):
-                    decision = GomokuAI(room.get("difficulty", "rule")).choose_action(
-                        room["gomoku"].serialize(), GOMOKU_AI_ID
-                    )
+                    decision = AI_PROVIDERS.choose_action(
+                        "gomoku",
+                        room["gomoku"].serialize(),
+                        GOMOKU_AI_ID,
+                        room.get("difficulty", "rule"),
+                    ).action
                     if decision.get("action") == "MOVE":
                         error = self._gomoku_move(room, GOMOKU_AI_ID, decision)
                     if not error:

@@ -734,3 +734,11 @@ class FavoriteRankingItem(BaseModel):
     repeat_count: int
     is_favorite: bool
     score: float
+
+
+class HomeBootstrapOut(BaseModel):
+    """Essential authenticated data for the first home-page render."""
+
+    dishes: list[DishOut]
+    favorite_ranking: list[FavoriteRankingItem]
+    couple_score: LoveScoreSummary

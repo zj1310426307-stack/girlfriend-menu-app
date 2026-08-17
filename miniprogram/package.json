@@ -1,6 +1,6 @@
 {
   "name": "girlfriend-menu-miniprogram",
-  "version": "2.11.2",
+  "version": "3.0.0",
   "private": true,
   "description": "情侣智能厨房管家微信小程序端",
   "scripts": {
@@ -14,9 +14,10 @@
     "test:v28": "node scripts/v27-smoke-test.cjs",
     "test:landlord": "node scripts/landlord-landscape-config-test.cjs",
     "test:games": "node scripts/game-longevity-test.cjs && node scripts/game-socket-test.cjs",
-    "test:ci": "npm run test:landlord && npm run test:games && npm run test:session",
+    "test:ci": "npm run test:landlord && npm run test:games && npm run test:session && npm run test:v3-architecture",
     "test:game-pages:devtools": "node scripts/game-pages-devtools-acceptance.cjs",
     "test:session": "node scripts/customer-session-contract-test.cjs",
+    "test:v3-architecture": "node scripts/v3-architecture-test.cjs",
     "test:landlord:devtools": "node scripts/landlord-landscape-smoke.cjs",
     "test:dice": "node scripts/smoke-test.cjs --dice-only",
     "preview:dice": "node scripts/smoke-test.cjs --dice-only --keep-open",

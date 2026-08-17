@@ -1,14 +1,15 @@
 import Taro from "@tarojs/taro";
 import { Text, View } from "@tarojs/components";
 
+import { ROUTES } from "../config/routes";
 import { clearAdminToken } from "../utils/admin";
 import "./AdminNav.css";
 
 const ITEMS = [
-  { key: "dashboard", label: "总览", url: "/pages/admin-dashboard/index" },
-  { key: "orders", label: "订单", url: "/pages/admin-orders/index" },
-  { key: "dishes", label: "菜品", url: "/pages/admin-dishes/index" },
-  { key: "stats", label: "统计", url: "/pages/admin-stats/index" }
+  { key: "dashboard", label: "总览", url: ROUTES.ADMIN_DASHBOARD },
+  { key: "orders", label: "订单", url: ROUTES.ADMIN_ORDERS },
+  { key: "dishes", label: "菜品", url: ROUTES.ADMIN_DISHES },
+  { key: "stats", label: "统计", url: ROUTES.ADMIN_STATS }
 ];
 
 export default function AdminNav({ active }) {
@@ -19,7 +20,7 @@ export default function AdminNav({ active }) {
 
   const logout = () => {
     clearAdminToken();
-    Taro.reLaunch({ url: "/pages/admin-login/index" });
+    Taro.reLaunch({ url: ROUTES.ADMIN_LOGIN });
   };
 
   return (

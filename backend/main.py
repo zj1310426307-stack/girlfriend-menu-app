@@ -130,7 +130,7 @@ def get_frontend_origins() -> list[str]:
     return load_settings().frontend_origins
 
 
-app = FastAPI(title="情侣智能厨房管家 API", version="2.11.0", lifespan=lifespan)
+app = FastAPI(title="情侣智能厨房管家 API", version="3.0.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=get_frontend_origins(),

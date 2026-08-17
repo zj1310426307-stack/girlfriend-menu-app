@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 
 import models
+from games.registry import GAME_PLUGINS
 
 
 SAMPLE_DISHES = [
@@ -139,14 +140,7 @@ SAMPLE_DISHES = [
     },
 ]
 
-GAME_CATALOG = [
-    {"name": "大话骰", "icon": "骰", "type": "dice", "status": "available"},
-    {"name": "五子棋", "icon": "棋", "type": "gomoku", "status": "available"},
-    {"name": "飞行棋", "icon": "飞", "type": "aeroplane", "status": "available"},
-    {"name": "斗地主", "icon": "牌", "type": "landlord", "status": "available"},
-    {"name": "斗兽棋", "icon": "兽", "type": "jungle", "status": "available"},
-    {"name": "中国象棋", "icon": "象", "type": "chinese_chess", "status": "available"},
-]
+GAME_CATALOG = [plugin.catalog_item() for plugin in GAME_PLUGINS.all()]
 
 
 def seed_dishes(db: Session):
