@@ -47,6 +47,10 @@ class Settings(BaseSettings):
         default=None,
         validation_alias="ADMIN_PASSWORD",
     )
+    admin_password_hash: SecretStr | None = Field(
+        default=None,
+        validation_alias="ADMIN_PASSWORD_HASH",
+    )
     admin_invite_code: SecretStr | None = Field(
         default=None,
         validation_alias="ADMIN_INVITE_CODE",
@@ -70,6 +74,16 @@ class Settings(BaseSettings):
         default="false",
         validation_alias="ALLOW_LEGACY_CUSTOMER_HEADER",
         repr=False,
+    )
+    wechat_login_enabled_raw: str = Field(
+        default="false",
+        validation_alias="WECHAT_LOGIN_ENABLED",
+        repr=False,
+    )
+    wechat_app_id: str = Field(default="", validation_alias="WECHAT_APP_ID")
+    wechat_app_secret: SecretStr | None = Field(
+        default=None,
+        validation_alias="WECHAT_APP_SECRET",
     )
 
     upload_provider: str = Field(default="local", validation_alias="UPLOAD_PROVIDER")
@@ -185,9 +199,53 @@ class Settings(BaseSettings):
         return self.allow_legacy_customer_header_raw.lower() in TRUE_VALUES
 
     @property
+    def wechat_login_enabled(self) -> bool:
+        """Require an explicit rollout flag before calling the WeChat API."""
+        return self.wechat_login_enabled_raw.lower() in TRUE_VALUES
+
+    @property
+    def wechat_app_id_value(self) -> str:
+        """Return the public mini-program AppID with surrounding space removed."""
+        return self.wechat_app_id.strip()
+
+    @property
+    def wechat_app_secret_value(self) -> str:
+        """Expose AppSecret only inside the server-side code exchange adapter."""
+        return self._secret_value(self.wechat_app_secret).strip()
+
+    def require_wechat_login(self) -> tuple[str, str]:
+        """Return configured credentials or fail before any external request."""
+        if not self.wechat_login_enabled:
+            raise RuntimeError("WECHAT_LOGIN_ENABLED is false")
+        app_id = self.wechat_app_id_value
+        app_secret = self.wechat_app_secret_value
+        if not app_id or not app_secret:
+            raise RuntimeError("WECHAT_APP_ID and WECHAT_APP_SECRET are required")
+        return app_id, app_secret
+
+    def wechat_login_readiness(self) -> dict[str, str | list[str]]:
+        """Expose rollout safety without ever returning credential values."""
+        if not self.wechat_login_enabled:
+            return {"status": "optional-disabled", "missing": []}
+        missing = []
+        if not self.wechat_app_id_value:
+            missing.append("WECHAT_APP_ID")
+        if not self.wechat_app_secret_value:
+            missing.append("WECHAT_APP_SECRET")
+        return {
+            "status": "release-blocked" if missing else "ready",
+            "missing": missing,
+        }
+
+    @property
     def is_production(self) -> bool:
         """Report whether the current environment uses production behavior."""
         return self.app_env.lower() == "production"
+
+    @property
+    def uses_managed_schema(self) -> bool:
+        """Keep create-all and runtime seeding out of deployed environments."""
+        return self.app_env.lower() in {"production", "staging"}
 
     @property
     def upload_provider_name(self) -> str:
@@ -229,6 +287,11 @@ class Settings(BaseSettings):
     def admin_password_value(self) -> str:
         """Expose the admin password without making it startup-required."""
         return self._secret_value(self.admin_password)
+
+    @property
+    def admin_password_hash_value(self) -> str:
+        """Expose the optional bootstrap hash only to admin authentication."""
+        return self._secret_value(self.admin_password_hash)
 
     @property
     def admin_invite_code_value(self) -> str:

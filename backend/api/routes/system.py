@@ -5,6 +5,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from core.cache import state_cache
+from core.settings import load_settings
 from database import engine, get_db
 from storage import storage_readiness
 
@@ -35,9 +36,14 @@ def readiness_check(db: Session = Depends(get_db)):
             detail="数据库暂时不可用",
         ) from error
     storage = storage_readiness()
+    wechat = load_settings().wechat_login_readiness()
+    release_blocked = (
+        storage["status"] != "ready" or wechat["status"] == "release-blocked"
+    )
     return {
-        "status": "ready" if storage["status"] == "ready" else "release-blocked",
+        "status": "release-blocked" if release_blocked else "ready",
         "database": engine.dialect.name,
         "redis": "ready" if state_cache.enabled else "optional-disabled",
         "storage": storage,
+        "wechat_login": wechat,
     }

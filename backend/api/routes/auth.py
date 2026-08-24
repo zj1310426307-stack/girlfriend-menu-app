@@ -1,6 +1,5 @@
 """Customer and administrator authentication routes."""
 
-import secrets
 import time
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
@@ -12,11 +11,10 @@ import user_service
 from api.dependencies import (
     bearer_token,
     enforce_rate_limit,
-    get_admin_invite_code,
-    get_admin_password,
 )
 from auth import issue_admin_token
 from database import get_db
+from services import admin_auth_service, wechat_auth_service
 
 
 router = APIRouter()
@@ -35,6 +33,27 @@ def create_customer_session(
         data.invite_code,
         data.display_name,
         data.device_label,
+    )
+
+
+@router.post("/api/customers/wechat-session", response_model=schemas.CustomerSessionOut)
+def create_wechat_customer_session(
+    data: schemas.WeChatSessionCreate,
+    request: Request,
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    """Exchange WeChat code, binding an authenticated legacy user in place."""
+    enforce_rate_limit(request, "wechat-session", 20, 300)
+    token = bearer_token(authorization)
+    current_customer = customer_service.authenticate(db, token) if token else None
+    return wechat_auth_service.login_with_wechat(
+        db,
+        data.code,
+        data.invite_code,
+        data.display_name,
+        data.device_label,
+        current_customer,
     )
 
 
@@ -101,20 +120,14 @@ def admin_login(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    """Authenticate the administrator with the unchanged password and invite flow."""
+    """Authenticate the database-owned administrator and retain the API contract."""
     enforce_rate_limit(request, "admin-login", 60, 300)
-    if not secrets.compare_digest(data.password, get_admin_password()):
-        time.sleep(0.35)
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="管理密码错误",
-        )
-    if not secrets.compare_digest(data.invite_code, get_admin_invite_code()):
-        time.sleep(0.5)
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="邀请码错误",
-        )
+    try:
+        admin_auth_service.authenticate(db, data.password, data.invite_code)
+    except HTTPException as error:
+        if error.status_code == status.HTTP_401_UNAUTHORIZED:
+            time.sleep(0.35)
+        raise
     user_service.ensure_user(db, "admin", "小厨房管理员", "ADMIN")
     token, expires_at = issue_admin_token()
     return {"token": token, "expires_at": expires_at}

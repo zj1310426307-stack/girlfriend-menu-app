@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import binascii
 from datetime import datetime, timedelta, timezone
 import hashlib
 import hmac
@@ -13,6 +14,9 @@ from core.settings import load_settings
 
 
 ADMIN_TOKEN_TTL = timedelta(hours=12)
+PASSWORD_SCRYPT_N = 2**14
+PASSWORD_SCRYPT_R = 8
+PASSWORD_SCRYPT_P = 1
 
 
 def utc_now() -> datetime:
@@ -21,6 +25,48 @@ def utc_now() -> datetime:
 
 def hash_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def hash_password(password: str, *, salt: bytes | None = None) -> str:
+    """Store an administrator password with salted stdlib scrypt."""
+    password_salt = salt or secrets.token_bytes(16)
+    derived = hashlib.scrypt(
+        password.encode("utf-8"),
+        salt=password_salt,
+        n=PASSWORD_SCRYPT_N,
+        r=PASSWORD_SCRYPT_R,
+        p=PASSWORD_SCRYPT_P,
+        dklen=32,
+    )
+    return (
+        f"scrypt${PASSWORD_SCRYPT_N}${PASSWORD_SCRYPT_R}${PASSWORD_SCRYPT_P}"
+        f"${_b64encode(password_salt)}${_b64encode(derived)}"
+    )
+
+
+def verify_password(password: str, encoded: str) -> bool:
+    """Verify one bounded scrypt encoding and fail closed on malformed input."""
+    try:
+        algorithm, raw_n, raw_r, raw_p, raw_salt, raw_digest = encoded.split("$")
+        n, r, p = int(raw_n), int(raw_r), int(raw_p)
+        if algorithm != "scrypt" or (n, r, p) != (
+            PASSWORD_SCRYPT_N,
+            PASSWORD_SCRYPT_R,
+            PASSWORD_SCRYPT_P,
+        ):
+            return False
+        expected = _b64decode(raw_digest)
+        actual = hashlib.scrypt(
+            password.encode("utf-8"),
+            salt=_b64decode(raw_salt),
+            n=n,
+            r=r,
+            p=p,
+            dklen=len(expected),
+        )
+        return hmac.compare_digest(actual, expected)
+    except (binascii.Error, ValueError, TypeError):
+        return False
 
 
 def new_customer_credentials() -> tuple[str, str]:

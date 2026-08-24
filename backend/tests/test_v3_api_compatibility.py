@@ -39,7 +39,8 @@ def test_all_documented_v2_http_routes_remain_available() -> None:
     current = _current_http_routes()
     assert baseline <= current
     assert ("GET", "/api/bootstrap") in current
-    assert len({route for route in current if route[1].startswith("/api/")}) == 89
+    assert ("POST", "/api/customers/wechat-session") in current
+    assert len({route for route in current if route[1].startswith("/api/")}) == 90
 
 
 def test_all_documented_v2_websockets_remain_available() -> None:

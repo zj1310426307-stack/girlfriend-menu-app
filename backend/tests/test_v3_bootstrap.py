@@ -33,7 +33,7 @@ def test_bootstrap_requires_the_existing_customer_session() -> None:
         assert response.status_code == 401
 
 
-def test_bootstrap_matches_the_three_existing_home_endpoints() -> None:
+def test_bootstrap_matches_the_five_existing_home_reads() -> None:
     """Guarantee additive API behavior while the mini program can still fall back."""
     with TestClient(app) as client:
         headers = _session_headers(client)
@@ -41,11 +41,15 @@ def test_bootstrap_matches_the_three_existing_home_endpoints() -> None:
         dishes = client.get("/api/dishes", headers=headers)
         ranking = client.get("/api/stats/favorite-ranking", headers=headers)
         score = client.get("/api/couple/score", headers=headers)
+        tasks = client.get("/api/couple/tasks/today", headers=headers)
+        orders = client.get("/api/orders/me", headers=headers)
         assert bootstrap.status_code == 200
         assert bootstrap.json() == {
             "dishes": dishes.json(),
             "favorite_ranking": ranking.json(),
             "couple_score": score.json(),
+            "today_tasks": tasks.json(),
+            "recent_order": orders.json()[0] if orders.json() else None,
         }
 
 

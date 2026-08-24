@@ -14,6 +14,17 @@ def find(db: Session, order_id: int) -> models.Order | None:
     return db.get(models.Order, order_id)
 
 
+def find_for_update(db: Session, order_id: int) -> models.Order | None:
+    """Lock and refresh one order before comparing and writing its status."""
+    return (
+        db.query(models.Order)
+        .filter(models.Order.id == order_id)
+        .with_for_update()
+        .populate_existing()
+        .first()
+    )
+
+
 def find_by_idempotency_key(
     db: Session,
     idempotency_key: str,
@@ -79,6 +90,16 @@ def list_customer(db: Session, customer_id: str) -> list[models.Order]:
         .filter(models.Order.customer_id == customer_id)
         .order_by(models.Order.created_at.desc())
         .all()
+    )
+
+
+def latest_customer(db: Session, customer_id: str) -> models.Order | None:
+    """Load only the newest customer order needed by the home bootstrap."""
+    return (
+        db.query(models.Order)
+        .filter(models.Order.customer_id == customer_id)
+        .order_by(models.Order.created_at.desc(), models.Order.id.desc())
+        .first()
     )
 
 
@@ -161,6 +182,24 @@ def find_latest_status_event(
     return (
         db.query(models.OrderStatusEvent)
         .filter(models.OrderStatusEvent.order_id == order_id)
+        .order_by(models.OrderStatusEvent.id.desc())
+        .first()
+    )
+
+
+def find_latest_forward_event_for_status(
+    db: Session,
+    order_id: int,
+    status: str,
+) -> models.OrderStatusEvent | None:
+    """Find the latest non-rollback transition that produced the current status."""
+    return (
+        db.query(models.OrderStatusEvent)
+        .filter(
+            models.OrderStatusEvent.order_id == order_id,
+            models.OrderStatusEvent.to_status == status,
+            models.OrderStatusEvent.actor_type != "ADMIN_ROLLBACK",
+        )
         .order_by(models.OrderStatusEvent.id.desc())
         .first()
     )

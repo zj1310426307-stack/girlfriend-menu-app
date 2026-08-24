@@ -75,6 +75,8 @@ def main() -> int:
                     "/api/dishes",
                     "/api/stats/favorite-ranking",
                     "/api/couple/score",
+                    "/api/couple/tasks/today",
+                    "/api/orders/me",
                 ):
                     response = client.get(path, headers=headers)
                     if response.status_code != 200:
@@ -131,7 +133,7 @@ def main() -> int:
                 "mean": round(statistics.mean(bootstrap_ms), 3),
                 "p95": percentile(bootstrap_ms, 0.95),
             },
-            "legacy_three_requests_ms": {
+            "legacy_five_requests_ms": {
                 "mean": round(statistics.mean(legacy_ms), 3),
                 "p95": percentile(legacy_ms, 0.95),
             },

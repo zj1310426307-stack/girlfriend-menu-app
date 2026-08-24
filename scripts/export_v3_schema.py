@@ -30,7 +30,7 @@ def render_schema() -> str:
     statements = [
         "-- LoveOS V3 PostgreSQL schema snapshot",
         "-- Generated from backend/models.py; Alembic remains the migration authority.",
-        "-- Alembic head: 20260817_13",
+        "-- Alembic head: 20260817_14",
         "-- Regenerate/check with: python scripts/export_v3_schema.py --check",
         "",
     ]
@@ -44,11 +44,16 @@ def render_schema() -> str:
 
 
 def main() -> int:
-    """Print the snapshot or verify the committed artifact without mutating it."""
+    """Print, write, or verify the committed schema artifact."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true")
+    parser.add_argument("--write", action="store_true")
     args = parser.parse_args()
     rendered = render_schema()
+    if args.write:
+        TARGET.write_text(rendered, encoding="utf-8", newline="\n")
+        print(f"wrote {TARGET.relative_to(ROOT)}")
+        return 0
     if not args.check:
         sys.stdout.write(rendered)
         return 0

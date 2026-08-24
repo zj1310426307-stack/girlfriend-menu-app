@@ -155,9 +155,11 @@ def test_secrets_are_redacted_from_repr_and_failure(monkeypatch):
     """Prevent credentials and invite codes from appearing in model text or exceptions."""
     secrets = {
         "ADMIN_PASSWORD": "admin-password-private",
+        "ADMIN_PASSWORD_HASH": "admin-password-hash-private",
         "ADMIN_INVITE_CODE": "admin-invite-private",
         "ADMIN_SECRET": "short-private",
         "CUSTOMER_INVITE_CODE": "customer-invite-private",
+        "WECHAT_APP_SECRET": "wechat-app-secret-private",
         "DATABASE_URL": _synthetic_postgres_url("database-password"),
         "S3_ACCESS_KEY_ID": "s3-access-private",
         "S3_SECRET_ACCESS_KEY": "s3-secret-private",
@@ -173,6 +175,35 @@ def test_secrets_are_redacted_from_repr_and_failure(monkeypatch):
     assert "customer_token" not in rendered.lower()
 
 
+def test_wechat_readiness_is_disabled_ready_or_release_blocked(monkeypatch):
+    """Block only an explicitly enabled rollout with incomplete credentials."""
+    settings = _reload_settings(
+        monkeypatch,
+        WECHAT_LOGIN_ENABLED="false",
+        WECHAT_APP_ID=None,
+        WECHAT_APP_SECRET=None,
+    )
+    assert settings.wechat_login_readiness() == {
+        "status": "optional-disabled",
+        "missing": [],
+    }
+    settings = _reload_settings(
+        monkeypatch,
+        WECHAT_LOGIN_ENABLED="true",
+        WECHAT_APP_ID="wx-test-app",
+        WECHAT_APP_SECRET=None,
+    )
+    assert settings.wechat_login_readiness() == {
+        "status": "release-blocked",
+        "missing": ["WECHAT_APP_SECRET"],
+    }
+    monkeypatch.setenv("WECHAT_APP_SECRET", "server-only-test-secret")
+    assert load_settings().wechat_login_readiness() == {
+        "status": "ready",
+        "missing": [],
+    }
+
+
 def test_startup_setting_remains_cached_until_explicit_reset(monkeypatch):
     """Keep initialized infrastructure stable while fresh snapshots see new env."""
     first = _reload_settings(monkeypatch, DATABASE_URL="sqlite:///first.db")
@@ -182,6 +213,16 @@ def test_startup_setting_remains_cached_until_explicit_reset(monkeypatch):
     assert load_settings().normalized_database_url == "sqlite:///second.db"
     reset_settings_cache()
     assert database.configured_database_url() == "sqlite:///second.db"
+
+
+@pytest.mark.parametrize(
+    ("environment", "expected"),
+    [("development", False), ("test", False), ("staging", True), ("production", True)],
+)
+def test_managed_schema_boundary_excludes_runtime_seeding(monkeypatch, environment, expected):
+    """Treat staging and production as migration-owned deployment environments."""
+    settings = _reload_settings(monkeypatch, APP_ENV=environment)
+    assert settings.uses_managed_schema is expected
 
 
 def test_runtime_legacy_header_observes_changes_without_cache_reset(monkeypatch):

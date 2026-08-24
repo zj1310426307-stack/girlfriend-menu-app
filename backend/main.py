@@ -15,11 +15,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 import crud
-import game_data_service
 import game_maintenance
 import models
 import notification_service
-import user_service
 from api.router import router as api_router
 from core.game_room_lease import INSTANCE_ID, renew_room_leases
 from core.rate_limit import RateLimitExceeded, rate_limiter
@@ -27,7 +25,6 @@ from core.settings import get_settings, load_settings
 from core.telemetry import configure_tracing, shutdown_tracing
 from database import Base, SessionLocal, engine, ensure_compatible_schema
 from game_runtime import game_room_manager
-from seed import seed_achievements, seed_dishes, seed_game_events, seed_games
 from storage import UPLOAD_DIR, ensure_upload_directory
 
 
@@ -98,16 +95,13 @@ async def lifespan(_: FastAPI):
         ensure_upload_directory()
         # Production startup runs ``alembic upgrade head`` before Uvicorn. The
         # compatibility path remains restricted to local development and tests.
-        if not get_settings().is_production:
+        if not get_settings().uses_managed_schema:
+            # Keep seed-only imports out of managed Uvicorn process startup.
+            from services.startup_service import seed_reference_data
+
             Base.metadata.create_all(bind=engine)
             ensure_compatible_schema()
-        with SessionLocal() as db:
-            seed_dishes(db)
-            seed_games(db)
-            seed_game_events(db)
-            seed_achievements(db)
-            game_data_service.ensure_ai_catalog(db)
-            user_service.seed_system_users(db)
+            seed_reference_data()
         tasks = [
             asyncio.create_task(_maintenance_loop()),
             asyncio.create_task(_game_cleanup_loop()),

@@ -67,6 +67,7 @@ POST /api/customers/recover
 POST /api/customers/refresh
 POST /api/customers/revoke
 POST /api/customers/session
+POST /api/customers/wechat-session
 POST /api/dishes
 POST /api/favorites/{dish_id}
 POST /api/games/animal/create

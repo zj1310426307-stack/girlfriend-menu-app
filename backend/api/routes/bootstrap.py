@@ -17,5 +17,5 @@ def home_bootstrap(
     customer_id: str = Depends(get_customer_id),
     db: Session = Depends(get_db),
 ):
-    """Aggregate the three existing home reads without changing their endpoints."""
+    """Aggregate the five existing home reads without replacing their endpoints."""
     return bootstrap_service.build_home_bootstrap(db, customer_id)

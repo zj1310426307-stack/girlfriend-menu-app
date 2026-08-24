@@ -2638,12 +2638,26 @@
             },
             "title": "Favorite Ranking",
             "type": "array"
+          },
+          "recent_order": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OrderOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "today_tasks": {
+            "$ref": "#/components/schemas/DailyTaskSummary"
           }
         },
         "required": [
           "dishes",
           "favorite_ranking",
-          "couple_score"
+          "couple_score",
+          "today_tasks"
         ],
         "title": "HomeBootstrapOut",
         "type": "object"
@@ -3423,8 +3437,51 @@
         "title": "OrderRepeatItem",
         "type": "object"
       },
+      "OrderRollbackRequest": {
+        "description": "Optionally guard an administrator rollback against stale page state.",
+        "properties": {
+          "expected_status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "\u5f85\u63a5\u5355",
+                  "\u5df2\u63a5\u5355",
+                  "\u5236\u4f5c\u4e2d",
+                  "\u5df2\u5b8c\u6210",
+                  "\u6682\u65f6\u505a\u4e0d\u4e86"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Status"
+          }
+        },
+        "title": "OrderRollbackRequest",
+        "type": "object"
+      },
       "OrderStatusUpdate": {
         "properties": {
+          "expected_status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "\u5f85\u63a5\u5355",
+                  "\u5df2\u63a5\u5355",
+                  "\u5236\u4f5c\u4e2d",
+                  "\u5df2\u5b8c\u6210",
+                  "\u6682\u65f6\u505a\u4e0d\u4e86"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Status"
+          },
           "status": {
             "enum": [
               "\u5f85\u63a5\u5355",
@@ -3745,6 +3802,48 @@
         ],
         "title": "ValidationError",
         "type": "object"
+      },
+      "WeChatSessionCreate": {
+        "description": "One-time WeChat login code plus optional first-login invite proof.",
+        "properties": {
+          "code": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Code",
+            "type": "string"
+          },
+          "device_label": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "\u5fae\u4fe1\u5c0f\u7a0b\u5e8f",
+            "title": "Device Label"
+          },
+          "display_name": {
+            "default": "\u5973\u670b\u53cb",
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "invite_code": {
+            "default": "",
+            "maxLength": 100,
+            "title": "Invite Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "title": "WeChatSessionCreate",
+        "type": "object"
       }
     }
   },
@@ -3865,7 +3964,7 @@
     },
     "/api/admin/login": {
       "post": {
-        "description": "Authenticate the administrator with the unchanged password and invite flow.",
+        "description": "Authenticate the database-owned administrator and retain the API contract.",
         "operationId": "admin_login_api_admin_login_post",
         "requestBody": {
           "content": {
@@ -4041,7 +4140,7 @@
     },
     "/api/admin/orders/{order_id}/rollback": {
       "post": {
-        "description": "Rollback an order through the administrator audit service and notify clients.",
+        "description": "Authorize and delegate a retry-safe administrator rollback.",
         "operationId": "rollback_order_status_api_admin_orders__order_id__rollback_post",
         "parameters": [
           {
@@ -4070,6 +4169,23 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/OrderRollbackRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Data"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
@@ -4097,7 +4213,7 @@
     },
     "/api/bootstrap": {
       "get": {
-        "description": "Aggregate the three existing home reads without changing their endpoints.",
+        "description": "Aggregate the five existing home reads without replacing their endpoints.",
         "operationId": "home_bootstrap_api_bootstrap_get",
         "parameters": [
           {
@@ -5230,6 +5346,63 @@
           }
         },
         "summary": "Create Customer Session"
+      }
+    },
+    "/api/customers/wechat-session": {
+      "post": {
+        "description": "Exchange WeChat code, binding an authenticated legacy user in place.",
+        "operationId": "create_wechat_customer_session_api_customers_wechat_session_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WeChatSessionCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerSessionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Wechat Customer Session"
       }
     },
     "/api/dishes": {
@@ -8149,7 +8322,7 @@
         "summary": "Orders"
       },
       "post": {
-        "description": "Create an owned order and preserve notifications, memory and broadcast side effects.",
+        "description": "Authenticate an owned order submission and delegate product orchestration.",
         "operationId": "submit_order_api_orders_post",
         "parameters": [
           {
@@ -8653,7 +8826,7 @@
         "summary": "Order Review"
       },
       "post": {
-        "description": "Create one owned review and preserve administrator notification and broadcast.",
+        "description": "Authorize one owned review and delegate truthful product orchestration.",
         "operationId": "add_order_review_api_orders__order_id__review_post",
         "parameters": [
           {
@@ -8735,7 +8908,7 @@
     },
     "/api/orders/{order_id}/status": {
       "patch": {
-        "description": "Update an order and preserve notification, memory and WebSocket effects.",
+        "description": "Authorize and delegate a truthful administrator status mutation.",
         "operationId": "change_order_status_api_orders__order_id__status_patch",
         "parameters": [
           {

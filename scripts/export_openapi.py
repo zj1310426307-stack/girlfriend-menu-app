@@ -29,11 +29,16 @@ def render_openapi() -> str:
 
 
 def main() -> int:
-    """Print the contract or check the committed artifact without mutating it."""
+    """Print, write, or check the deterministic contract artifact."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true")
+    parser.add_argument("--write", action="store_true")
     args = parser.parse_args()
     rendered = render_openapi()
+    if args.write:
+        TARGET.write_text(rendered, encoding="utf-8", newline="\n")
+        print(f"wrote {TARGET.relative_to(ROOT)}")
+        return 0
     if not args.check:
         sys.stdout.write(rendered)
         return 0

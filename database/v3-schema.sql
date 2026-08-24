@@ -1,6 +1,6 @@
 -- LoveOS V3 PostgreSQL schema snapshot
 -- Generated from backend/models.py; Alembic remains the migration authority.
--- Alembic head: 20260817_13
+-- Alembic head: 20260817_14
 -- Regenerate/check with: python scripts/export_v3_schema.py --check
 
 CREATE TABLE achievements (
@@ -14,6 +14,18 @@ CREATE TABLE achievements (
 	threshold INTEGER NOT NULL,
 	enabled BOOLEAN NOT NULL,
 	created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+	PRIMARY KEY (id)
+);
+
+CREATE TABLE admin_accounts (
+	id SERIAL NOT NULL,
+	username VARCHAR(80) NOT NULL,
+	password_hash VARCHAR(255) NOT NULL,
+	role VARCHAR(30) NOT NULL,
+	is_active BOOLEAN NOT NULL,
+	created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+	updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
+	last_login_at TIMESTAMP WITH TIME ZONE,
 	PRIMARY KEY (id)
 );
 
@@ -180,6 +192,16 @@ CREATE TABLE users (
 	role VARCHAR(20) NOT NULL,
 	created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
 	PRIMARY KEY (id)
+);
+
+CREATE TABLE admin_auth_events (
+	id SERIAL NOT NULL,
+	admin_id INTEGER,
+	username VARCHAR(80) NOT NULL,
+	outcome VARCHAR(30) NOT NULL,
+	created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+	PRIMARY KEY (id),
+	FOREIGN KEY(admin_id) REFERENCES admin_accounts (id) ON DELETE SET NULL
 );
 
 CREATE TABLE chess_games (
@@ -411,6 +433,19 @@ CREATE TABLE user_achievements (
 	FOREIGN KEY(achievement_id) REFERENCES achievements (id)
 );
 
+CREATE TABLE wx_users (
+	id SERIAL NOT NULL,
+	customer_id VARCHAR(100) NOT NULL,
+	app_id VARCHAR(64) NOT NULL,
+	openid VARCHAR(128) NOT NULL,
+	unionid VARCHAR(128),
+	created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+	last_login_at TIMESTAMP WITH TIME ZONE NOT NULL,
+	PRIMARY KEY (id),
+	CONSTRAINT uq_wx_user_app_openid UNIQUE (app_id, openid),
+	FOREIGN KEY(customer_id) REFERENCES customers (id) ON DELETE CASCADE
+);
+
 CREATE TABLE chess_moves (
 	id SERIAL NOT NULL,
 	game_id INTEGER NOT NULL,
@@ -454,6 +489,12 @@ CREATE UNIQUE INDEX ix_achievements_code ON achievements (code);
 CREATE INDEX ix_achievements_enabled ON achievements (enabled);
 CREATE INDEX ix_achievements_game_type ON achievements (game_type);
 CREATE INDEX ix_achievements_id ON achievements (id);
+CREATE INDEX ix_admin_accounts_created_at ON admin_accounts (created_at);
+CREATE INDEX ix_admin_accounts_id ON admin_accounts (id);
+CREATE INDEX ix_admin_accounts_is_active ON admin_accounts (is_active);
+CREATE INDEX ix_admin_accounts_last_login_at ON admin_accounts (last_login_at);
+CREATE INDEX ix_admin_accounts_role ON admin_accounts (role);
+CREATE UNIQUE INDEX ix_admin_accounts_username ON admin_accounts (username);
 CREATE INDEX ix_ai_players_enabled ON ai_players (enabled);
 CREATE INDEX ix_ai_players_game_type ON ai_players (game_type);
 CREATE INDEX ix_ai_players_id ON ai_players (id);
@@ -518,6 +559,11 @@ CREATE INDEX ix_users_created_at ON users (created_at);
 CREATE INDEX ix_users_id ON users (id);
 CREATE INDEX ix_users_role ON users (role);
 CREATE UNIQUE INDEX ix_users_user_code ON users (user_code);
+CREATE INDEX ix_admin_auth_events_admin_id ON admin_auth_events (admin_id);
+CREATE INDEX ix_admin_auth_events_created_at ON admin_auth_events (created_at);
+CREATE INDEX ix_admin_auth_events_id ON admin_auth_events (id);
+CREATE INDEX ix_admin_auth_events_outcome ON admin_auth_events (outcome);
+CREATE INDEX ix_admin_auth_events_username ON admin_auth_events (username);
 CREATE INDEX ix_chess_games_black_player ON chess_games (black_player);
 CREATE INDEX ix_chess_games_created_at ON chess_games (created_at);
 CREATE INDEX ix_chess_games_finished_at ON chess_games (finished_at);
@@ -609,6 +655,13 @@ CREATE INDEX ix_user_achievements_achievement_id ON user_achievements (achieveme
 CREATE INDEX ix_user_achievements_created_at ON user_achievements (created_at);
 CREATE INDEX ix_user_achievements_customer_id ON user_achievements (customer_id);
 CREATE INDEX ix_user_achievements_id ON user_achievements (id);
+CREATE INDEX ix_wx_users_app_id ON wx_users (app_id);
+CREATE INDEX ix_wx_users_created_at ON wx_users (created_at);
+CREATE UNIQUE INDEX ix_wx_users_customer_id ON wx_users (customer_id);
+CREATE INDEX ix_wx_users_id ON wx_users (id);
+CREATE INDEX ix_wx_users_last_login_at ON wx_users (last_login_at);
+CREATE INDEX ix_wx_users_openid ON wx_users (openid);
+CREATE INDEX ix_wx_users_unionid ON wx_users (unionid);
 CREATE INDEX ix_chess_moves_created_at ON chess_moves (created_at);
 CREATE INDEX ix_chess_moves_game_id ON chess_moves (game_id);
 CREATE INDEX ix_chess_moves_id ON chess_moves (id);
