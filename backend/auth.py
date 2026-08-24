@@ -44,24 +44,42 @@ def hash_password(password: str, *, salt: bytes | None = None) -> str:
     )
 
 
+def _parse_password_hash(encoded: str) -> tuple[bytes, bytes]:
+    """Parse the single bounded password encoding emitted by this service."""
+    algorithm, raw_n, raw_r, raw_p, raw_salt, raw_digest = encoded.split("$")
+    n, r, p = int(raw_n), int(raw_r), int(raw_p)
+    if algorithm != "scrypt" or (n, r, p) != (
+        PASSWORD_SCRYPT_N,
+        PASSWORD_SCRYPT_R,
+        PASSWORD_SCRYPT_P,
+    ):
+        raise ValueError("unsupported password hash parameters")
+    salt = _b64decode(raw_salt)
+    expected = _b64decode(raw_digest)
+    if len(salt) != 16 or len(expected) != 32:
+        raise ValueError("invalid password hash length")
+    return salt, expected
+
+
+def is_password_hash_usable(encoded: str) -> bool:
+    """Validate hash structure for readiness without testing a password."""
+    try:
+        _parse_password_hash(encoded)
+        return True
+    except (binascii.Error, ValueError, TypeError):
+        return False
+
+
 def verify_password(password: str, encoded: str) -> bool:
     """Verify one bounded scrypt encoding and fail closed on malformed input."""
     try:
-        algorithm, raw_n, raw_r, raw_p, raw_salt, raw_digest = encoded.split("$")
-        n, r, p = int(raw_n), int(raw_r), int(raw_p)
-        if algorithm != "scrypt" or (n, r, p) != (
-            PASSWORD_SCRYPT_N,
-            PASSWORD_SCRYPT_R,
-            PASSWORD_SCRYPT_P,
-        ):
-            return False
-        expected = _b64decode(raw_digest)
+        salt, expected = _parse_password_hash(encoded)
         actual = hashlib.scrypt(
             password.encode("utf-8"),
-            salt=_b64decode(raw_salt),
-            n=n,
-            r=r,
-            p=p,
+            salt=salt,
+            n=PASSWORD_SCRYPT_N,
+            r=PASSWORD_SCRYPT_R,
+            p=PASSWORD_SCRYPT_P,
             dklen=len(expected),
         )
         return hmac.compare_digest(actual, expected)

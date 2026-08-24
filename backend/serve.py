@@ -30,7 +30,9 @@ def main() -> None:
         preparation["total_ms"],
     )
     logger.info("starting_uvicorn")
-    uvicorn.run("main:app", host="0.0.0.0", port=_port())
+    # Uvicorn's default access logger prints the raw URL. The application
+    # middleware already emits a route-template log with equivalent metrics.
+    uvicorn.run("main:app", host="0.0.0.0", port=_port(), access_log=False)
 
 
 if __name__ == "__main__":

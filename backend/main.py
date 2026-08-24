@@ -20,6 +20,7 @@ import models
 import notification_service
 from api.router import router as api_router
 from core.game_room_lease import INSTANCE_ID, renew_room_leases
+from core.logging_privacy import opaque_log_reference, route_template
 from core.rate_limit import RateLimitExceeded, rate_limiter
 from core.settings import get_settings, load_settings
 from core.telemetry import configure_tracing, shutdown_tracing
@@ -46,8 +47,11 @@ async def _maintenance_loop():
                 ]
                 for code in customer_codes:
                     notification_service.generate_anniversary_reminders(db, code)
-        except Exception:
-            logger.exception("scheduled reminder maintenance failed")
+        except Exception as error:
+            logger.error(
+                "scheduled_reminder_maintenance_failed error_type=%s",
+                type(error).__name__,
+            )
 
 
 async def _game_cleanup_loop():
@@ -68,8 +72,11 @@ async def _game_cleanup_loop():
                     timeout_result,
                     settlement_result,
                 )
-        except Exception:
-            logger.exception("game room cleanup failed")
+        except Exception as error:
+            logger.error(
+                "game_room_cleanup_failed error_type=%s",
+                type(error).__name__,
+            )
 
 
 async def _game_lease_heartbeat_loop():
@@ -80,10 +87,11 @@ async def _game_lease_heartbeat_loop():
             room_codes = await game_room_manager.active_room_codes()
             with SessionLocal() as db:
                 renew_room_leases(db, room_codes)
-        except Exception:
-            logger.exception(
-                "game room lease heartbeat failed instance=%s",
+        except Exception as error:
+            logger.error(
+                "game_room_lease_heartbeat_failed instance=%s error_type=%s",
                 INSTANCE_ID,
+                type(error).__name__,
             )
 
 
@@ -140,6 +148,7 @@ app.include_router(api_router)
 async def request_log(request: Request, call_next):
     """Emit one privacy-safe structured line and enforce shared request limits."""
     request_id = request.headers.get("X-Request-Id") or uuid.uuid4().hex[:12]
+    request_ref = opaque_log_reference("request", request_id)
     started = time.perf_counter()
     content_length = request.headers.get("content-length")
     if content_length and content_length.isdigit() and int(content_length) > 6 * 1024 * 1024:
@@ -163,21 +172,22 @@ async def request_log(request: Request, call_next):
             return Response(status_code=429, content="Too many requests")
     try:
         response = await call_next(request)
-    except Exception:
-        logger.exception(
-            "request_failed id=%s method=%s path=%s",
-            request_id,
+    except Exception as error:
+        logger.error(
+            "request_failed request_ref=%s method=%s route=%s error_type=%s",
+            request_ref,
             request.method,
-            request.url.path,
+            route_template(request.scope),
+            type(error).__name__,
         )
         raise
     duration = round((time.perf_counter() - started) * 1000, 1)
     response.headers["X-Request-Id"] = request_id
     logger.info(
-        "request id=%s method=%s path=%s status=%s duration_ms=%s",
-        request_id,
+        "request request_ref=%s method=%s route=%s status=%s duration_ms=%s",
+        request_ref,
         request.method,
-        request.url.path,
+        route_template(request.scope),
         response.status_code,
         duration,
     )

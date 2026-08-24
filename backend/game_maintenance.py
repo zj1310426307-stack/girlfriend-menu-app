@@ -7,6 +7,7 @@ import logging
 from sqlalchemy.orm import Session
 
 import chess_service
+from core.logging_privacy import opaque_log_reference
 import crud
 import flight_service
 import models
@@ -145,7 +146,11 @@ def reconcile_game_settlements(db: Session, limit: int = 50) -> dict:
                 current.settlement_attempts = int(current.settlement_attempts or 0) + 1
                 db.commit()
             failed += 1
-            logger.exception("game settlement repair failed record=%s", record.id)
+            logger.error(
+                "game_settlement_repair_failed record=%s error_type=%s",
+                record.id,
+                type(error).__name__,
+            )
 
     remaining = max(0, limit - len(candidates))
     if remaining:
@@ -186,10 +191,14 @@ def reconcile_game_settlements(db: Session, limit: int = 50) -> dict:
             try:
                 _settle_room_state(db, room, state)
                 repaired += 1
-            except Exception:
+            except Exception as error:
                 db.rollback()
                 failed += 1
-                logger.exception("missing game settlement creation failed room=%s", room.room_code)
+                logger.error(
+                    "missing_game_settlement_failed room_ref=%s error_type=%s",
+                    opaque_log_reference("room", room.room_code),
+                    type(error).__name__,
+                )
     return {"repaired": repaired, "failed": failed}
 
 
@@ -236,8 +245,12 @@ def resolve_turn_timeouts(db: Session, limit: int = 100) -> dict:
                     engine.state.get("difficulty", "rule"),
                 )
             finished += 1
-        except Exception:
+        except Exception as error:
             db.rollback()
             failed += 1
-            logger.exception("turn timeout settlement failed room=%s", room.room_code)
+            logger.error(
+                "turn_timeout_settlement_failed room_ref=%s error_type=%s",
+                opaque_log_reference("room", room.room_code),
+                type(error).__name__,
+            )
     return {"finished": finished, "failed": failed}

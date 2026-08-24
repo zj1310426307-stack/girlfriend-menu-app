@@ -16,6 +16,7 @@ from api.dependencies import (
     get_admin_invite_code,
     is_admin_token,
 )
+from core.logging_privacy import opaque_log_reference
 from core.telemetry import set_span_attribute, trace_span
 from game_runtime import game_room_manager
 from realtime_events import order_event_hub
@@ -256,15 +257,16 @@ async def _game_room_socket(
                     await game_room_manager.acknowledge_completed_event(
                         normalized_room_code
                     )
-                except Exception:
+                except Exception as error:
                     await game_room_manager.restore_completed_event(
                         normalized_room_code,
                         completed_event,
                     )
-                    logger.exception(
-                        "Failed to persist completed %s round in room %s",
+                    logger.error(
+                        "game_settlement_persist_failed game=%s room_ref=%s error_type=%s",
                         game_type,
-                        normalized_room_code,
+                        opaque_log_reference("room", normalized_room_code),
+                        type(error).__name__,
                     )
                     await _send_game_error(
                         websocket,

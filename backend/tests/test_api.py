@@ -33,6 +33,7 @@ def test_health_and_database_readiness():
         assert ready.status_code == 200
         assert ready.json()["database"] == "sqlite"
         assert ready.json()["wechat_login"]["status"] == "optional-disabled"
+        assert ready.json()["authentication"] == {"status": "ready", "missing": []}
 
 
 def test_order_review_and_safe_dish_removal():

@@ -55,6 +55,7 @@ def test_serving_process_has_no_managed_environment_seed_path():
     )
     assert "if not get_settings().uses_managed_schema" in main_source
     assert "prepare_free_runtime()" in serve_source
+    assert "access_log=False" in serve_source
     assert "startCommand: python serve.py" in production_render
     assert "plan: free" in production_render
     assert "plan: free" in oregon_render

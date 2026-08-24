@@ -11,6 +11,7 @@ import time
 from sqlalchemy.exc import IntegrityError
 
 from core.cache import state_cache
+from core.logging_privacy import opaque_log_reference
 from core.telemetry import set_span_attribute, trace_span
 
 
@@ -147,7 +148,11 @@ class ResilientGameStateStore(GameStateStore):
             try:
                 durable = self.database.get(room_code)
             except Exception as error:
-                logger.warning("Game-state database read failed for %s: %s", room_code, error)
+                logger.warning(
+                    "game_state_database_read_failed room_ref=%s error_type=%s",
+                    opaque_log_reference("room", room_code),
+                    type(error).__name__,
+                )
                 durable = None
             if durable:
                 self.memory.set(room_code, durable)
@@ -175,7 +180,11 @@ class ResilientGameStateStore(GameStateStore):
         except Exception as error:
             # A transient database incident must not disconnect both players;
             # Redis/memory retain the hot state and the next action retries.
-            logger.exception("Game-state database write failed for %s: %s", room_code, error)
+            logger.error(
+                "game_state_database_write_failed room_ref=%s error_type=%s",
+                opaque_log_reference("room", room_code),
+                type(error).__name__,
+            )
         if state_cache.enabled:
             self.redis.set(room_code, state, ttl_seconds)
 
