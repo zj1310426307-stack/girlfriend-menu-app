@@ -10,7 +10,6 @@ const CLI_PATH = "F:/浏览器/微信web开发者工具/cli.bat";
 const PROJECT_PATH = path.resolve(__dirname, "..");
 const OUTPUT_PATH = path.join(PROJECT_PATH, ".test-tmp", "acceptance-2.11.2");
 const HTTP_PORT = Number(process.env.WECHAT_DEVTOOLS_PORT || 9330);
-const CLI_PORT = Number(process.env.WECHAT_DEVTOOLS_CLI_PORT || 9421);
 const PAGES = [
   ["flight", "/pages/games/flight/index", [".flight-lobby-card", ".flight-name-options", ".flight-primary"], ".flight-mode-options > view", ".flight-difficulty"],
   ["landlord", "/pages/games/landlord/index", [".ll-lobby-card", ".ll-lobby-settings", ".ll-main-button"], ".ll-mode-row > view", null],
@@ -24,6 +23,7 @@ let smokeSession = {
   customer_id: "gf_game_pages_smoke",
   customer_token: "gft_game_pages_smoke_offline_token"
 };
+const LEGACY_SMOKE_SESSION = { ...smokeSession };
 
 /** Obtain an isolated local session only when an explicit smoke backend is supplied. */
 async function provisionSmokeSession() {
@@ -53,7 +53,6 @@ async function connectOrLaunch() {
     const miniProgram = await automator.launch({
       cliPath: CLI_PATH,
       projectPath: PROJECT_PATH,
-      args: ["--port", String(CLI_PORT)],
       port: HTTP_PORT,
       trustProject: true,
       timeout: 120000
@@ -64,6 +63,11 @@ async function connectOrLaunch() {
 
 /** Seed an offline session so page-shell checks never require production credentials. */
 async function seedSmokeSession(miniProgram) {
+  await timeout(
+    miniProgram.callWxMethod("removeStorageSync", "gf_customer_expires_at"),
+    8000,
+    "清理测试会话过期标记超时"
+  );
   const storage = [
     ["gf_invite_passed", "yes"],
     ["gf_authenticated_customer_id", smokeSession.customer_id],
@@ -72,6 +76,79 @@ async function seedSmokeSession(miniProgram) {
   for (const [key, value] of storage) {
     await timeout(miniProgram.callWxMethod("setStorageSync", key, value), 8000, `写入 ${key} 超时`);
   }
+}
+
+/** Snapshot the whole simulator store so smoke credentials cannot leak into manual testing. */
+async function snapshotSimulatorStorage(miniProgram) {
+  const info = await timeout(
+    miniProgram.callWxMethod("getStorageInfoSync"),
+    8000,
+    "读取模拟器存储清单超时"
+  );
+  const entries = [];
+  for (const key of info?.keys || []) {
+    const value = await timeout(
+      miniProgram.callWxMethod("getStorageSync", key),
+      8000,
+      `备份 ${key} 超时`
+    );
+    entries.push([key, value]);
+  }
+  return entries;
+}
+
+/** Restore even after a failed assertion so manual DevTools sessions remain untouched. */
+async function restoreSimulatorStorage(miniProgram, entries) {
+  await timeout(
+    miniProgram.callWxMethod("clearStorageSync"),
+    8000,
+    "清理自动验收存储超时"
+  );
+  for (const [key, value] of entries) {
+    await timeout(
+      miniProgram.callWxMethod("setStorageSync", key, value),
+      8000,
+      `恢复 ${key} 超时`
+    );
+  }
+}
+
+/** Remove only the exact offline sentinel leaked by older acceptance versions. */
+async function removeLegacySmokeSession(miniProgram) {
+  const [customerId, customerToken] = await Promise.all([
+    timeout(miniProgram.callWxMethod("getStorageSync", "gf_authenticated_customer_id"), 8000, "读取历史测试客户超时"),
+    timeout(miniProgram.callWxMethod("getStorageSync", "gf_customer_token"), 8000, "读取历史测试令牌超时")
+  ]);
+  if (
+    customerId !== LEGACY_SMOKE_SESSION.customer_id
+    || customerToken !== LEGACY_SMOKE_SESSION.customer_token
+  ) return;
+  for (const key of [
+    "gf_invite_passed",
+    "gf_authenticated_customer_id",
+    "gf_customer_token",
+    "gf_customer_expires_at"
+  ]) {
+    await timeout(miniProgram.callWxMethod("removeStorageSync", key), 8000, `清理历史测试状态 ${key} 超时`);
+  }
+  console.log("[game-pages] 已清理旧版验收遗留的固定测试会话");
+}
+
+/** Recover once when a stale home-page bootstrap clears the freshly seeded offline session. */
+async function openProtectedPage(miniProgram, route) {
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    await seedSmokeSession(miniProgram);
+    const page = await timeout(miniProgram.reLaunch(route), 25000, `打开 ${route} 超时`);
+    await page.waitFor(1000);
+    if (page.path === route.slice(1)) return page;
+    if (attempt === 1 && page.path === "pages/index/index") {
+      console.log(`[game-pages] ${route} 首次命中旧会话清理，重新写入隔离会话后重试`);
+      await page.waitFor(800);
+      continue;
+    }
+    throw new Error(`${route} 被重定向到 ${page.path}`);
+  }
+  throw new Error(`无法打开 ${route}`);
 }
 
 /** Wait for a selector because React can mount shortly after route navigation. */
@@ -158,10 +235,7 @@ async function verifyChessBoard(page) {
 
 /** Open one candidate page, verify its stable controls, and capture visual evidence. */
 async function inspectPage(miniProgram, name, route, selectors, modeSelector, difficultySelector) {
-  await seedSmokeSession(miniProgram);
-  const page = await timeout(miniProgram.reLaunch(route), 25000, `打开 ${route} 超时`);
-  await page.waitFor(1000);
-  if (page.path !== route.slice(1)) throw new Error(`${route} 被重定向到 ${page.path}`);
+  const page = await openProtectedPage(miniProgram, route);
   for (const selector of selectors) await waitForElement(page, selector);
   await verifyModeSwitch(page, name, modeSelector, difficultySelector);
   if (name === "landlord") {
@@ -195,19 +269,32 @@ async function run() {
   await provisionSmokeSession();
   const connection = await connectOrLaunch();
   const { miniProgram, ownsDevtools } = connection;
+  let storageSnapshot = null;
   miniProgram.on("exception", (entry) => console.error("[devtools exception]", entry));
   try {
     await new Promise((resolve) => setTimeout(resolve, 3000));
     await warmApp(miniProgram);
+    await removeLegacySmokeSession(miniProgram);
+    storageSnapshot = await snapshotSimulatorStorage(miniProgram);
     const selectedPages = PAGE_FILTER ? PAGES.filter(([name]) => name === PAGE_FILTER) : PAGES;
     if (!selectedPages.length) throw new Error(`未知游戏页面过滤器：${PAGE_FILTER}`);
     for (const page of selectedPages) await inspectPage(miniProgram, ...page);
     console.log("[game-pages] PASS（仅开发者工具页面结构与截图，不代表真机对局验收）");
   } finally {
-    if (ownsDevtools) {
-      await Promise.race([miniProgram.close(), new Promise((resolve) => setTimeout(resolve, 8000))]);
-    } else {
-      miniProgram.disconnect();
+    let restoreError = null;
+    try {
+      if (storageSnapshot) await restoreSimulatorStorage(miniProgram, storageSnapshot);
+    } catch (error) {
+      restoreError = error;
+    }
+    try {
+      if (ownsDevtools) {
+        await Promise.race([miniProgram.close(), new Promise((resolve) => setTimeout(resolve, 8000))]);
+      } else {
+        miniProgram.disconnect();
+      }
+    } finally {
+      if (restoreError) throw restoreError;
     }
   }
 }

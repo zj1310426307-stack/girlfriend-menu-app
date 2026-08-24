@@ -1,0 +1,23 @@
+const assert = require("assert");
+const fs = require("fs");
+const path = require("path");
+
+const acceptancePath = path.join(__dirname, "game-pages-devtools-acceptance.cjs");
+const source = fs.readFileSync(acceptancePath, "utf8");
+
+assert.match(source, /automator\.connect\(/, "acceptance must reuse an existing automation socket");
+assert.match(source, /automator\.launch\(/, "acceptance must launch DevTools when no socket exists");
+assert.match(source, /port:\s*HTTP_PORT/, "the automator websocket port must remain explicit");
+assert.doesNotMatch(
+  source,
+  /WECHAT_DEVTOOLS_CLI_PORT|args:\s*\[\s*["']--port["']/,
+  "do not override the IDE service port; the CLI discovers the enabled DevTools service"
+);
+assert.match(source, /snapshotSimulatorStorage/, "acceptance must snapshot simulator storage");
+assert.match(source, /restoreSimulatorStorage/, "acceptance must restore simulator storage");
+assert.match(source, /callWxMethod\("getStorageInfoSync"\)/, "acceptance must discover every original storage key");
+assert.match(source, /callWxMethod\("clearStorageSync"\)/, "acceptance must remove smoke-only storage before restoration");
+assert.match(source, /removeLegacySmokeSession/, "acceptance must migrate the exact sentinel leaked by older runs");
+assert.match(source, /customerId !== LEGACY_SMOKE_SESSION\.customer_id[\s\S]*customerToken !== LEGACY_SMOKE_SESSION\.customer_token/);
+
+console.log("game pages DevTools launch contract PASS");

@@ -10,6 +10,7 @@ const snapshot = read("src/utils/pageSnapshot.js");
 const transport = read("src/api/transport.js");
 const notice = read("src/components/PageSyncNotice.jsx");
 const menu = read("src/pages/menu/index.jsx");
+const menuCss = read("src/pages/menu/index.css");
 const orders = read("src/pages/my-orders/index.jsx");
 const games = read("src/pages/games/index.jsx");
 const couple = read("src/pages/couple/index.jsx");
@@ -48,6 +49,9 @@ for (const [source, scope, refName] of [
 assert.match(menu, /getCachedDishes\(\{ maxAge: DISH_CACHE_MAX_AGE \}\)/);
 assert.match(menu, /favoriteMutationVersionRef/);
 assert.match(menu, /favoriteUpdatingRef\.current\.size === 0/);
+assert.match(menu, /<View className=["']v2-category-tabs-track["']>/);
+assert.match(menuCss, /\.v2-category-tabs-track\s*>\s*view\s*\{/);
+assert.doesNotMatch(menuCss, /\.v2-category-tabs\s*>\s*view\s*\{/);
 assert.match(orders, /loading\s*&&\s*!hasLoaded/);
 assert.doesNotMatch(orders, /if \(loading\) return/);
 assert.match(games, /Promise\.allSettled/);

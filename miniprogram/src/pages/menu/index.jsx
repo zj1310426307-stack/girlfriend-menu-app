@@ -159,9 +159,11 @@ export default function MenuPage() {
       </View>
       <Input className="v2-menu-search" value={query} placeholder="搜索菜名、口味或标签" onInput={(event) => setQuery(event.detail.value)} />
       <ScrollView className="v2-category-tabs" scrollX enhanced showScrollbar={false}>
-        {categories.map((item) => (
-          <View key={item} className={category === item ? "active" : ""} onClick={() => setCategory(item)}><Text>{item}</Text></View>
-        ))}
+        <View className="v2-category-tabs-track">
+          {categories.map((item) => (
+            <View key={item} className={category === item ? "active" : ""} onClick={() => setCategory(item)}><Text>{item}</Text></View>
+          ))}
+        </View>
       </ScrollView>
       {hasLoaded && <PageSyncNotice loading={loading} offline={Boolean(error)} onRetry={() => load({ force: true })} />}
       {loading && !hasLoaded && <AsyncState message="正在翻开菜单…" />}

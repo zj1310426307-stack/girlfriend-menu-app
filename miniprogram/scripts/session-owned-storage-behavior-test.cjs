@@ -277,6 +277,28 @@ function testSocketDoesNotPersistRoomSessionSecret() {
   assert.equal(events[0].type, "session");
 }
 
+/** Verify optional API misses are scoped, expiring and removable without server access. */
+function testApiCapabilityCooldown() {
+  const now = 2_000_000_000_000;
+  const taro = createTaroMock();
+  const capability = createSourceLoader(taro)("src/utils/apiCapability.js");
+
+  assert.equal(capability.isApiCapabilityCoolingDown("https://prod.test/api", "bootstrap", now), false);
+  capability.markApiCapabilityUnavailable("https://prod.test/api", "bootstrap", { now, duration: 1000 });
+  assert.equal(capability.isApiCapabilityCoolingDown("https://prod.test/api", "bootstrap", now + 999), true);
+  assert.equal(capability.isApiCapabilityCoolingDown("https://staging.test/api", "bootstrap", now + 999), false);
+  assert.equal(capability.isApiCapabilityCoolingDown("https://prod.test/api", "bootstrap", now + 1000), false);
+
+  capability.markApiCapabilityUnavailable("https://prod.test/api", "wechat-session", { now, duration: 1000 });
+  capability.clearApiCapabilityCooldown("https://prod.test/api", "wechat-session");
+  assert.equal(capability.isApiCapabilityCoolingDown("https://prod.test/api", "wechat-session", now + 1), false);
+
+  taro.storage.set("gf_api_capability_cooldowns_v31", {
+    "https://prod.test/api:bootstrap": now + 8 * 24 * 60 * 60 * 1000
+  });
+  assert.equal(capability.isApiCapabilityCoolingDown("https://prod.test/api", "bootstrap", now), false);
+}
+
 /** Run every behavior check sequentially so failures identify one ownership boundary. */
 async function main() {
   testSessionClearIsOwnedAndIdempotent();
@@ -284,6 +306,7 @@ async function main() {
   testStorageRemovalFailureDoesNotBlockLogout();
   await testReconnectTokenOwnership();
   testSocketDoesNotPersistRoomSessionSecret();
+  testApiCapabilityCooldown();
   console.log("session-owned storage behavior: PASS");
 }
 

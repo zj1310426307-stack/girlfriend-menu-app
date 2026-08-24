@@ -4,8 +4,10 @@
 .v2-menu-heading > text:last-child { display: block; margin-top: 8px; color: var(--text-muted); font-size: 22px; }
 .v2-menu-search { width: 100%; height: 82px; padding: 0 24px; border: 2px solid var(--border-soft); border-radius: 24px; color: var(--text-main); background: var(--surface); font-size: 25px; }
 .v2-category-tabs { width: 100%; margin: 22px 0; white-space: nowrap; }
-.v2-category-tabs > view { min-height: 64px; display: inline-flex; align-items: center; justify-content: center; margin-right: 12px; padding: 0 27px; border: 2px solid var(--border-soft); border-radius: 22px; color: var(--text-muted); background: var(--surface); font-size: 24px; }
-.v2-category-tabs > view.active { color: #fff; border-color: var(--sage); background: var(--sage); }
+.v2-category-tabs-track { display: inline-flex; align-items: center; }
+.v2-category-tabs-track > view { min-height: 64px; display: inline-flex; align-items: center; justify-content: center; margin-right: 12px; padding: 0 27px; border: 2px solid var(--border-soft); border-radius: 22px; color: var(--text-muted); background: var(--surface); font-size: 24px; }
+.v2-category-tabs-track > view:last-child { margin-right: 0; }
+.v2-category-tabs-track > view.active { color: #fff; border-color: var(--sage); background: var(--sage); }
 .v2-category-tabs text { line-height: 1; }
 .v2-menu-list { display: flex; flex-direction: column; gap: 18px; }
 .v2-cart-bar { position: fixed; left: 24px; right: 24px; bottom: calc(104px + env(safe-area-inset-bottom)); z-index: 20; min-height: 84px; display: flex; align-items: center; justify-content: space-between; padding: 0 28px; border-radius: 26px; color: #fff; background: var(--text-main); box-shadow: 0 14px 34px rgba(48,53,47,.24); font-size: 25px; font-weight: 800; }

@@ -1,5 +1,10 @@
 import Taro from "@tarojs/taro";
 import { API_BASE_URL } from "../config/env";
+import {
+  clearApiCapabilityCooldown,
+  isApiCapabilityCoolingDown,
+  markApiCapabilityUnavailable
+} from "../utils/apiCapability";
 import { createGameActionId } from "../utils/gameAction";
 import {
   clearCustomerSession,
@@ -27,6 +32,7 @@ export {
 
 const customerHeader = () => ({});
 const WECHAT_CAPABILITY_FALLBACK_STATUS_CODES = new Set([404, 405, 501, 503]);
+const WECHAT_SESSION_CAPABILITY = "wechat-session";
 
 /** Obtain one short-lived WeChat login code without assuming Promise support. */
 function getWeChatLoginCode() {
@@ -42,17 +48,26 @@ function getWeChatLoginCode() {
 /** Exchange WeChat identity for the same bearer contract used by legacy sessions. */
 async function requestWeChatSession(inviteCode = "") {
   const code = await getWeChatLoginCode();
-  const session = await request("/customers/wechat-session", {
-    method: "POST",
-    timeout: 12000,
-    data: {
-      code,
-      invite_code: inviteCode,
-      display_name: "女朋友",
-      device_label: "微信小程序"
-    },
-    preserveSession: true
-  });
+  let session;
+  try {
+    session = await request("/customers/wechat-session", {
+      method: "POST",
+      timeout: 12000,
+      data: {
+        code,
+        invite_code: inviteCode,
+        display_name: "女朋友",
+        device_label: "微信小程序"
+      },
+      preserveSession: true
+    });
+  } catch (error) {
+    if (WECHAT_CAPABILITY_FALLBACK_STATUS_CODES.has(error?.statusCode)) {
+      markApiCapabilityUnavailable(API_BASE_URL, WECHAT_SESSION_CAPABILITY);
+    }
+    throw error;
+  }
+  clearApiCapabilityCooldown(API_BASE_URL, WECHAT_SESSION_CAPABILITY);
   saveCustomerSession(session);
   markWeChatIdentityBound();
   return session;
@@ -61,12 +76,14 @@ async function requestWeChatSession(inviteCode = "") {
 /** Bind a pre-v3 authenticated customer without creating a second identity. */
 export async function bindCurrentCustomerToWeChat() {
   if (!hasCustomerSession() || hasWeChatIdentityBinding()) return null;
+  if (isApiCapabilityCoolingDown(API_BASE_URL, WECHAT_SESSION_CAPABILITY)) return null;
   return requestWeChatSession();
 }
 
 /** Silently restore a previously bound WeChat identity on a new phone. */
 export async function restoreWeChatCustomerSession() {
   if (hasCustomerSession()) return { authenticated: true };
+  if (isApiCapabilityCoolingDown(API_BASE_URL, WECHAT_SESSION_CAPABILITY)) return null;
   try {
     return await requestWeChatSession();
   } catch (error) {
@@ -142,7 +159,7 @@ export const createDiceRoom = (inviteCode) =>
     data: { invite_code: inviteCode }
   });
 
-export const getGames = () => request("/games");
+export const getGames = () => request("/games", { maxRetries: 0 });
 
 export const createGameRoom = (
   gameType,
@@ -374,7 +391,7 @@ export const deleteCoupleDate = (customerId, dateId) =>
   request(`/couple/dates/${dateId}`, { method: "DELETE", header: customerHeader(customerId) });
 
 export const getActiveGames = (customerId) =>
-  request("/games/active", { header: customerHeader(customerId) });
+  request("/games/active", { header: customerHeader(customerId), maxRetries: 0 });
 
 export const issueReconnectToken = (customerId, roomCode) =>
   request("/games/reconnect/token", {

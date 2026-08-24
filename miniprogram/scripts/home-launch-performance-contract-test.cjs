@@ -6,6 +6,7 @@ const root = path.resolve(__dirname, "..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 
 const appConfig = read("src/app.config.js");
+const buildConfig = read("config/index.js");
 const catalog = read("src/api/modules/catalog.js");
 const customer = read("src/utils/customer.js");
 const dishCard = read("src/components/DishCard.jsx");
@@ -14,7 +15,11 @@ const homeCss = read("src/pages/index/index.css");
 const snapshot = read("src/utils/homeSnapshot.js");
 
 assert.match(appConfig, /lazyCodeLoading:\s*["']requiredComponents["']/);
+assert.match(buildConfig, /cache:\s*\{\s*enable:\s*false\s*\}/);
 assert.match(catalog, /request\(["']\/bootstrap["'],\s*\{\s*timeout:\s*12000,\s*maxRetries:\s*0\s*\}\)/);
+assert.match(catalog, /isApiCapabilityCoolingDown\(API_BASE_URL, BOOTSTRAP_CAPABILITY\)/);
+assert.match(catalog, /markApiCapabilityUnavailable\(API_BASE_URL, BOOTSTRAP_CAPABILITY\)/);
+assert.match(catalog, /clearApiCapabilityCooldown\(API_BASE_URL, BOOTSTRAP_CAPABILITY\)/);
 assert.match(catalog, /error\.code\s*=\s*["']BOOTSTRAP_SCHEMA_MISMATCH["']/);
 for (const root of ["detail", "cart", "order-detail", "notifications", "profile"]) {
   assert.match(appConfig, new RegExp(`root:\\s*["']pages/${root}["']`));

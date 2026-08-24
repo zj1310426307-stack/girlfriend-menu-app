@@ -1,5 +1,11 @@
 import Taro from "@tarojs/taro";
 
+import { API_BASE_URL } from "../../config/env";
+import {
+  clearApiCapabilityCooldown,
+  isApiCapabilityCoolingDown,
+  markApiCapabilityUnavailable
+} from "../../utils/apiCapability";
 import { request } from "../transport";
 import { getAuthenticatedCustomerId } from "../../utils/customer";
 import { writeHomeSnapshot } from "../../utils/homeSnapshot";
@@ -7,6 +13,8 @@ import { writeHomeSnapshot } from "../../utils/homeSnapshot";
 const DISH_CACHE_KEY = "gf_dishes_cache_v28";
 const DISH_CACHE_TTL = 10 * 60 * 1000;
 export const DISH_CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
+const BOOTSTRAP_CAPABILITY = "home-bootstrap";
+const BOOTSTRAP_COMPATIBILITY_STATUS_CODES = new Set([404, 405, 501]);
 
 /** Read cached public menu data synchronously so the first render never waits on a Promise. */
 export function getCachedDishes({ maxAge = DISH_CACHE_TTL } = {}) {
@@ -56,7 +64,22 @@ export async function getDishes(category, { force = false } = {}) {
 
 /** Fetch the additive V3 home aggregation and warm the existing dish cache. */
 export async function getHomeBootstrap() {
-  const payload = await request("/bootstrap", { timeout: 12000, maxRetries: 0 });
+  if (isApiCapabilityCoolingDown(API_BASE_URL, BOOTSTRAP_CAPABILITY)) {
+    const error = new Error("当前服务暂不支持首页聚合接口");
+    error.statusCode = 404;
+    error.code = "API_CAPABILITY_COOLDOWN";
+    throw error;
+  }
+  let payload;
+  try {
+    payload = await request("/bootstrap", { timeout: 12000, maxRetries: 0 });
+  } catch (error) {
+    if (BOOTSTRAP_COMPATIBILITY_STATUS_CODES.has(error?.statusCode)) {
+      markApiCapabilityUnavailable(API_BASE_URL, BOOTSTRAP_CAPABILITY);
+    }
+    throw error;
+  }
+  clearApiCapabilityCooldown(API_BASE_URL, BOOTSTRAP_CAPABILITY);
   if (
     !Array.isArray(payload?.dishes)
     || !Array.isArray(payload?.favorite_ranking)
