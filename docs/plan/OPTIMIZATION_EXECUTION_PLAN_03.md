@@ -75,4 +75,6 @@
 
 ## 8. 执行结果
 
-待本轮实现与验证完成后回填。外部 Render、PostgreSQL staging、微信体验版/真机和 production 状态必须按实际证据记录。
+本轮本地实施已于 2026-08-24 完成。现有 backend job 已加入 PostgreSQL 18 临时 service 和两条迁移矩阵；staging 只读门已实现目标隔离、禁重定向、响应限额、持久存储/认证检查和微信两阶段判定。20 项定向测试、272 项后端全量测试、小程序 CI/生产构建、SQLite 迁移矩阵、快照、架构、发布配置、密钥与真实本地启动门均通过。
+
+工作区没有 Docker/PostgreSQL 服务，候选也未推送，所以 PostgreSQL service 仍是“配置与合同通过、远端执行待验收”。Render 页面未登录，微信开发者工具用户配置未初始化，因此未创建云资源、未运行 hosted readiness、未生成体验版/真机证据，也未触碰 production。

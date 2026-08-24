@@ -2,15 +2,16 @@
 
 ## 发布顺序
 
-1. 从 `render.staging.yaml` 创建独立服务，保持 `autoDeploy=false`；不得把生产 Blueprint 改名后复用。
-2. 在空白、非生产克隆的隔离 staging 数据库执行 `alembic upgrade head`，确认 head 为 `20260817_14`。
-3. 部署后端，先保持 `WECHAT_LOGIN_ENABLED=false`；此时 `/api/ready` 显示 `wechat_login.status=optional-disabled`。
-4. 在 Render Secret 中配置 `WECHAT_APP_ID`、`WECHAT_APP_SECRET`。AppSecret 不得进入 Git、小程序源码、构建变量或日志。
-5. 配置认证凭据。推荐在本机执行 `python scripts/hash_admin_password.py`，将结果保存为 `ADMIN_PASSWORD_HASH`；兼容期也可保留 `ADMIN_PASSWORD`。同时配置长度不少于 16 字符的 `ADMIN_SECRET`，并保证 `ADMIN_INVITE_CODE` 与 `CUSTOMER_INVITE_CODE` 不同。
-6. 将 `WECHAT_LOGIN_ENABLED=true`，确认 `/api/ready` 的总状态、`authentication.status` 和 `wechat_login.status` 都为 `ready`，且两个 `missing` 列表为空。
-7. 把已核验的 staging HTTPS Origin 写入 `miniprogram/.env.staging`，执行 `npm run build:weapp:staging`；该构建会拒绝生产 API。
-8. 完成 staging 新用户、存量用户原地绑定、换机恢复、管理登录、点单和 WebSocket 冒烟。
-9. 再上传小程序开发版本并生成真机预览；体验通过后才设置体验版、提交审核或发布。
+1. 候选推送后先确认 GitHub Actions backend job 的 SQLite 与 PostgreSQL 18 迁移步骤全部为绿灯。
+2. 从 `render.staging.yaml` 创建独立服务，保持 `autoDeploy=false`；不得把生产 Blueprint 改名后复用。
+3. 在空白、非生产克隆的隔离 staging 数据库执行 `alembic upgrade head`，确认 head 为 `20260817_14`。
+4. 配置独立认证凭据与持久存储，先保持 `WECHAT_LOGIN_ENABLED=false`。推荐在本机执行 `python scripts/hash_admin_password.py` 并保存 `ADMIN_PASSWORD_HASH`；`ADMIN_SECRET` 不少于 16 字符，且管理/客户邀请码必须不同。
+5. 显式设置 `STAGING_API_ORIGIN`，执行 `python scripts/check_staging_readiness.py`；此时允许 `wechat_login.status=optional-disabled`，其余组件必须 ready。
+6. 在 Render Secret 中配置 `WECHAT_APP_ID`、`WECHAT_APP_SECRET` 并启用微信登录。AppSecret 不得进入 Git、小程序源码、构建变量或日志。
+7. 执行 `python scripts/check_staging_readiness.py --require-wechat`，确认总状态、authentication 和微信登录均 ready。
+8. 把已核验的 staging HTTPS Origin 写入 `miniprogram/.env.staging`，执行 `npm run build:weapp:staging`；该构建会拒绝生产 API。
+9. 完成 staging 新用户、存量用户原地绑定、换机恢复、管理登录、点单和 WebSocket 冒烟。
+10. 再上传小程序开发版本并生成真机预览；体验通过后才设置体验版、提交审核或发布。
 
 ## 分阶段发布兼容门
 
@@ -19,6 +20,8 @@
 ## Render 关键配置
 
 staging 必须使用 `APP_ENV=staging`、独立 `DATABASE_URL` 和 `render.staging.yaml`；生产才使用 `APP_ENV=production` 与 `render.yaml`。两者都必须配置各自的 `CUSTOMER_INVITE_CODE`、`ADMIN_INVITE_CODE`、`ADMIN_SECRET`、`UPLOAD_PROVIDER=database|s3` 和微信三项配置，禁止复制生产数据库连接串或业务数据到 staging。
+
+只读门从环境变量读取目标，不在命令参数、仓库或日志中保存 Origin；输出只包含目标短摘要和低敏组件状态。它不创建客户、订单、评价或游戏房间。缺少独立 Origin 时应保持失败，不得临时改用生产地址绕过。
 
 生产、staging 与 Oregon 候选全部固定为免费计划，并使用同一个启动入口：
 

@@ -2,7 +2,7 @@
 
 - 更新日期：2026-08-24
 - 优先级口径：P0 发布/安全阻断；P1 直接影响核心体验或数据边界；P2 重要但可排期；P3 长期治理
-- 状态口径：`本轮`、`待排期`、`外部验收`、`已具备基础`
+- 状态口径：`本轮`、`待排期`、`外部验收`、`已具备基础`、`已完成`
 
 | ID | 优先级 | 状态 | 问题位置 | 表现 / 根因 | 影响 | 建议 | API / DB | 验收标准 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -16,7 +16,8 @@
 | DATA-001 | P1 | 待排期 | 订单/评价副作用 | 主事务后积分、通知、记忆和广播仅 best effort | 进程崩溃会永久缺副作用；跨实例广播缺失 | durable outbox/effect ledger + 幂等消费者 | 需内部 API/DB 迁移 | 故障注入后最终一次且仅一次完成可持久副作用 |
 | GAME-001 | P1 | 待排期 | room lease/state store | `lease_epoch` 未进入状态写 fencing | 旧实例可能覆盖新 owner 状态 | owner+epoch 传递并条件写 | 内部协议/DB 语义变更 | 接管后旧 epoch 写入被拒绝 |
 | DATA-002 | P1 | 待排期 | free runtime seed 判断 | 仅比较固定表计数 | 内容更新但数量不变时线上种子不更新 | 持久 `REFERENCE_DATA_VERSION` | 需要小型 DB 迁移 | 版本变化准确触发一次 seed |
-| CI-001 | P1 | 待排期 | GitHub Actions | 迁移仅验证 SQLite | PostgreSQL DDL、锁、约束风险未被 CI 捕获 | 免费 Actions PostgreSQL service 迁移门 | 无公开 API；测试 DB | upgrade/down/up 与 from-V2 在 PG 通过 |
+| CI-001 | P1 | 外部验收 | GitHub Actions | 已配置 PostgreSQL 18 临时 service，并锁定 upgrade/down/up 与 from-V2；尚未推送触发远端 job | 本地无法证明 PostgreSQL 方言步骤已实际运行 | 推送候选后只认远端 backend job 绿灯；保留 SQLite 双矩阵 | 无公开 API；临时测试 DB | workflow 契约已通过；远端 upgrade/down/up 与 from-V2 均通过后完成 |
+| STAGE-001 | P1 | 外部验收 | Render / staging readiness | 已有失败关闭的只读门；当前 Render 未登录、无独立 staging Origin | 不能部署隔离环境，也不能采集 hosted/真机证据 | 登录后创建独立免费 service/空库，先跑基础门再跑 `--require-wechat` | 只读 health/ready；DB 不变 | 拒绝生产/非 HTTPS/私网目标；两个模式在独立 staging 通过 |
 | WX-001 | P2 | 待排期 | 首页微信绑定 | 能力关闭时每次启动仍发必败请求 | 免费冷启动多一条 503 请求 | 404/405/501/503 持久能力冷却；显式登录可绕过 | API 不变 | 冷却期启动只发 bootstrap，不发绑定探测 |
 | QUERY-001 | P2 | 待排期 | order relationships/love score | 无用 selectin；历史积分全量加载 | 数据增长后首页和订单列表退化 | 精确 projection/SQL 聚合，补查询预算 | API 不变；可能补索引迁移 | 结果等价，查询数和扫描行有预算 |
 | UPLOAD-001 | P2 | 待排期 | upload/storage | async 路由内同步 Pillow/provider；无像素上限 | 事件循环阻塞、压缩炸弹内存风险 | threadpool、typed error、像素/边长上限 | API 状态语义不变 | 大图快速拒绝；并发 health 不被阻塞 |

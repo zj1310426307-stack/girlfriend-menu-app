@@ -461,6 +461,16 @@ miniprogram/.env.production
 
 每套至少配置 `TARO_APP_ENV_NAME` 和 `TARO_APP_API_ORIGIN`。WebSocket 地址由 API Origin 自动派生；staging 和生产地址都必须为 HTTPS，缺失时构建直接失败。仓库中的 `.env.staging` 故意不预填地址，只有独立 staging 服务创建并通过隔离核对后才能写入；staging 明确禁止复用生产 API。使用 `npm run build:weapp:staging` 构建真机验收包，生产域名可以通过部署平台或 CI 环境变量覆盖，不要在业务源码重复硬编码。
 
+独立服务部署后，先在仓库根目录执行只读门；它只访问 health/ready，并拒绝生产 Origin、非 HTTPS、重定向、私网/本机目标和非持久存储：
+
+```powershell
+$env:STAGING_API_ORIGIN="https://<独立-staging-host>"
+backend\.venv\Scripts\python.exe scripts\check_staging_readiness.py
+backend\.venv\Scripts\python.exe scripts\check_staging_readiness.py --require-wechat
+```
+
+第一条允许微信处于 `optional-disabled`，用于先验收基础设施；配置真实 AppID/AppSecret 并启用微信登录后，第二条必须通过。脚本通过不替代微信开发者工具、体验版或真机验收。
+
 后端正式环境必须配置：
 
 ```text

@@ -99,6 +99,10 @@ Render 已在服务前提供托管 TLS 和边缘反向代理，所以本项目�
 
 `serve.py` 关闭 Uvicorn 默认 access log，由应用中间件输出 route template、status 和 duration，避免托管日志出现动态 URL 原文。
 
+现有 GitHub Actions backend job 同时保留 SQLite 迁移门，并启动一次性的 PostgreSQL 18 service container 验证完整升级、最后一版降级/再升级和 V2 基线升级。临时数据库只存在于 job 生命周期，不引入外部托管数据库或付费服务。工作流配置本身不能替代远端 job 绿灯，也不能替代独立 staging 的真实数据量锁时长验证。
+
+`scripts/check_staging_readiness.py` 是部署边界外的只读运维工具，只请求 health/ready。它不被 FastAPI 或小程序运行时导入，并在网络前拒绝生产、HTTP、重定向目标、带路径/凭据的 Origin 和本机/私网命名目标。基础设施阶段允许微信关闭；真机阶段通过 `--require-wechat` 收紧为必须 ready。
+
 免费唤醒先用一条查询同时读取 Alembic head 与六组参考数据的有界计数。head 为 `20260817_14` 且参考数据完整时，跳过 Alembic 导入和六组种子；只有首次部署、schema 漂移或参考数据不完整时才迁移、修复并再次验证。本地开发仍保留自动建表和幂等种子，减少开发门槛。
 
 免费实例的平台代理休眠无法由应用代码消除，因此当前策略是“减少醒来后的工作 + 复访本地先显 + 避免请求风暴”。现有服务位于 Singapore，而已记录的数据库位于 Oregon；`render.production-oregon.yaml` 定义一个同样免费的、手动创建的 Oregon 新服务候选。是否创建、切换 Origin 和停用旧服务必须等隔离 staging 与真机证据通过后单独确认，但不进入付费方案。

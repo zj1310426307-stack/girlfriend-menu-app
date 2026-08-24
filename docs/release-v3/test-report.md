@@ -49,6 +49,8 @@
 
 托管启动候选已切换为纯免费路径：production/staging/Oregon 三个 Blueprint 都使用 `plan: free` 与单进程 `python serve.py`。普通唤醒只执行一次数据库就绪查询；首次部署或漂移时才迁移和种子。客户端网络超时不再展开旧五接口，四个一级页也增加成功刷新冷却。所有云端配置仍未应用。
 
+2026-08-24 第三轮补充免费 PostgreSQL 交付门与 staging 只读入口：backend workflow 已配置 PostgreSQL 18 service，覆盖 upgrade/down/up 与 from-V2，并保留 SQLite 矩阵；20 项定向门禁和 272 项后端全量测试通过，小程序 CI/生产构建继续通过，主包 469,038 bytes、总产物 888,826 bytes。当前候选未推送，本机也没有可运行的 PostgreSQL 容器，因此这里只证明 workflow 配置与合同，远端 PostgreSQL job 仍待验收。Render 未登录、微信开发者工具配置未初始化，未部署 staging 或生成真机证据。
+
 ## 契约基线
 
 - HTTP `/api/*` operations：89。

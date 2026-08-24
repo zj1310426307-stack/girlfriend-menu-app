@@ -9,8 +9,11 @@
 - [x] 小程序生产构建通过，主包 0.465 MiB，总包 0.834 MiB。
 - [x] staging 构建默认无 API 地址并拒绝生产 Origin，未完成隔离服务核对时会失败关闭。
 - [x] 独立 `render.staging.yaml` 使用 staging 环境、关闭自动部署并默认关闭微信登录。
+- [x] staging 只读门拒绝生产/非 HTTPS/本机目标，并验证 PostgreSQL、持久存储和认证 readiness。
+- [x] GitHub Actions 已配置 PostgreSQL 18 临时迁移矩阵；远端 job 绿灯仍待候选推送后确认。
+- [ ] 基础 staging 只读门在微信关闭状态通过。
 - [ ] Render staging 配置真实 AppID/AppSecret 并启用开关。
-- [ ] `/api/ready` 在 staging 返回微信登录 ready。
+- [ ] `check_staging_readiness.py --require-wechat` 在 staging 通过。
 
 ## 微信公众平台
 
