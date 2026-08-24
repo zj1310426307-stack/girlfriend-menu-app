@@ -147,7 +147,7 @@ python -m venv .venv
 .venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 copy .env.example .env
 .venv\Scripts\python.exe -m alembic -c alembic.ini upgrade head
-.venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8000 --reload
+.venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8000 --reload --no-access-log
 ```
 
 本地环境变量示例在 `backend/.env.example`。未配置 `DATABASE_URL` 时会使用 `backend/girlfriend_menu.db`。
@@ -160,10 +160,12 @@ http://127.0.0.1:8000/api/ready
 http://127.0.0.1:8000/docs
 ```
 
+`/api/ready` 保持 HTTP 200，通过顶层 `status` 表示是否可发布；`authentication.missing` 只列出缺失或不可用的配置项名称，不包含密码、邀请码或散列值。
+
 如果 Windows 对 8000 端口报 `WinError 10013`，可改用 8010：
 
 ```bat
-.venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8010 --reload
+.venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8010 --reload --no-access-log
 ```
 
 小程序当前固定请求生产 API。若要联调本机后端，需要把 `miniprogram/src/api/index.js` 中的 API 地址临时改为手机或开发者工具能够访问的 HTTPS 地址；真机不能直接访问电脑的 `localhost`。

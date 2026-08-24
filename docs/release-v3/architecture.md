@@ -71,6 +71,14 @@ bootstrap 服务端记录五个读取阶段与总耗时，但不记录 `customer
 
 收藏写操作按菜品串行，订单详情加载按页面串行；轮询失败保留最后一次权威快照。活跃订单、已完成和暂时做不了使用不同标题、评价提示和终态说明。管理订单页把筛选草稿、已应用查询、分页游标、读取代次和写操作锁分开，防止旧读取覆盖刚完成的状态修改。
 
+## 就绪判定与日志隐私
+
+`/api/ready` 除数据库、存储、Redis 和微信登录外，还聚合 `authentication`。客户邀请码、管理邀请码、管理 token secret、管理员账号状态和密码 verifier 任一不可用时，总状态为 `release-blocked`。尚无数据库管理员时需要 `ADMIN_PASSWORD` 或项目脚本生成的 `ADMIN_PASSWORD_HASH`；已有启用账号时以数据库 verifier 为权威，不再要求 bootstrap 密码。禁用账号不能被环境配置绕过。staging/production 还要求客户与管理员邀请码不同。
+
+readiness 只返回状态与配置项名称，不返回秘密、散列或异常详情。该路由继续保持 HTTP 200 和原有字段，只新增 `authentication`，并且仍不进入公开 OpenAPI。
+
+HTTP 中间件只记录匹配后的路由模板，未知路径统一记为 `/unmatched`。请求 ID、Redis key 和房间码使用带进程随机 HMAC 盐的短引用；同一实例内可关联，进程重启后不可关联，也不能离线枚举短房间码。隐私敏感故障只记录异常类型。标准 `serve.py` 关闭 Uvicorn 的原始访问日志，避免框架重复打印动态 URL；状态码和耗时继续由应用日志提供。
+
 ## 成熟组件复用
 
 | 能力 | 选择 |
@@ -88,6 +96,8 @@ bootstrap 服务端记录五个读取阶段与总耗时，但不记录 `customer
 Render 已在服务前提供托管 TLS 和边缘反向代理，所以本项目继续使用单一 Uvicorn 应用进程，不在同一容器中重复部署 Nginx。多 worker 会让进程内 WebSocket 连接和后台定时任务重复执行；在完成 Redis 强制化与独立 worker 拆分前，不盲目增加 worker 数量。
 
 `production` / `staging` 属于托管 schema 环境：Uvicorn 生命周期不执行 `create_all` 或六组参考数据种子。三个 Blueprint 全部固定为 `plan: free`，并统一由 `python serve.py` 在一个 Python 进程内完成数据库准备与 Uvicorn 启动，不再连续启动 Alembic、release 和 Uvicorn 三个进程。
+
+`serve.py` 关闭 Uvicorn 默认 access log，由应用中间件输出 route template、status 和 duration，避免托管日志出现动态 URL 原文。
 
 免费唤醒先用一条查询同时读取 Alembic head 与六组参考数据的有界计数。head 为 `20260817_14` 且参考数据完整时，跳过 Alembic 导入和六组种子；只有首次部署、schema 漂移或参考数据不完整时才迁移、修复并再次验证。本地开发仍保留自动建表和幂等种子，减少开发门槛。
 

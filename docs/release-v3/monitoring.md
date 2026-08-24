@@ -3,8 +3,9 @@
 ## 已有信号
 
 - `/api/health`：进程存活。
-- `/api/ready`：数据库、存储、Redis降级状态和微信登录配置状态。
-- `X-Request-Id` + 请求日志：method、path、status、duration，不记录 body、token 或 secret。
+- `/api/ready`：数据库、存储、Redis 降级状态、微信登录和 authentication 配置状态。
+- `X-Request-Id` 继续回传客户端；日志只写进程内 `request_ref`、method、route template、status 和 duration。
+- Redis key、房间码等高基数标识只写进程内 HMAC 短引用；标准 `serve.py` 关闭 Uvicorn 原始 URL access log。
 - OpenTelemetry：显式 opt-in、低基数 allow-list、默认 no-op，不将 exporter 故障传入业务。
 - 数据库审计：订单状态事件、游戏事件和管理登录事件。
 
@@ -24,6 +25,6 @@
 
 ## 隐私规则
 
-禁止在日志、span 和告警正文中写入 AppSecret、code、openid、unionid、customer token、管理密码/邀请码、完整数据库 URL、房间码、牌面或用户输入。故障排查使用 request id、状态码、固定结果枚举和耗时。
+禁止在日志、span 和告警正文中写入 AppSecret、code、openid、unionid、customer token、管理密码/邀请码、完整数据库 URL、动态 URL、cache key、房间码、牌面或用户输入。故障排查使用同一进程内的 `request_ref`/`room_ref`、路由模板、状态码、异常类型、固定结果枚举和耗时。短引用在进程重启后会变化，不能当作业务 ID 或跨实例追踪键。
 
 当前本地门禁不等于托管环境证据。正式发布仍需在独立 staging 上采集冷/热启动、Render 日志窗口和真实设备网络性能。

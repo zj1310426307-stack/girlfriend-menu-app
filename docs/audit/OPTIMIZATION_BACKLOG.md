@@ -11,8 +11,8 @@
 | PRIV-001 | P1 | 已完成 | `customer.js`、`cart.js`、`gameRecovery.js` | 私有本地数据无 owner 或不随会话清理 | 同设备换账号可看到旧购物车/草稿，甚至恢复前账号游戏 | owner-scoped reconnect key；owner 切换/清会话清理；停止保存未用 secret | API/DB 不变；本地 key 调整 | storage 行为测试证明 A/B 隔离、旧 key 清理、公共缓存保留和幂等 |
 | REL-002 | P1 | 已完成 | `render.yaml`、`serve.py` | 生产 autoDeploy 会触发启动时自动迁移 | 代码合并可能绕过备份和 staging 门直接迁移生产 | 生产 `autoDeploy:false`；静态检查强制手动发布 | 无 | 三套 Blueprint 均为 free 且关闭自动部署；发布门通过 |
 | SEC-001 | P1 | 已完成 | `.env.example`、`backup_production_api.py` | 模板和脚本含已知弱默认 | 复制模板或误跑脚本可能使用公开凭据/错误目标 | 清空秘密示例；origin/密码/邀请码全部显式输入；发布门拒绝弱值 | 无 | 弱默认已移除；缺配置/HTTP origin 均在网络前失败；密钥扫描通过 |
-| READY-001 | P1 | 本轮 | `/api/ready` | readiness 不检查客户/管理员认证配置 | 服务显示 ready 但双方无法登录 | 增加不泄密 auth readiness | 响应字段会扩展；DB 不变 | 缺关键凭据时非 ready，响应不含秘密 |
-| OBS-001 | P1 | 本轮 | HTTP/cache/game 日志 | 原始 path、cache key、房间码进入日志 | 房间码或客户标识泄露 | 路由模板或不可逆短哈希；sentinel 测试 | 无 | 日志中不出现测试 sentinel 原文 |
+| READY-001 | P1 | 已完成 | `/api/ready` | readiness 不检查客户/管理员认证配置 | 服务显示 ready 但双方无法登录 | 增加不泄密 auth readiness | 响应字段会扩展；DB 不变 | 缺关键凭据时非 ready，响应不含秘密 |
+| OBS-001 | P1 | 已完成 | HTTP/cache/game 日志 | 原始 path、cache key、房间码进入日志 | 房间码或客户标识泄露 | 路由模板或不可逆短哈希；sentinel 测试 | 无 | 日志中不出现测试 sentinel 原文 |
 | DATA-001 | P1 | 待排期 | 订单/评价副作用 | 主事务后积分、通知、记忆和广播仅 best effort | 进程崩溃会永久缺副作用；跨实例广播缺失 | durable outbox/effect ledger + 幂等消费者 | 需内部 API/DB 迁移 | 故障注入后最终一次且仅一次完成可持久副作用 |
 | GAME-001 | P1 | 待排期 | room lease/state store | `lease_epoch` 未进入状态写 fencing | 旧实例可能覆盖新 owner 状态 | owner+epoch 传递并条件写 | 内部协议/DB 语义变更 | 接管后旧 epoch 写入被拒绝 |
 | DATA-002 | P1 | 待排期 | free runtime seed 判断 | 仅比较固定表计数 | 内容更新但数量不变时线上种子不更新 | 持久 `REFERENCE_DATA_VERSION` | 需要小型 DB 迁移 | 版本变化准确触发一次 seed |
