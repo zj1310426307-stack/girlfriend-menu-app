@@ -1,9 +1,11 @@
+# Zero-cost candidate for co-locating the API with the existing Oregon database.
+# It remains manual and must not be applied until isolated staging evidence passes.
 services:
   - type: web
-    name: girlfriend-menu-api
+    name: girlfriend-menu-api-oregon
     runtime: python
     plan: free
-    region: singapore
+    region: oregon
     rootDir: backend
     buildCommand: pip install -r requirements.txt
     startCommand: python serve.py
@@ -14,8 +16,8 @@ services:
         value: 3.12.11
       - key: DATABASE_URL
         sync: false
-      - key: ADMIN_PASSWORD
-        sync: false
+      - key: APP_ENV
+        value: production
       - key: ADMIN_PASSWORD_HASH
         sync: false
       - key: ADMIN_INVITE_CODE
@@ -26,8 +28,6 @@ services:
         sync: false
       - key: CUSTOMER_SESSION_TTL_DAYS
         value: 90
-      - key: APP_ENV
-        value: production
       - key: ALLOW_LEGACY_CUSTOMER_HEADER
         value: false
       - key: WECHAT_LOGIN_ENABLED
@@ -38,18 +38,6 @@ services:
         sync: false
       - key: UPLOAD_PROVIDER
         value: database
-      - key: S3_ENDPOINT
-        sync: false
-      - key: S3_REGION
-        sync: false
-      - key: S3_BUCKET
-        sync: false
-      - key: S3_ACCESS_KEY_ID
-        sync: false
-      - key: S3_SECRET_ACCESS_KEY
-        sync: false
-      - key: S3_PUBLIC_BASE_URL
-        sync: false
       - key: REDIS_URL
         sync: false
       - key: GAME_ROOM_LEASE_SECONDS
