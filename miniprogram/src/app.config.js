@@ -1,4 +1,5 @@
 export default defineAppConfig({
+  lazyCodeLoading: "requiredComponents",
   pages: [
     "pages/index/index",
     "pages/menu/index",
@@ -10,14 +11,14 @@ export default defineAppConfig({
     "pages/couple/achievements",
     "pages/couple/game-records",
     "pages/couple/tasks",
-    "pages/couple/timeline",
-    "pages/notifications/index",
-    "pages/profile/index",
-    "pages/detail/index",
-    "pages/cart/index",
-    "pages/order-detail/index"
+    "pages/couple/timeline"
   ],
   subPackages: [
+    { root: "pages/detail", pages: ["index"] },
+    { root: "pages/cart", pages: ["index"] },
+    { root: "pages/order-detail", pages: ["index"] },
+    { root: "pages/notifications", pages: ["index"] },
+    { root: "pages/profile", pages: ["index"] },
     { root: "pages/games/gomoku", pages: ["index"] },
     { root: "pages/games/flight", pages: ["index"] },
     { root: "pages/games/landlord", pages: ["index"] },

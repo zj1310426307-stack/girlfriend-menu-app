@@ -1,0 +1,16 @@
+.page-sync-notice {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 0 18px;
+  border-radius: 20px;
+  color: #71816a;
+  background: #f0f4ed;
+  font-size: 20px;
+}
+
+.page-sync-notice.is-offline {
+  color: #986b43;
+  background: #fff5e9;
+}

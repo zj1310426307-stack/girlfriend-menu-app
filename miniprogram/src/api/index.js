@@ -5,6 +5,8 @@ import {
   clearCustomerSession,
   getLegacyCustomerId,
   hasCustomerSession,
+  hasWeChatIdentityBinding,
+  markWeChatIdentityBound,
   saveCustomerSession
 } from "../utils/customer";
 import { request } from "./transport";
@@ -13,6 +15,8 @@ export { API_BASE_URL };
 export { resolveImageUrl } from "./transport";
 export {
   addFavorite,
+  DISH_CACHE_MAX_AGE,
+  getCachedDishes,
   getDish,
   getDishes,
   getFavoriteRanking,
@@ -22,9 +26,67 @@ export {
 } from "./modules/catalog";
 
 const customerHeader = () => ({});
+const WECHAT_CAPABILITY_FALLBACK_STATUS_CODES = new Set([404, 405, 501, 503]);
+
+/** Obtain one short-lived WeChat login code without assuming Promise support. */
+function getWeChatLoginCode() {
+  return new Promise((resolve, reject) => {
+    Taro.login({
+      timeout: 8000,
+      success: (result) => result?.code ? resolve(result.code) : reject(new Error("微信登录没有返回凭证")),
+      fail: () => reject(new Error("暂时无法连接微信登录"))
+    });
+  });
+}
+
+/** Exchange WeChat identity for the same bearer contract used by legacy sessions. */
+async function requestWeChatSession(inviteCode = "") {
+  const code = await getWeChatLoginCode();
+  const session = await request("/customers/wechat-session", {
+    method: "POST",
+    timeout: 12000,
+    data: {
+      code,
+      invite_code: inviteCode,
+      display_name: "女朋友",
+      device_label: "微信小程序"
+    },
+    preserveSession: true
+  });
+  saveCustomerSession(session);
+  markWeChatIdentityBound();
+  return session;
+}
+
+/** Bind a pre-v3 authenticated customer without creating a second identity. */
+export async function bindCurrentCustomerToWeChat() {
+  if (!hasCustomerSession() || hasWeChatIdentityBinding()) return null;
+  return requestWeChatSession();
+}
+
+/** Silently restore a previously bound WeChat identity on a new phone. */
+export async function restoreWeChatCustomerSession() {
+  if (hasCustomerSession()) return { authenticated: true };
+  try {
+    return await requestWeChatSession();
+  } catch (error) {
+    console.info("微信身份尚未绑定，将显示邀请码入口", error?.statusCode || error?.message);
+    return null;
+  }
+}
 
 export async function establishCustomerSession(inviteCode) {
   if (hasCustomerSession()) return { authenticated: true };
+  try {
+    return await requestWeChatSession(inviteCode);
+  } catch (error) {
+    // Preserve phased-rollout compatibility only when the WeChat capability is
+    // absent or unavailable. Validation, conflicts and rate limits must surface.
+    if (
+      error?.statusCode
+      && !WECHAT_CAPABILITY_FALLBACK_STATUS_CODES.has(error.statusCode)
+    ) throw error;
+  }
   const legacyCustomerId = getLegacyCustomerId();
   const session = await request("/customers/recover", {
     method: "POST",
@@ -369,16 +431,22 @@ export const getAdminOrders = async (token) => {
   return page.items || [];
 };
 
-export const rollbackAdminOrderStatus = (orderId, token) =>
+/** Roll back only the order state the administrator actually saw. */
+export const rollbackAdminOrderStatus = (orderId, token, expectedStatus) =>
   request(`/admin/orders/${orderId}/rollback`, {
     method: "POST",
+    data: expectedStatus ? { expected_status: expectedStatus } : undefined,
     header: { Authorization: `Bearer ${token}` }
   });
 
-export const updateAdminOrderStatus = (orderId, status, token) =>
+/** Advance an order with an optional stale-page precondition for rolling compatibility. */
+export const updateAdminOrderStatus = (orderId, status, token, expectedStatus) =>
   request(`/orders/${orderId}/status`, {
     method: "PATCH",
-    data: { status },
+    data: {
+      status,
+      ...(expectedStatus ? { expected_status: expectedStatus } : {})
+    },
     header: { Authorization: `Bearer ${token}` }
   });
 

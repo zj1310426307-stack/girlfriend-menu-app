@@ -296,32 +296,12 @@
   font-size: 29px;
 }
 
-.game-offline-card,
 .game-center-note {
   margin-top: 17px;
   padding: 18px;
   border-radius: 20px;
   font-size: 17px;
   line-height: 1.55;
-}
-
-.game-offline-card {
-  color: #825b3e;
-  background: #f5e8d7;
-}
-
-.game-offline-card text {
-  display: block;
-}
-
-.game-offline-card text:first-child {
-  font-weight: 900;
-}
-
-.game-offline-card text:last-child {
-  margin-top: 3px;
-  color: #9c785b;
-  font-size: 15px;
 }
 
 .game-center-note {

@@ -16,6 +16,11 @@
   box-shadow: 0 12px 32px rgba(127, 146, 118, 0.28);
 }
 
+.success-heart.is-unavailable {
+  background: #d49a64;
+  box-shadow: 0 12px 32px rgba(212, 154, 100, 0.24);
+}
+
 .order-main-title {
   display: block;
   color: var(--text-main);

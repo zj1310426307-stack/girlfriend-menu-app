@@ -1,11 +1,19 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Taro, { useDidShow } from "@tarojs/taro";
 import { Text, View } from "@tarojs/components";
 
 import { getActiveGames, getGames } from "../../api";
+import PageSyncNotice from "../../components/PageSyncNotice";
 import { ROUTES } from "../../config/routes";
-import { getCustomerId } from "../../utils/customer";
+import { getAuthenticatedCustomerId, getCustomerId, hasCustomerSession } from "../../utils/customer";
 import { ensureInvitePassed } from "../../utils/invite";
+import {
+  claimPageRefresh,
+  PAGE_SNAPSHOT_MAX_AGE,
+  readPageSnapshot,
+  releasePageRefresh,
+  writePageSnapshot
+} from "../../utils/pageSnapshot";
 import "./index.css";
 
 const GAME_CATALOG = [
@@ -68,34 +76,64 @@ const GAME_CATALOG = [
 
 const GAME_BY_TYPE = Object.fromEntries(GAME_CATALOG.map((game) => [game.type, game]));
 
+/** Restore the remote catalogue flags and resumable rooms without blocking the local game grid. */
+function createInitialGamesState() {
+  if (!hasCustomerSession()) return { serverGames: [], activeGames: [], hasSnapshot: false };
+  const customerId = getAuthenticatedCustomerId();
+  const snapshot = readPageSnapshot("games", customerId, PAGE_SNAPSHOT_MAX_AGE.games);
+  const valid = Array.isArray(snapshot?.serverGames) && Array.isArray(snapshot?.activeGames);
+  return {
+    serverGames: valid ? snapshot.serverGames : [],
+    activeGames: valid ? snapshot.activeGames : [],
+    hasSnapshot: valid
+  };
+}
+
 /** A calm, data-driven hub. Room creation belongs to each game, not this page. */
 export default function GamesPage() {
-  const [serverGames, setServerGames] = useState([]);
-  const [activeGames, setActiveGames] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [initialGames] = useState(createInitialGamesState);
+  const [serverGames, setServerGames] = useState(initialGames.serverGames);
+  const [activeGames, setActiveGames] = useState(initialGames.activeGames);
+  const [loading, setLoading] = useState(!initialGames.hasSnapshot);
   const [offline, setOffline] = useState(false);
+  const gamesLoadingRef = useRef(false);
 
-  const load = async () => {
-    setLoading(true);
+  /** Refresh one catalogue/room pair while retaining the last successful pair on failure. */
+  const load = async ({ force = false } = {}) => {
+    if (!ensureInvitePassed()) return;
+    if (gamesLoadingRef.current) return;
     const customerId = getCustomerId();
-    const [catalogResult, activeResult] = await Promise.all([
-      getGames().then((value) => ({ ok: true, value })).catch((error) => ({ ok: false, error })),
-      getActiveGames(customerId).then((value) => ({ ok: true, value })).catch((error) => ({ ok: false, error }))
-    ]);
-    if (catalogResult.ok) {
-      setServerGames(catalogResult.value || []);
-      setOffline(false);
-    } else {
+    if (!claimPageRefresh("games", customerId, { force })) return;
+    gamesLoadingRef.current = true;
+    setLoading(true);
+    try {
+      const [catalogResult, activeResult] = await Promise.allSettled([
+        getGames(),
+        getActiveGames(customerId)
+      ]);
+      const catalogAvailable = catalogResult.status === "fulfilled";
+      const activeAvailable = activeResult.status === "fulfilled";
+      if (catalogAvailable) setServerGames(catalogResult.value || []);
+      if (activeAvailable) setActiveGames(activeResult.value || []);
+      setOffline(!catalogAvailable || !activeAvailable);
+      if (catalogAvailable && activeAvailable) {
+        writePageSnapshot("games", customerId, {
+          serverGames: catalogResult.value || [],
+          activeGames: activeResult.value || []
+        });
+      } else {
+        releasePageRefresh("games", customerId);
+      }
+    } catch (error) {
+      releasePageRefresh("games", customerId);
       setOffline(true);
+    } finally {
+      setLoading(false);
+      gamesLoadingRef.current = false;
     }
-    setActiveGames(activeResult.ok ? activeResult.value || [] : []);
-    setLoading(false);
   };
 
-  useDidShow(() => {
-    if (!ensureInvitePassed()) return;
-    load();
-  });
+  useDidShow(load);
 
   const games = useMemo(() => GAME_CATALOG.map((game) => {
     const remote = serverGames.find((item) => item.type === game.type);
@@ -125,6 +163,8 @@ export default function GamesPage() {
         <Text>一起玩</Text>
         <Text>选一个现在就想玩的。双人房间和人机练习都放在各自游戏里，不再让首页替你做决定。</Text>
       </View>
+
+      <PageSyncNotice loading={loading} offline={offline} onRetry={() => load({ force: true })} />
 
       {activeGames.length > 0 && (
         <View className="game-continue-section">
@@ -198,12 +238,6 @@ export default function GamesPage() {
         </View>
       </View>
 
-      {offline && (
-        <View className="game-offline-card" onClick={load}>
-          <Text>游戏目录暂时没有连上服务器</Text>
-          <Text>已显示本地安全目录，点这里重新同步</Text>
-        </View>
-      )}
       <View className="game-center-note">
         <Text>规则、随机数和胜负由服务器确认；网络波动时不会偷偷改结果，恢复连接后可继续未完成的房间。</Text>
       </View>

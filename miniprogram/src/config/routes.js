@@ -23,6 +23,7 @@ export const ROUTES = Object.freeze({
   COUPLE_TIMELINE: "/pages/couple/timeline",
   NOTIFICATIONS: "/pages/notifications/index",
   PROFILE: "/pages/profile/index",
+  ORDER_DETAIL: "/pages/order-detail/index",
   ADMIN_LOGIN: "/pages/admin-login/index",
   ADMIN_DASHBOARD: "/pages/admin-dashboard/index",
   ADMIN_ORDERS: "/pages/admin-orders/index",

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Taro, { useDidShow } from "@tarojs/taro";
 import { Text, View } from "@tarojs/components";
 
@@ -11,40 +11,96 @@ import {
   getTodayTasks
 } from "../../api";
 import LoveScoreCard from "../../components/LoveScoreCard";
+import PageSyncNotice from "../../components/PageSyncNotice";
 import { ROUTES } from "../../config/routes";
-import { getCustomerId } from "../../utils/customer";
+import { getAuthenticatedCustomerId, getCustomerId, hasCustomerSession } from "../../utils/customer";
 import { ensureInvitePassed } from "../../utils/invite";
+import {
+  claimPageRefresh,
+  PAGE_SNAPSHOT_MAX_AGE,
+  readPageSnapshot,
+  releasePageRefresh,
+  writePageSnapshot
+} from "../../utils/pageSnapshot";
 import { dateLabel, EMPTY_COUPLE_SCORE } from "./helpers";
 import "./index.css";
 
-export default function CoupleHome() {
-  const [summary, setSummary] = useState(EMPTY_COUPLE_SCORE);
-  const [history, setHistory] = useState([]);
-  const [offline, setOffline] = useState(false);
-  const [tasks, setTasks] = useState(null);
-  const [profile, setProfile] = useState(null);
-  const [statistics, setStatistics] = useState(null);
-  const [unread, setUnread] = useState(0);
+/** Restore one complete couple dashboard snapshot before the six online reads finish. */
+function createInitialCoupleState() {
+  if (!hasCustomerSession()) return null;
+  const customerId = getAuthenticatedCustomerId();
+  const snapshot = readPageSnapshot("couple", customerId, PAGE_SNAPSHOT_MAX_AGE.couple);
+  const complete = snapshot?.summary
+    && Array.isArray(snapshot.history)
+    && snapshot.tasks
+    && snapshot.profile
+    && snapshot.statistics
+    && Number.isFinite(snapshot.unread);
+  if (!complete) return null;
+  return snapshot;
+}
 
-  useDidShow(() => {
+/** Couple home owns its complete read snapshot while domain pages own mutations. */
+export default function CoupleHome() {
+  const [initialCouple] = useState(createInitialCoupleState);
+  const [summary, setSummary] = useState(initialCouple?.summary || EMPTY_COUPLE_SCORE);
+  const [history, setHistory] = useState(initialCouple?.history || []);
+  const [offline, setOffline] = useState(false);
+  const [loading, setLoading] = useState(!initialCouple);
+  const [tasks, setTasks] = useState(initialCouple?.tasks || null);
+  const [profile, setProfile] = useState(initialCouple?.profile || null);
+  const [statistics, setStatistics] = useState(initialCouple?.statistics || null);
+  const [unread, setUnread] = useState(initialCouple?.unread || 0);
+  const coupleLoadingRef = useRef(false);
+
+  /** Refresh all dashboard summaries once and persist only a complete successful set. */
+  const loadCouple = async ({ force = false } = {}) => {
     if (!ensureInvitePassed()) return;
+    if (coupleLoadingRef.current) return;
     const customerId = getCustomerId();
-    Promise.allSettled([
-      getCoupleScore(customerId),
-      getCoupleScoreHistory(customerId),
-      getTodayTasks(customerId),
-      getCoupleProfile(customerId),
-      getCoupleStatistics(customerId),
-      getNotificationUnreadCount(customerId)
-    ]).then(([scoreResult, historyResult, tasksResult, profileResult, statisticsResult, unreadResult]) => {
+    if (!claimPageRefresh("couple", customerId, { force })) return;
+    coupleLoadingRef.current = true;
+    setLoading(true);
+    try {
+      const results = await Promise.allSettled([
+        getCoupleScore(customerId),
+        getCoupleScoreHistory(customerId),
+        getTodayTasks(customerId),
+        getCoupleProfile(customerId),
+        getCoupleStatistics(customerId),
+        getNotificationUnreadCount(customerId)
+      ]);
+      const [scoreResult, historyResult, tasksResult, profileResult, statisticsResult, unreadResult] = results;
       if (scoreResult.status === "fulfilled") setSummary(scoreResult.value);
       if (historyResult.status === "fulfilled") setHistory(historyResult.value);
       if (tasksResult.status === "fulfilled") setTasks(tasksResult.value);
       if (profileResult.status === "fulfilled") setProfile(profileResult.value);
       if (statisticsResult.status === "fulfilled") setStatistics(statisticsResult.value);
       if (unreadResult.status === "fulfilled") setUnread(unreadResult.value?.count || 0);
-      setOffline(scoreResult.status === "rejected");
-    });
+      setOffline(results.some((result) => result.status === "rejected"));
+      if (results.every((result) => result.status === "fulfilled")) {
+        writePageSnapshot("couple", customerId, {
+          summary: scoreResult.value,
+          history: historyResult.value,
+          tasks: tasksResult.value,
+          profile: profileResult.value,
+          statistics: statisticsResult.value,
+          unread: unreadResult.value?.count || 0
+        });
+      } else {
+        releasePageRefresh("couple", customerId);
+      }
+    } catch (error) {
+      releasePageRefresh("couple", customerId);
+      setOffline(true);
+    } finally {
+      setLoading(false);
+      coupleLoadingRef.current = false;
+    }
+  };
+
+  useDidShow(() => {
+    loadCouple();
   });
 
   const latest = history.find((entry) => dateLabel(entry.time) === "今天");
@@ -55,6 +111,8 @@ export default function CoupleHome() {
         <Text>♥ 我们</Text>
         <Text>把每顿饭、每次鼓励和每段共同经历，慢慢存成属于两个人的成长记录。</Text>
       </View>
+
+      <PageSyncNotice loading={loading} offline={offline} onRetry={() => loadCouple({ force: true })} />
 
       <LoveScoreCard summary={summary} />
 

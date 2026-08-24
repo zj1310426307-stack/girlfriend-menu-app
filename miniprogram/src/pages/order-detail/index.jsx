@@ -3,8 +3,9 @@ import Taro, { useDidHide, useDidShow, useLoad } from "@tarojs/taro";
 import { Text, Textarea, View } from "@tarojs/components";
 
 import { createReview, getOrder } from "../../api";
+import { ROUTES } from "../../config/routes";
 import { ensureInvitePassed } from "../../utils/invite";
-import { formatTime, ORDER_STEPS, STATUS_TEXT } from "../../utils/status";
+import { ACTIVE_ORDER_STATUSES, formatTime, orderHeadline, ORDER_STEPS, STATUS_TEXT } from "../../utils/status";
 import "./index.css";
 
 export default function OrderDetail() {
@@ -16,12 +17,29 @@ export default function OrderDetail() {
   const [comment, setComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const pageVisibleRef = useRef(true);
+  const orderLoadingRef = useRef(false);
 
-  const loadOrder = (id) => {
-    setError("");
-    getOrder(id)
-      .then(setOrder)
-      .catch((err) => setError(err.message || "订单没有找到"));
+  const loadOrder = async (id, silent = false) => {
+    // Visibility hooks, retry taps and polling may coincide; only one request owns the page state.
+    if (!id || orderLoadingRef.current) return;
+    orderLoadingRef.current = true;
+    if (!silent) setError("");
+    try {
+      setOrder(await getOrder(id));
+      setError("");
+    } catch (err) {
+      if (err?.statusCode === 401) {
+        ensureInvitePassed();
+        return;
+      }
+      if (silent) {
+        console.info("订单自动刷新稍后重试", err?.statusCode || err?.message);
+        return;
+      }
+      setError(err.message || "订单没有找到");
+    } finally {
+      orderLoadingRef.current = false;
+    }
   };
 
   useLoad((params) => {
@@ -42,7 +60,7 @@ export default function OrderDetail() {
   useEffect(() => {
     if (!orderId || ["已完成", "暂时做不了"].includes(order?.status)) return undefined;
     const timer = setInterval(() => {
-      if (pageVisibleRef.current) loadOrder(orderId);
+      if (pageVisibleRef.current) loadOrder(orderId, true);
     }, 5000);
     return () => clearInterval(timer);
   }, [orderId, order?.status]);
@@ -78,13 +96,16 @@ export default function OrderDetail() {
   if (!order) return <View className="page"><View className="state-box">正在查询订单…</View></View>;
 
   const unavailable = order.status === "暂时做不了";
+  const waitingForCompletion = ACTIVE_ORDER_STATUSES.includes(order.status);
   const currentStep = ORDER_STEPS.indexOf(order.status);
 
   return (
     <View className="page order-page">
-      <View className="success-heart">♥</View>
-      <Text className="order-main-title">{unavailable ? "这次可能要换一道啦" : "已经收到你的点菜啦"}</Text>
-      <Text className="order-subtitle">订单 #{order.id} · 状态会自动更新</Text>
+      <View className={`success-heart ${unavailable ? "is-unavailable" : ""}`}>{unavailable ? "↻" : "♥"}</View>
+      <Text className="order-main-title">{orderHeadline(order.status)}</Text>
+      <Text className="order-subtitle">
+        订单 #{order.id} · {waitingForCompletion ? "状态会自动更新" : unavailable ? "这份点菜单已结束" : "这份点菜单已完成"}
+      </Text>
 
       <View className="status-card card">
         {unavailable ? (
@@ -129,7 +150,7 @@ export default function OrderDetail() {
         )}
       </View>
 
-      {order.status !== "已完成" && <Text className="wait-hint">♥ 做好之后就可以评价啦</Text>}
+      {waitingForCompletion && <Text className="wait-hint">♥ 做好之后就可以评价啦</Text>}
 
       {order.status === "已完成" && (
         <View className="review-card card">
@@ -193,10 +214,10 @@ export default function OrderDetail() {
       )}
 
       <View className="bottom-actions">
-        <View className="secondary-button" onClick={() => Taro.switchTab({ url: "/pages/my-orders/index" })}>
+        <View className="secondary-button" onClick={() => Taro.switchTab({ url: ROUTES.ORDERS })}>
           <Text>我的点菜单</Text>
         </View>
-        <View className="secondary-button" onClick={() => Taro.switchTab({ url: "/pages/index/index" })}>
+        <View className="secondary-button" onClick={() => Taro.switchTab({ url: ROUTES.MENU })}>
           <Text>再看看菜单</Text>
         </View>
       </View>

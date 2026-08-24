@@ -89,6 +89,7 @@
 }
 
 .shared-favorite-button.is-favorite { color: var(--coral); background: #fff0ec; }
+.shared-favorite-button.is-busy { color: #9ba195; opacity: .72; }
 
 .shared-dish-description {
   display: block;
