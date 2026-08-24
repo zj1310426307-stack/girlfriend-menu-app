@@ -6,11 +6,11 @@
 
 | ID | 优先级 | 状态 | 问题位置 | 表现 / 根因 | 影响 | 建议 | API / DB | 验收标准 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| REL-001 | P0 | 本轮 | Git 工作区 | 56 个 tracked 改动、30 个 untracked；启动入口、迁移和配置未形成完整提交 | 当前目录不能作为可复现发布物，漏文件会启动失败或 schema 漂移 | 新建安全分支、冻结清单；仅从完整提交和 CI 候选发布 | 无 | 分支建立；文档列明阻断；不从脏目录部署 |
-| PERF-001 | P1 | 本轮 | `customer_service.authenticate` | 每个 bearer 请求刷新两张表并 commit | 首页/Tab 读取增加远程 DB 写、WAL 和失败面 | 5 分钟 last-seen 节流 + 条件更新 | API 不变；DB 不变 | 热 session 认证无持久化 UPDATE；过窗只触碰一次；401 语义不变 |
-| PRIV-001 | P1 | 本轮 | `customer.js`、`cart.js`、`gameRecovery.js` | 私有本地数据无 owner 或不随会话清理 | 同设备换账号可看到旧购物车/草稿，甚至恢复前账号游戏 | owner-scoped reconnect key；owner 切换/清会话清理；停止保存未用 secret | API/DB 不变；本地 key 调整 | A 数据对 B 不可见；旧 key 被清理；公共缓存保留；清理幂等 |
-| REL-002 | P1 | 本轮 | `render.yaml`、`serve.py` | 生产 autoDeploy 会触发启动时自动迁移 | 代码合并可能绕过备份和 staging 门直接迁移生产 | 生产 `autoDeploy:false`；静态检查强制手动发布 | 无 | 三套 Blueprint 仍为 free；生产/预发均关闭自动部署 |
-| SEC-001 | P1 | 本轮 | `.env.example`、`backup_production_api.py` | 模板和脚本含已知弱默认 | 复制模板或误跑脚本可能使用公开凭据/错误目标 | 清空秘密示例；origin/密码/邀请码全部显式输入；发布门拒绝弱值 | 无 | 已知默认不再存在；缺任一变量脚本失败关闭 |
+| REL-001 | P0 | 已完成（本地） | Git 工作区 | 审计时有 56 个 tracked 改动、30 个 untracked；启动入口、迁移和配置未形成完整提交 | 当前目录不能作为可复现发布物，漏文件会启动失败或 schema 漂移 | 新建安全分支、冻结清单；仅从完整提交和 CI 候选发布 | 无 | 已建立独立分支并按后端/前端/发布/文档拆分提交；仍须远端 CI 后才可发布 |
+| PERF-001 | P1 | 已完成 | `customer_service.authenticate` | 每个 bearer 请求刷新两张表并 commit | 首页/Tab 读取增加远程 DB 写、WAL 和失败面 | 5 分钟 last-seen 节流 + 条件更新 | API 不变；DB 不变 | 行为测试证明热 session 零 UPDATE/commit；过窗只触碰一次；失效语义不变 |
+| PRIV-001 | P1 | 已完成 | `customer.js`、`cart.js`、`gameRecovery.js` | 私有本地数据无 owner 或不随会话清理 | 同设备换账号可看到旧购物车/草稿，甚至恢复前账号游戏 | owner-scoped reconnect key；owner 切换/清会话清理；停止保存未用 secret | API/DB 不变；本地 key 调整 | storage 行为测试证明 A/B 隔离、旧 key 清理、公共缓存保留和幂等 |
+| REL-002 | P1 | 已完成 | `render.yaml`、`serve.py` | 生产 autoDeploy 会触发启动时自动迁移 | 代码合并可能绕过备份和 staging 门直接迁移生产 | 生产 `autoDeploy:false`；静态检查强制手动发布 | 无 | 三套 Blueprint 均为 free 且关闭自动部署；发布门通过 |
+| SEC-001 | P1 | 已完成 | `.env.example`、`backup_production_api.py` | 模板和脚本含已知弱默认 | 复制模板或误跑脚本可能使用公开凭据/错误目标 | 清空秘密示例；origin/密码/邀请码全部显式输入；发布门拒绝弱值 | 无 | 弱默认已移除；缺配置/HTTP origin 均在网络前失败；密钥扫描通过 |
 | READY-001 | P1 | 待排期 | `/api/ready` | readiness 不检查客户/管理员认证配置 | 服务显示 ready 但双方无法登录 | 增加不泄密 auth readiness | 响应字段会扩展；DB 不变 | 缺关键凭据时非 ready，响应不含秘密 |
 | OBS-001 | P1 | 待排期 | HTTP/cache/game 日志 | 原始 path、cache key、房间码进入日志 | 房间码或客户标识泄露 | 路由模板或不可逆短哈希；sentinel 测试 | 无 | 日志中不出现测试 sentinel 原文 |
 | DATA-001 | P1 | 待排期 | 订单/评价副作用 | 主事务后积分、通知、记忆和广播仅 best effort | 进程崩溃会永久缺副作用；跨实例广播缺失 | durable outbox/effect ledger + 幂等消费者 | 需内部 API/DB 迁移 | 故障注入后最终一次且仅一次完成可持久副作用 |
@@ -29,7 +29,7 @@
 | A11Y-001 | P2 | 待排期 | View+onClick 控件 | role/aria/disabled 语义不足 | 读屏和辅助触控体验不可靠 | 语义 Button 或补 role/aria | 无 | 核心流程 a11y 自动/人工检查通过 |
 | IMG-001 | P2 | 待排期 | cart/admin/detail 图片 | 限宽、lazy、失败回退不一致 | 移动流量和首屏解码开销 | 统一图片组件/参数预算 | 无 | 核心图片全部有尺寸、lazy 策略和回退 |
 | BACKUP-001 | P2 | 待排期 | backup scripts | 数据库备份可静默回退 SQLite；API 备份不覆盖 V3 全数据 | 可能“备份成功”但目标错误 | production fail-closed、目标摘要和恢复演练 | 无 | 错目标无法运行；隔离恢复可验证 |
-| DOC-001 | P2 | 本轮 | README/Procfile/release docs | 启动入口、测试数量、候选状态漂移 | 运维误操作和错误验收 | 同步本轮涉及说明；其余列后续 | 无 | 文档明确工作区候选、启动和发布门 |
+| DOC-001 | P2 | 已完成（本轮范围） | README/发布文档 | 启动入口、候选状态存在漂移 | 运维误操作和错误验收 | 同步 `serve.py`、空白 secrets、手动发布门、兼容/验证/回滚说明 | 无 | README 与六份强制交付文档已同步；历史 Procfile 漂移仍列后续治理 |
 | MAINT-001 | P3 | 待排期 | 大型模块 | manager/models/schemas/order service/API wrapper 过大 | 修改冲突和认知负担 | 按稳定边界小步拆分 | 应保持 API/DB | 每次拆分有架构契约与回归 |
 | SUPPLY-001 | P3 | 待排期 | Python/Actions | 无传递依赖 hash 锁；Actions 使用浮动 major tag | 构建可复现和供应链风险 | 生成锁/约束；固定 action SHA | 无 | 冷环境安装可复现，更新由 Dependabot 管理 |
 | REPO-001 | P3 | 待排期 | 仓库文本 | 无 `.gitattributes` | LF/CRLF 噪声 diff | 固定源码/配置 LF | 无 | clean checkout 不产生换行 diff |
@@ -42,4 +42,3 @@
 2. 定向测试、后端全量测试、小程序 CI、微信构建、迁移链和发布安全门全部通过。
 3. 没有新增付费服务、没有生产部署、没有公开 API 或数据库结构变化。
 4. 外部 staging/真机未执行时必须明确标为待验收，不能写成已通过。
-
