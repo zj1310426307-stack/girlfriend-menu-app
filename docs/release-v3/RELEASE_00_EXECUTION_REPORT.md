@@ -44,7 +44,7 @@ Windows 沙箱首次执行时，历史 `.test-tmp` ACL 和 `dist` 写权限导�
 - `Vercel Preview Comments`：PASS。
 - `Vercel`：FAIL，按任务书为非阻断；本项目生产 API 仍以 Render 为发布目标。
 
-以上状态对应 PR head `d11a708`；同一提交随后部署到隔离 staging。后续文档提交形成新 head 后仍须重新核对 CI，不能复用旧结论冒充新提交通过。
+以上应用候选对应 `d11a708`，同一提交已部署到隔离 staging。其后的 staging Origin 与证据修订也必须在各自成为 PR head 后重新通过 CI，不能复用旧结论冒充新提交通过。
 
 ## Gate 03：staging 隔离审计
 
