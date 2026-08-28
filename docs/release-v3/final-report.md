@@ -2,7 +2,7 @@
 
 ## 结论
 
-**本地发布候选通过；外部发布待授权。**
+**候选 Gate 00-02 通过；Gate 03 因缺少隔离 staging 数据库而阻断。**
 
 本轮以兼容式方式完成微信标准身份、后台账号散列/审计和首屏收敛，没有删除旧 API、旧 Customer、旧订单、旧游戏数据或原有设备恢复桥梁。
 
@@ -32,15 +32,17 @@
 
 ## Git 与外部状态
 
-- 本地分支：`feature/wechat-production-v3`。
-- 起点：`aedae15`。
-- 本轮尚未 commit、push 或创建/合并 PR。
-- 微信小程序 `3.0.0` 已上传为开发版本，但尚无体验版成功证据。
-- 2026-08-20 生产 API 仍为 `2.11.0`，缺少 V3 微信 session 与 bootstrap 接口；V3 后端尚未证明已部署。
+- 候选分支：`feature/continuous-optimization-03`。
+- 候选提交：`ed8f2dcaf54c24e4c66fa8f72ba12d9cf737880a`。
+- PR #21：OPEN、非 Draft、MERGEABLE；未解决审查线程 0。
+- `backend`、`miniprogram`、`release-safety` 已通过；Vercel 失败按发布任务书为非阻断。
+- 微信小程序 `3.0.0` 有较早的开发版本上传记录，但本轮仍无 staging 真机、体验版、审核或正式发布证据。
+- Neon 当前只有一个项目和一个分支，不能用唯一分支或生产数据库冒充 staging。
+- 本轮未合并 PR，未修改生产数据库或 Render 生产服务。
 
-## 下一授权门
+## 下一门禁
 
-1. 审阅并提交本地 RC。
+1. 创建免费的独立 Neon staging 分支/数据库，不复制生产业务数据。
 2. 部署隔离 staging，配置真实微信凭据并收集 hosted/真机证据。
 3. 通过 [微信发布清单](wechat-release-checklist.md)。
-4. 再单独授权生产部署、微信体验版上传或正式发布。
+4. 完成生产备份与恢复抽查后，才允许合并、生产部署、Tag 或正式发布。

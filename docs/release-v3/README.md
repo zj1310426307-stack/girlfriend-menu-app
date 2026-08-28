@@ -1,19 +1,19 @@
 # LoveOS V3 生产化发布包
 
-更新日期：2026-08-23
+更新日期：2026-08-28
 
 ## 当前结论
 
-**LOCAL RELEASE CANDIDATE PASS — DEVELOPMENT BUILD UPLOADED — BACKEND ROLLOUT PENDING**
+**GATE 00-02 PASS — GATE 03 BLOCKED — NO PRODUCTION CHANGE**
 
-代码、迁移、契约、小程序构建和本地自动化门禁已经通过。微信小程序 `3.0.0` 已上传为开发版本，但没有证据证明已设为体验版；当前仍未执行本轮 Git commit/push、Render V3 部署、生产数据库迁移、提交审核或正式发布。
+候选 `ed8f2dc` 的代码、迁移、契约、小程序构建、本地自动化和 PR 必需 CI 已通过。PR #21 已开放且可合并，未解决审查线程为 0。Neon 免费组织当前只有一个项目和一个分支，尚无可证明隔离的 staging 数据库，因此发布闭环停在 Gate 03；未合并、未迁移或部署生产、未创建 Tag/Release。
 
 ## 当前外部状态
 
-- 2026-08-20 只读核验：生产 `/api/health` 返回 200，服务存活。
-- 生产 OpenAPI 仍为 `2.11.0`，尚无 `POST /api/customers/wechat-session` 和 `GET /api/bootstrap`。
-- 生产 `/api/ready` 返回 200，但仍是旧结构，没有 V3 微信登录就绪项；不能据此宣称 V3 后端已就绪。
-- 在后端 V3 部署和 staging 验收完成前，不应把 `3.0.0` 设为体验版。
+- 2026-08-28 Neon 只读核验：Free 计划、1 个项目、Branches=1，独立 staging 数据库不存在。
+- `miniprogram/.env.staging` 的 API Origin 仍为空，尚无 hosted readiness 结果。
+- 生产状态不能用较早探针代替本轮发布证据；Gate 05 备份和 Gate 07-08 发布/冒烟均未开始。
+- 在 staging hosted、微信真机和生产备份门禁完成前，不应合并 PR 或把 `3.0.0` 正式发布。
 
 ## 本轮完成
 
@@ -38,3 +38,8 @@
 - [微信发布清单](wechat-release-checklist.md)
 - [测试报告](test-report.md)
 - [最终实施报告](final-report.md)
+- [RELEASE-00 执行报告](RELEASE_00_EXECUTION_REPORT.md)
+- [Staging 验收](STAGING_ACCEPTANCE.md)
+- [生产发布记录](PRODUCTION_RELEASE_REPORT.md)
+- [回滚方案](ROLLBACK_PLAN.md)
+- [证据清单](RELEASE_EVIDENCE_MANIFEST.json)

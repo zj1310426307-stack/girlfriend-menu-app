@@ -1,0 +1,60 @@
+{
+  "release": "LOVEOS-RELEASE-00",
+  "observed_at": "2026-08-28",
+  "candidate": {
+    "branch": "feature/continuous-optimization-03",
+    "code_sha": "ed8f2dcaf54c24e4c66fa8f72ba12d9cf737880a",
+    "evidence_revision": "git commit containing this manifest",
+    "base_branch": "main",
+    "base_sha": "641c0d612d2c5b77e731e43271e0b6462fdb52b9",
+    "pull_request": "https://github.com/zj1310426307-stack/girlfriend-menu-app/pull/21"
+  },
+  "gates": {
+    "gate_00_candidate_freeze": "pass",
+    "gate_01_local_validation": "pass",
+    "gate_02_pr_ci": "pass_for_ed8f2dc",
+    "gate_03_staging_infrastructure": "blocked",
+    "gate_04_staging_and_real_device": "not_started",
+    "gate_05_production_backup": "not_started",
+    "gate_06_merge": "not_started",
+    "gate_07_production_deploy": "not_started",
+    "gate_08_production_smoke": "not_started",
+    "gate_09_wechat_release": "not_started",
+    "gate_10_tag_release": "not_started"
+  },
+  "local_validation": {
+    "backend_tests": "272 passed, 11 warnings",
+    "ruff": "pass",
+    "import_contracts": "5 kept, 0 broken",
+    "schema_export": "current",
+    "openapi_export": "current",
+    "secret_scan": "511 files passed",
+    "release_config": "pass",
+    "sqlite_migration_head": "20260817_14",
+    "miniprogram_build": "pass",
+    "miniprogram_ci": "pass",
+    "dist_integrity": "71 JavaScript files, 140 modules",
+    "main_package_bytes": 470867,
+    "total_package_bytes": 890679
+  },
+  "remote_checks": {
+    "backend": "pass",
+    "miniprogram": "pass",
+    "release_safety": "pass",
+    "vercel_preview_comments": "pass",
+    "vercel": "non_blocking_failure"
+  },
+  "staging_audit": {
+    "neon_plan": "free",
+    "neon_projects": 1,
+    "neon_branches_in_only_project": 1,
+    "isolated_staging_database": false,
+    "staging_origin_configured": false,
+    "blocker": "Create an independent free staging branch/database before hosted validation."
+  },
+  "artifacts": [
+    "artifacts/release-00/gate00-baseline.json",
+    "artifacts/release-00/gate01-local.json",
+    "artifacts/release-00/gate03-staging-audit.json"
+  ]
+}
