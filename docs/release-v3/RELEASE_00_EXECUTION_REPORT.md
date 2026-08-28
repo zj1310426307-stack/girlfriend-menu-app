@@ -4,9 +4,9 @@
 
 ## 当前结论
 
-**GATE 00-02 PASS — GATE 03 BLOCKED — NO MERGE / NO PRODUCTION CHANGE**
+**GATE 00-03 PASS — GATE 04 IN PROGRESS — NO MERGE / NO PRODUCTION CHANGE**
 
-候选分支和 PR 已冻结核验，本地完整回归、迁移、契约、构建、密钥扫描与远端必需 CI 均通过。Neon 免费组织当前只有一个项目且该项目只有一个分支，仓库的 staging Origin 也尚未配置，因此没有证据证明存在隔离 staging 数据库。按照发布门禁，本轮尚未合并 PR、未迁移或部署生产、未创建 Tag/Release，也不能宣称微信真机通过。
+候选分支和 PR 已冻结核验，本地完整回归、迁移、契约、构建、密钥扫描与远端必需 CI 均通过。独立 Neon Free staging 项目和 Render Free staging 服务已建立，冻结候选 `d11a708` 首次部署成功，hosted health/readiness 只读门通过。Gate 04 仍缺带邀请码的完整业务验收、真实微信凭据与微信真机证据；本轮尚未合并 PR、未迁移或部署生产、未创建 Tag/Release。
 
 ## Gate 00：候选冻结
 
@@ -14,7 +14,7 @@
 | --- | --- |
 | 仓库 | `zj1310426307-stack/girlfriend-menu-app` |
 | 分支 | `feature/continuous-optimization-03` |
-| 代码候选提交 | `ed8f2dcaf54c24e4c66fa8f72ba12d9cf737880a` |
+| 代码候选提交 | `d11a708a6cf1fc9b807e734ee111670ce674625d` |
 | 发布证据修订 | 包含本报告的当前 PR head；推送后从 GitHub 实时核对 |
 | 基线 `main` | `641c0d612d2c5b77e731e43271e0b6462fdb52b9` |
 | PR | [#21](https://github.com/zj1310426307-stack/girlfriend-menu-app/pull/21)；OPEN、非 Draft、MERGEABLE |
@@ -44,16 +44,17 @@ Windows 沙箱首次执行时，历史 `.test-tmp` ACL 和 `dist` 写权限导�
 - `Vercel Preview Comments`：PASS。
 - `Vercel`：FAIL，按任务书为非阻断；本项目生产 API 仍以 Render 为发布目标。
 
-以上初始状态对应代码候选 `ed8f2dc`。执行报告提交后会形成只改文档的 PR head，必须重新核对 head 与 CI，不能复用旧结论冒充新提交通过。
+以上状态对应 PR head `d11a708`；同一提交随后部署到隔离 staging。后续文档提交形成新 head 后仍须重新核对 CI，不能复用旧结论冒充新提交通过。
 
 ## Gate 03：staging 隔离审计
 
-- Neon：Free 计划；1 个项目；项目列表显示 Branches=1。
-- 隔离结论：没有第二个 staging 分支，不能把现有唯一分支视为 staging。
-- `miniprogram/.env.staging`：已跟踪，但 `TARO_APP_API_ORIGIN` 为空。
-- `render.staging.yaml`：独立免费服务定义存在，`APP_ENV=staging`、`autoDeploy=false`、`WECHAT_LOGIN_ENABLED=false`，但尚无真实 hosted readiness 证据。
+- Neon：新建独立 Free 项目 `loveos-staging-release-00`，项目 ID `long-river-71712327`，AWS 新加坡、PostgreSQL 18；创建时存储为 0，未复制现有项目数据。
+- Render：新建 Free 服务 `girlfriend-menu-api-staging`，新加坡区域，来源提交 `d11a708`；首次部署成功且健康检查日志持续返回 200。
+- `miniprogram/.env.staging`：指向 `https://girlfriend-menu-api-staging.onrender.com`，与生产 Origin 分离。
+- 只读 hosted 门：`/api/health` 200；`/api/ready` 为 `ready`，PostgreSQL、database storage、authentication 均 ready；Redis 和微信登录按 staging 第一阶段保持 optional-disabled。
+- 未认证 `/api/bootstrap` 返回 401，符合设备会话边界。
 
-Gate 03 当前为 **BLOCKED**。下一项有外部副作用的动作是创建一个免费的 Neon staging 分支/数据库，并把生成的连接信息仅保存到 Render staging Secret；该动作需要在云控制台执行前确认。
+Gate 03 当前为 **PASS**。Gate 04 正在执行；带邀请码的业务全链路、真实微信凭据和真机验收未完成，因此不得合并或进入生产门禁。
 
 ## 依赖安全观察
 

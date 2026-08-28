@@ -4,14 +4,15 @@
 
 ## 当前结论
 
-**GATE 00-02 PASS — GATE 03 BLOCKED — NO PRODUCTION CHANGE**
+**GATE 00-03 PASS — GATE 04 IN PROGRESS — NO PRODUCTION CHANGE**
 
-候选 `ed8f2dc` 的代码、迁移、契约、小程序构建、本地自动化和 PR 必需 CI 已通过。PR #21 已开放且可合并，未解决审查线程为 0。Neon 免费组织当前只有一个项目和一个分支，尚无可证明隔离的 staging 数据库，因此发布闭环停在 Gate 03；未合并、未迁移或部署生产、未创建 Tag/Release。
+候选 `d11a708` 的代码、迁移、契约、小程序构建、本地自动化和 PR 必需 CI 已通过。PR #21 已开放且可合并，未解决审查线程为 0。独立 Neon/Render Free staging 已部署，同一候选的 hosted health/readiness 通过；Gate 04 仍等待带邀请码的业务验收、真实微信凭据和真机证据。未合并、未迁移或部署生产、未创建 Tag/Release。
 
 ## 当前外部状态
 
-- 2026-08-28 Neon 只读核验：Free 计划、1 个项目、Branches=1，独立 staging 数据库不存在。
-- `miniprogram/.env.staging` 的 API Origin 仍为空，尚无 hosted readiness 结果。
+- 2026-08-28 Neon：独立 Free staging 项目 `loveos-staging-release-00`，AWS 新加坡、PostgreSQL 18，创建时存储为 0。
+- Render：`girlfriend-menu-api-staging` Free 首次部署 `d11a708` 成功；`/api/health` 与 `/api/ready` 只读门通过。
+- `miniprogram/.env.staging` 指向独立 staging Origin；生产 Origin 和数据库未复用。
 - 生产状态不能用较早探针代替本轮发布证据；Gate 05 备份和 Gate 07-08 发布/冒烟均未开始。
 - 在 staging hosted、微信真机和生产备份门禁完成前，不应合并 PR 或把 `3.0.0` 正式发布。
 

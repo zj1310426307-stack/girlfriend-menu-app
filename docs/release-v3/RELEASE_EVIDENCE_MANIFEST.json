@@ -3,7 +3,7 @@
   "observed_at": "2026-08-28",
   "candidate": {
     "branch": "feature/continuous-optimization-03",
-    "code_sha": "ed8f2dcaf54c24e4c66fa8f72ba12d9cf737880a",
+    "code_sha": "d11a708a6cf1fc9b807e734ee111670ce674625d",
     "evidence_revision": "git commit containing this manifest",
     "base_branch": "main",
     "base_sha": "641c0d612d2c5b77e731e43271e0b6462fdb52b9",
@@ -12,9 +12,9 @@
   "gates": {
     "gate_00_candidate_freeze": "pass",
     "gate_01_local_validation": "pass",
-    "gate_02_pr_ci": "pass_for_ed8f2dc",
-    "gate_03_staging_infrastructure": "blocked",
-    "gate_04_staging_and_real_device": "not_started",
+    "gate_02_pr_ci": "pass_for_d11a708",
+    "gate_03_staging_infrastructure": "pass",
+    "gate_04_staging_and_real_device": "in_progress",
     "gate_05_production_backup": "not_started",
     "gate_06_merge": "not_started",
     "gate_07_production_deploy": "not_started",
@@ -46,11 +46,17 @@
   },
   "staging_audit": {
     "neon_plan": "free",
-    "neon_projects": 1,
-    "neon_branches_in_only_project": 1,
-    "isolated_staging_database": false,
-    "staging_origin_configured": false,
-    "blocker": "Create an independent free staging branch/database before hosted validation."
+    "neon_projects": 2,
+    "isolated_staging_project": "long-river-71712327",
+    "isolated_staging_database": true,
+    "neon_region": "aws-ap-southeast-1",
+    "postgres_version": 18,
+    "staging_origin": "https://girlfriend-menu-api-staging.onrender.com",
+    "staging_origin_configured": true,
+    "render_service": "srv-da8insfqj5pc73ekd270",
+    "deployed_commit": "d11a708a6cf1fc9b807e734ee111670ce674625d",
+    "hosted_readiness": "pass",
+    "remaining_gate": "Authenticated business flows, real WeChat credentials, and physical-device acceptance."
   },
   "artifacts": [
     "artifacts/release-00/gate00-baseline.json",
