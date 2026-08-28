@@ -11,7 +11,7 @@
 - [x] 独立 `render.staging.yaml` 使用 staging 环境、关闭自动部署并默认关闭微信登录。
 - [x] staging 只读门拒绝生产/非 HTTPS/本机目标，并验证 PostgreSQL、持久存储和认证 readiness。
 - [x] GitHub Actions 已配置 PostgreSQL 18 临时迁移矩阵；候选 `ed8f2dc` 的远端 backend job 已通过。
-- [ ] 基础 staging 只读门在微信关闭状态通过。
+- [x] 基础 staging 只读门在微信关闭状态通过。
 - [ ] Render staging 配置真实 AppID/AppSecret 并启用开关。
 - [ ] `check_staging_readiness.py --require-wechat` 在 staging 通过。
 
@@ -37,16 +37,18 @@
 - [ ] 网络异常：code 失效、限流和微信服务不可用提示可理解。
 - [ ] 订单、图片、五个一级入口、游戏和 WebSocket 冒烟通过。
 
+Hosted 自动验收已通过客户会话/存量恢复、管理登录、菜单收藏、订单/评价/撤回、持久图片、管理 WebSocket 和双客户端游戏 WebSocket/重连。上述结果不替代真实微信 code、五个一级入口的开发工具交互或真机网络验收，因此本节保持未签署。
+
 ## 外部操作状态
 
 - [x] 微信小程序 `3.0.0` 已上传为开发版本。
 - [ ] 有权威页面状态证明 `3.0.0` 已设为体验版。
 - [x] 候选后端已 commit/push 并形成 PR #21。
-- [ ] 候选已部署到隔离 staging。
+- [x] 候选已部署到隔离 staging。
 - [ ] 已提交审核。
 - [ ] 已正式发布。
 
-2026-08-28 只读核验显示 Neon 免费组织只有一个项目和一个分支，隔离 staging 尚不存在。先创建独立 staging、完成 hosted 与微信真机验收，再设置体验版；生产迁移、提交审核与正式发布均未执行。
+2026-08-28 已创建独立 Neon Free staging 项目和 Render Free staging 服务，基础只读门与 hosted 业务写链路通过。真实微信凭据、OpenID 绑定、开发工具交互和真机验收仍待完成；生产迁移、提交审核与正式发布均未执行。
 
 官方依据：
 

@@ -37,12 +37,12 @@
 - PR #21：OPEN、非 Draft、MERGEABLE；未解决审查线程 0。
 - `backend`、`miniprogram`、`release-safety` 已通过；Vercel 失败按发布任务书为非阻断。
 - 微信小程序 `3.0.0` 有较早的开发版本上传记录，但本轮仍无 staging 真机、体验版、审核或正式发布证据。
-- 独立 Neon Free staging 项目与 Render Free staging 服务已创建；hosted health/readiness 通过，生产 Origin 与数据库未复用。
+- 独立 Neon Free staging 项目与 Render Free staging 服务已创建；hosted health/readiness 和带邀请码的 HTTP/WebSocket 业务验收通过，生产 Origin 与数据库未复用。
 - 本轮未合并 PR，未修改生产数据库或 Render 生产服务。
 
 ## 下一门禁
 
-1. 完成 staging 带邀请码的 HTTP/WebSocket 业务全链路验收。
-2. 配置真实微信凭据，执行开发工具与真机验收并收集证据。
+1. 配置真实微信凭据，复核 code2Session readiness、OpenID 绑定和换机恢复。
+2. 执行开发工具与真机验收并收集证据。
 3. 通过 [微信发布清单](wechat-release-checklist.md)。
 4. 完成生产备份与恢复抽查后，才允许合并、生产部署、Tag 或正式发布。

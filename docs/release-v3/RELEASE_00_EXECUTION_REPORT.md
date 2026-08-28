@@ -6,7 +6,7 @@
 
 **GATE 00-03 PASS — GATE 04 IN PROGRESS — NO MERGE / NO PRODUCTION CHANGE**
 
-候选分支和 PR 已冻结核验，本地完整回归、迁移、契约、构建、密钥扫描与远端必需 CI 均通过。独立 Neon Free staging 项目和 Render Free staging 服务已建立，冻结候选 `d11a708` 首次部署成功，hosted health/readiness 只读门通过。Gate 04 仍缺带邀请码的完整业务验收、真实微信凭据与微信真机证据；本轮尚未合并 PR、未迁移或部署生产、未创建 Tag/Release。
+候选分支和 PR 已冻结核验，本地完整回归、迁移、契约、构建、密钥扫描与远端必需 CI 均通过。独立 Neon Free staging 项目和 Render Free staging 服务已建立，冻结候选 `d11a708` 首次部署成功，hosted health/readiness 只读门及带邀请码的 HTTP/WebSocket 写链路均通过。Gate 04 仍缺真实微信凭据、OpenID 绑定和微信真机证据；本轮尚未合并 PR、未迁移或部署生产、未创建 Tag/Release。
 
 ## Gate 00：候选冻结
 
@@ -24,10 +24,10 @@
 ## Gate 01：本地发布候选验证
 
 - 后端依赖：`requirements-dev.txt` 已按现有虚拟环境校准，无依赖漂移。
-- 后端测试：`272 passed`；11 条 Python 3.12 SQLite datetime adapter 弃用警告。
+- 后端测试：`275 passed`；11 条 Python 3.12 SQLite datetime adapter 弃用警告。
 - 质量门：Ruff 通过；Import Linter 5/5 契约通过；compileall 通过。
 - 契约门：V3 schema 与 OpenAPI 导出均为 current。
-- 安全门：新增发布文档后 511 个候选文件密钥扫描通过；发布配置检查通过。
+- 安全门：514 个候选文件密钥扫描通过；发布配置检查通过。
 - SQLite 迁移：空库升至 `20260817_14`；降至 `20260817_13` 后再升 head；V2 `20260808_01` 升 head，全部通过。
 - PostgreSQL：本机没有 Docker、psql 或 pg_dump；PR backend job 已在 PostgreSQL 18 服务上通过同等迁移矩阵。
 - 性能基线：bootstrap p95 43.150 ms；旧五请求 p95 88.698 ms；本地 AI p95 0.399 ms；建房 p95 0.027 ms；重连 p95 0.071 ms；回放 p95 0.069 ms。
@@ -54,7 +54,7 @@ Windows 沙箱首次执行时，历史 `.test-tmp` ACL 和 `dist` 写权限导�
 - 只读 hosted 门：`/api/health` 200；`/api/ready` 为 `ready`，PostgreSQL、database storage、authentication 均 ready；Redis 和微信登录按 staging 第一阶段保持 optional-disabled。
 - 未认证 `/api/bootstrap` 返回 401，符合设备会话边界。
 
-Gate 03 当前为 **PASS**。Gate 04 正在执行；带邀请码的业务全链路、真实微信凭据和真机验收未完成，因此不得合并或进入生产门禁。
+Gate 03 当前为 **PASS**。Gate 04 的 hosted 业务子门已通过：客户会话/bootstrap、存量认领与换机恢复、菜单收藏、管理认证与 WebSocket、持久图片、订单状态/评价/撤回，以及双客户端游戏 WebSocket/重连全部成功。凭据在诊断输出风险后完成二次轮换，并用一次性 RSA 加密交接复验；仓库和验收输出未保存明文。真实微信凭据、OpenID 绑定和真机验收仍未完成，因此不得合并或进入生产门禁。
 
 ## 依赖安全观察
 

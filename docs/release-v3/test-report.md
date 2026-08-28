@@ -51,6 +51,8 @@
 
 2026-08-24 第三轮补充免费 PostgreSQL 交付门与 staging 只读入口：backend workflow 已配置 PostgreSQL 18 service，覆盖 upgrade/down/up 与 from-V2，并保留 SQLite 矩阵；20 项定向门禁和 272 项后端全量测试通过，小程序 CI/生产构建继续通过，主包 469,038 bytes、总产物 888,826 bytes。当前候选未推送，本机也没有可运行的 PostgreSQL 容器，因此这里只证明 workflow 配置与合同，远端 PostgreSQL job 仍待验收。Render 未登录、微信开发者工具配置未初始化，未部署 staging 或生成真机证据。
 
+2026-08-28 独立 Neon/Render Free staging 已部署候选 `d11a708`。只读 readiness 与 8 域带邀请码业务写链路均通过，覆盖客户会话/恢复、菜单收藏、管理认证、持久图片、订单/评价/撤回，以及管理和双客户端游戏 WebSocket/重连。凭据轮换后的复验通过一次性 RSA 密文交接执行；新增 3 项安全门回归后，后端全量为 275 passed、11 个既有 SQLite datetime adapter 警告。真实微信 code2Session、OpenID 绑定、开发工具交互和真机性能仍待验收。
+
 ## 契约基线
 
 - HTTP `/api/*` operations：89。

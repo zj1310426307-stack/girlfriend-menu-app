@@ -23,12 +23,12 @@
     "gate_10_tag_release": "not_started"
   },
   "local_validation": {
-    "backend_tests": "272 passed, 11 warnings",
+    "backend_tests": "275 passed, 11 warnings",
     "ruff": "pass",
     "import_contracts": "5 kept, 0 broken",
     "schema_export": "current",
     "openapi_export": "current",
-    "secret_scan": "511 files passed",
+    "secret_scan": "514 files passed",
     "release_config": "pass",
     "sqlite_migration_head": "20260817_14",
     "miniprogram_build": "pass",
@@ -56,11 +56,15 @@
     "render_service": "srv-da8insfqj5pc73ekd270",
     "deployed_commit": "d11a708a6cf1fc9b807e734ee111670ce674625d",
     "hosted_readiness": "pass",
-    "remaining_gate": "Authenticated business flows, real WeChat credentials, and physical-device acceptance."
+    "authenticated_business_acceptance": "pass",
+    "credential_rotation_after_diagnostic_exposure": "pass",
+    "business_acceptance_checks": 8,
+    "remaining_gate": "Real WeChat credentials, OpenID binding, and physical-device acceptance."
   },
   "artifacts": [
     "artifacts/release-00/gate00-baseline.json",
     "artifacts/release-00/gate01-local.json",
-    "artifacts/release-00/gate03-staging-audit.json"
+    "artifacts/release-00/gate03-staging-audit.json",
+    "artifacts/release-00/gate04-staging-acceptance.json"
   ]
 }

@@ -4,7 +4,7 @@
 
 ## 状态
 
-**IN PROGRESS — HOSTED READINESS PASS / WECHAT REAL DEVICE PENDING**
+**IN PROGRESS — HOSTED READINESS + AUTHENTICATED BUSINESS PASS / WECHAT REAL DEVICE PENDING**
 
 ## 隔离前置审计
 
@@ -24,8 +24,11 @@
 - [x] `/api/health` 返回 200 且标识 LoveOS API。
 - [x] `/api/ready` 返回 `status=ready`、`database=postgresql`、持久化存储 ready、认证 ready。
 - [x] 在微信关闭状态通过只读门；`wechat_login=optional-disabled` 符合第一阶段策略。
+- [x] 使用 staging 专用邀请码完成客户会话、bootstrap、存量设备认领/换机恢复与旧会话撤销。
+- [x] 完成菜单/收藏、管理登录与管理 WebSocket、数据库图片上传/下载、订单归属隔离、重复点单预览、状态流转、评价、撤回，以及双客户游戏 WebSocket/重连验收。
+- [x] 验收凭据在一次诊断输出风险后立即二次轮换；新管理员首次登录已完成数据库 verifier 轮换，复验通过，明文未写入仓库、文件或验收输出。
 - [ ] 配置真实微信凭据并用 `--require-wechat` 复核。
-- [ ] 新用户、存量绑定、换机恢复、管理登录、点单、状态流转、撤回、评价、图片、游戏、WebSocket 全链路通过。
+- [ ] 使用真实微信 code 完成新用户邀请、存量 OpenID 原地绑定与新手机恢复同一业务身份。
 - [x] staging 小程序构建完成，`dist/app.json` 存在，产物完整性检查通过且 API Origin 指向独立 Render staging。
 - [ ] 微信开发者工具使用本轮 staging 产物普通启动，红色应用错误为 0。
 - [ ] 微信真机覆盖冷启动、弱网、断网重连及核心业务。
@@ -34,4 +37,6 @@
 
 2026-08-28 的 hosted 只读门返回：`database=postgresql`、`storage=ready`、`authentication=ready`、`redis=optional-disabled`、`wechat_login=optional-disabled`。无凭据访问 `/api/bootstrap` 返回 401，符合设备邀请码/会话边界。随后使用 staging 环境构建微信小程序，`dist/app.json` 与 71 个 JavaScript 产物生成成功，140 个模块通过完整性检查，编译产物包含独立 staging API Origin。
 
-此前微信开发者工具普通启动已观察到应用红色错误为 0；自动化连接偶发超时，仅能记录为 `APPLICATION PASS / AUTOMATOR INFRASTRUCTURE UNSTABLE`。这仍不是微信真机证据，带邀请码的业务写链路和微信真机门禁保持未通过状态。
+同日两次 hosted 写链路验收均通过，第二次在凭据再次轮换后通过安全加密交接执行。8 个检查域依次覆盖 health/readiness、客户会话/bootstrap、存量恢复与旧会话撤销、菜单收藏、管理认证/WebSocket、持久图片、订单/评价/撤回，以及双客户端游戏 WebSocket/重连；最终结果为 PASS。验收输出只保留阶段、状态、耗时和候选短摘要，不保留凭据、令牌或业务对象标识。
+
+此前微信开发者工具普通启动已观察到应用红色错误为 0；自动化连接偶发超时，仅能记录为 `APPLICATION PASS / AUTOMATOR INFRASTRUCTURE UNSTABLE`。这仍不是微信真机证据，真实微信 code2Session、OpenID 绑定和微信真机门禁保持未通过状态。
