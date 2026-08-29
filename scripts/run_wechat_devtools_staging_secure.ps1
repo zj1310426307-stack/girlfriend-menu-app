@@ -1,6 +1,7 @@
 param(
     [switch]$HandshakeOnly,
-    [switch]$ManualEntry
+    [switch]$ManualEntry,
+    [switch]$PrepareRotation
 )
 
 $ErrorActionPreference = 'Stop'
@@ -8,10 +9,15 @@ $rsa = $null
 $plainBytes = $null
 $secureInvite = $null
 $inviteBstr = [IntPtr]::Zero
+$generatedInviteBytes = $null
+$rotationClipboardOwned = $false
 $exitCode = 1
 $stage = 'initialize'
 
 try {
+    if ($ManualEntry -and $PrepareRotation) {
+        throw [System.ArgumentException]::new('ManualEntry and PrepareRotation are mutually exclusive')
+    }
     $stage = 'verify_staging_dist'
     $miniprogramRoot = Join-Path $PSScriptRoot '..\miniprogram'
     $stagingEnvPath = Join-Path $miniprogramRoot '.env.staging'
@@ -43,7 +49,23 @@ try {
         throw [System.InvalidOperationException]::new('compiled dist does not contain the staging API origin')
     }
 
-    if ($ManualEntry) {
+    if ($PrepareRotation) {
+        $stage = 'generate_rotation_invite'
+        $generatedInviteBytes = [byte[]]::new(24)
+        [System.Security.Cryptography.RandomNumberGenerator]::Fill($generatedInviteBytes)
+        $encodedInvite = [Convert]::ToBase64String($generatedInviteBytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+        $customerInvite = "stgC_$encodedInvite"
+        Set-Clipboard -Value $customerInvite
+        $rotationClipboardOwned = $true
+        Write-Output 'A new staging customer invite is copied to the clipboard; its value is hidden.'
+        [void](Read-Host 'Paste it into Render, save/deploy, wait for Live, then press Enter')
+        $currentClipboard = Get-Clipboard -Raw -ErrorAction SilentlyContinue
+        if ([string]$currentClipboard -ceq $customerInvite) {
+            Set-Clipboard -Value ''
+            $rotationClipboardOwned = $false
+        }
+    }
+    elseif ($ManualEntry) {
         $stage = 'receive_hidden_invite'
         $secureInvite = Read-Host 'Paste the current staging customer invite (input hidden)' -AsSecureString
         $inviteBstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureInvite)
@@ -101,6 +123,15 @@ catch {
 }
 finally {
     $env:WECHAT_SMOKE_CUSTOMER_INVITE_CODE = $null
+    if ($rotationClipboardOwned) {
+        $currentClipboard = Get-Clipboard -Raw -ErrorAction SilentlyContinue
+        if ([string]$currentClipboard -ceq $customerInvite) {
+            Set-Clipboard -Value ''
+        }
+    }
+    if ($null -ne $generatedInviteBytes) {
+        [Array]::Clear($generatedInviteBytes, 0, $generatedInviteBytes.Length)
+    }
     if ($inviteBstr -ne [IntPtr]::Zero) {
         [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($inviteBstr)
     }

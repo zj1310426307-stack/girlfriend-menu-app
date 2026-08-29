@@ -71,6 +71,10 @@ def test_wechat_smoke_wrapper_uses_ciphertext_only_and_rejects_production_dist()
     assert "Read-Host 'Paste the current staging customer invite (input hidden)' -AsSecureString" in source
     assert "SecureStringToBSTR" in source
     assert "ZeroFreeBSTR" in source
+    assert "RandomNumberGenerator]::Fill" in source
+    assert "Set-Clipboard -Value $customerInvite" in source
+    assert "Get-Clipboard -Raw" in source
+    assert "A new staging customer invite is copied to the clipboard; its value is hidden." in source
     assert "$stagingOrigin -ceq $productionOrigin" in source
     assert "compiled dist does not contain the staging API origin" in source
     assert "$env:WECHAT_SMOKE_CUSTOMER_INVITE_CODE = $null" in source

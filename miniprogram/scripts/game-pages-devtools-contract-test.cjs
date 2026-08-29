@@ -36,6 +36,21 @@ assert.match(
   /miniProgram\.callWxMethod\("getSystemInfoSync"\)/,
   "hosted smoke must reject an unresponsive existing automation socket"
 );
+assert.match(
+  smokeSource,
+  /DEVTOOLS_HOSTS = \["127\.0\.0\.2", "127\.0\.0\.1"\]/,
+  "hosted smoke must bypass the Windows IDE HTTP binding before using the standard loopback"
+);
+assert.match(
+  smokeSource,
+  /assert\(!networkPolicyError, networkPolicyError\)/,
+  "hosted smoke must fail explicitly when WeChat rejects the staging request domain"
+);
+assert.doesNotMatch(
+  smokeSource,
+  /if \(KEEP_OPEN \|\| !ownsDevtools\) \{[\s\S]{0,120}?return;/,
+  "hosted smoke cleanup must not suppress an acceptance assertion"
+);
 assert.doesNotMatch(
   smokeSource,
   /WECHAT_DEVTOOLS_CLI_PORT|args:\s*\[\s*["']--port["']/,
