@@ -24,6 +24,14 @@ assert.match(dishCard, /favoriteBusy\s*\?\s*"is-busy"/);
 assert.match(dishCard, /if\s*\(!favoriteBusy\)\s*onToggleFavorite\(dish\)/);
 assert.match(dishCard, /resolveImageUrl\(dish\.image_url,\s*\{ maxWidth: compact \? 640 : 480 \}\)/);
 assert.match(transport, /images\\\.unsplash\\\.com/);
+assert.match(transport, /MINIPROGRAM_DOMAIN_NOT_ALLOWED/);
+assert.match(transport, /MINIPROGRAM_NETWORK_TIMEOUT/);
+assert.match(transport, /console\.info\(`\[network\] \$\{category\}`\)/);
+assert.doesNotMatch(
+  transport,
+  /console\.(?:info|warn|error)\([^\n]*(?:options\.data|options\.header|getCustomerToken)/,
+  "network diagnostics must not log request bodies, headers or bearer tokens"
+);
 
 assert.match(orderDetail, /orderLoadingRef\s*=\s*useRef\(false\)/);
 assert.match(orderDetail, /if\s*\(!id\s*\|\|\s*orderLoadingRef\.current\)\s*return/);

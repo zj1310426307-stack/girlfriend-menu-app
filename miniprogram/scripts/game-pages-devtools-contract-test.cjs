@@ -4,6 +4,8 @@ const path = require("path");
 
 const acceptancePath = path.join(__dirname, "game-pages-devtools-acceptance.cjs");
 const source = fs.readFileSync(acceptancePath, "utf8");
+const smokePath = path.join(__dirname, "smoke-test.cjs");
+const smokeSource = fs.readFileSync(smokePath, "utf8");
 
 assert.match(source, /automator\.connect\(/, "acceptance must reuse an existing automation socket");
 assert.match(source, /automator\.launch\(/, "acceptance must launch DevTools when no socket exists");
@@ -19,5 +21,25 @@ assert.match(source, /callWxMethod\("getStorageInfoSync"\)/, "acceptance must di
 assert.match(source, /callWxMethod\("clearStorageSync"\)/, "acceptance must remove smoke-only storage before restoration");
 assert.match(source, /removeLegacySmokeSession/, "acceptance must migrate the exact sentinel leaked by older runs");
 assert.match(source, /customerId !== LEGACY_SMOKE_SESSION\.customer_id[\s\S]*customerToken !== LEGACY_SMOKE_SESSION\.customer_token/);
+assert.match(
+  smokeSource,
+  /process\.env\.WECHAT_SMOKE_CUSTOMER_INVITE_CODE/,
+  "hosted smoke must receive the customer invite at runtime"
+);
+assert.doesNotMatch(
+  smokeSource,
+  /inviteInput\.input\(["'][^"']+["']\)/,
+  "hosted smoke must not contain a hard-coded customer invite"
+);
+assert.match(
+  smokeSource,
+  /miniProgram\.callWxMethod\("getSystemInfoSync"\)/,
+  "hosted smoke must reject an unresponsive existing automation socket"
+);
+assert.doesNotMatch(
+  smokeSource,
+  /WECHAT_DEVTOOLS_CLI_PORT|args:\s*\[\s*["']--port["']/,
+  "hosted smoke must not override the DevTools IDE service port"
+);
 
 console.log("game pages DevTools launch contract PASS");

@@ -11,6 +11,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT_PATH = ROOT / "scripts" / "check_staging_business_flows.py"
+WECHAT_WRAPPER_PATH = ROOT / "scripts" / "run_wechat_devtools_staging_secure.ps1"
 SPEC = spec_from_file_location("check_staging_business_flows", SCRIPT_PATH)
 assert SPEC and SPEC.loader
 gate = module_from_spec(SPEC)
@@ -59,3 +60,18 @@ def test_http_failure_does_not_echo_response_body_or_url():
     assert "password-private-sentinel" not in message
     assert "staging.example" not in message
     assert message == "admin login returned unexpected HTTP 401"
+
+
+def test_wechat_smoke_wrapper_uses_ciphertext_only_and_rejects_production_dist():
+    source = WECHAT_WRAPPER_PATH.read_text(encoding="utf-8")
+
+    assert "WECHAT_SMOKE_PUBLIC_KEY=" in source
+    assert "RSACryptoServiceProvider" in source
+    assert "$rsa.Decrypt($cipherBytes, $true)" in source
+    assert "Read-Host 'Paste the current staging customer invite (input hidden)' -AsSecureString" in source
+    assert "SecureStringToBSTR" in source
+    assert "ZeroFreeBSTR" in source
+    assert "$stagingOrigin -ceq $productionOrigin" in source
+    assert "compiled dist does not contain the staging API origin" in source
+    assert "$env:WECHAT_SMOKE_CUSTOMER_INVITE_CODE = $null" in source
+    assert "Write-Output $customerInvite" not in source

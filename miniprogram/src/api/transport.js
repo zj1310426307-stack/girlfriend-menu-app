@@ -11,6 +11,22 @@ const RETRYABLE_STATUS = new Set([408, 429, 500, 502, 503, 504]);
 const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 const normalizePath = (path) => (path.startsWith("/") ? path : `/${path}`);
 
+/** Log only a bounded failure category; never print URLs, headers or payloads. */
+function reportNetworkFailure(error) {
+  const raw = String(error?.errMsg || error?.message || "").toLowerCase();
+  let category = "MINIPROGRAM_NETWORK_REQUEST_FAILED";
+  if (raw.includes("url not in domain list") || raw.includes("domain list")) {
+    category = "MINIPROGRAM_DOMAIN_NOT_ALLOWED";
+  } else if (raw.includes("timeout")) {
+    category = "MINIPROGRAM_NETWORK_TIMEOUT";
+  } else if (raw.includes("ssl") || raw.includes("certificate")) {
+    category = "MINIPROGRAM_TLS_FAILED";
+  } else if (raw.includes("dns") || raw.includes("resolve host")) {
+    category = "MINIPROGRAM_DNS_FAILED";
+  }
+  console.info(`[network] ${category}`);
+}
+
 /** Send one authenticated API request through the only HTTP transport boundary. */
 export async function request(path, options = {}, attempt = 0) {
   const method = options.method || "GET";
@@ -58,6 +74,7 @@ export async function request(path, options = {}, attempt = 0) {
       await wait((attempt + 1) * 700);
       return request(path, options, attempt + 1);
     }
+    if (!error?.statusCode) reportNetworkFailure(error);
     if (!error?.statusCode && /timeout/i.test(error?.errMsg || error?.message || "")) {
       throw new Error("服务器正在醒来，请稍后重试");
     }
