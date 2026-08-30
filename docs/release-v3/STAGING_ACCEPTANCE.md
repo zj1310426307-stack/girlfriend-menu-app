@@ -1,6 +1,6 @@
 # LoveOS V3 Staging 验收记录
 
-更新日期：2026-08-29
+更新日期：2026-08-30
 
 ## 状态
 
@@ -40,3 +40,5 @@
 同日两次 hosted 写链路验收均通过，第二次在凭据再次轮换后通过安全加密交接执行。8 个检查域依次覆盖 health/readiness、客户会话/bootstrap、存量恢复与旧会话撤销、菜单收藏、管理认证/WebSocket、持久图片、订单/评价/撤回，以及双客户端游戏 WebSocket/重连；最终结果为 PASS。验收输出只保留阶段、状态、耗时和候选短摘要，不保留凭据、令牌或业务对象标识。
 
 2026-08-29 已定位 Windows 微信开发者工具把 IDE HTTP 服务与自动化 WebSocket 绑定到同一端口、不同回环地址的问题；改用未被 HTTP 服务抢占的回环地址后，系统信息读取与模拟器清缓存均通过。随后使用安全注入的 staging 邀请码重跑，开发者工具稳定返回 `MINIPROGRAM_DOMAIN_NOT_ALLOWED`，请求未到达 Render。当前应用交互不能签署通过：需先在 AppID `wx08cb090781c3e679` 的微信公众平台配置中确认 staging HTTPS Origin 位于 `request` 合法域名，并同步核对 socket、uploadFile 与 downloadFile 域名，再重新编译/清缓存验收。真实微信 code2Session、OpenID 绑定和微信真机门禁继续保持未通过状态。
+
+2026-08-30 的公众平台截图确认 request、socket、uploadFile、downloadFile 列表均包含 Render staging 主机，运行时 `getAccountInfoSync` 也确认 AppID 为 `wx08cb090781c3e679`、环境为 develop。清除开发者工具全部缓存并重新获取 AppID 权限后，严格校验仍稳定返回同一域名拒绝，因此已排除未保存、错误运行时 AppID和普通本地缓存。当前推断为 Render 共享域名不满足微信严格域名合规要求；在得到权威平台状态前不把推断写成定论。仓库已准备不改变 API/Neon 数据的 CloudBase 免费 staging 容器入口，尚未创建云资源或部署，Gate 04 状态不变。

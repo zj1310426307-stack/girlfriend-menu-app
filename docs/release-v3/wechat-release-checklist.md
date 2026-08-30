@@ -17,7 +17,8 @@
 
 ## 微信公众平台
 
-- [ ] 当前 AppID 的 request 合法域名包含 staging HTTPS API Origin（开发者工具复验仍返回 `MINIPROGRAM_DOMAIN_NOT_ALLOWED`）。
+- [x] 当前 AppID 后台列表的 request、socket、uploadFile、downloadFile 均包含 staging Origin。
+- [ ] 严格域名校验下 staging 请求实际成功（当前仍返回 `MINIPROGRAM_DOMAIN_NOT_ALLOWED`）。
 - [ ] request 合法域名为生产 HTTPS API Origin，不含 `/api` 路径。
 - [ ] socket 合法域名为对应 WSS Origin。
 - [ ] uploadFile / downloadFile 域名与真实存储路径一致。

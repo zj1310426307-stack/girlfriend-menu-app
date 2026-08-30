@@ -15,6 +15,10 @@ env_example = (ROOT / "backend" / ".env.example").read_text(encoding="utf-8")
 backup_source = (ROOT / "scripts" / "backup_production_api.py").read_text(
     encoding="utf-8"
 )
+cloudbase_dockerfile = (ROOT / "backend" / "Dockerfile").read_text(encoding="utf-8")
+cloudbase_guide = (
+    ROOT / "docs" / "release-v3" / "CLOUDBASE_FREE_STAGING.md"
+).read_text(encoding="utf-8")
 
 
 def has_yaml_setting(source: str, key: str, value: str) -> bool:
@@ -99,6 +103,29 @@ staging_required = (
 staging_missing = [value for value in staging_required if value not in staging_render]
 if staging_missing:
     raise SystemExit(f"render.staging.yaml isolation configuration missing: {staging_missing}")
+cloudbase_required = (
+    "FROM python:3.12.11-slim-bookworm",
+    "ENV PYTHONDONTWRITEBYTECODE=1",
+    "PYTHONUNBUFFERED=1",
+    "PORT=80",
+    'CMD ["python", "serve.py"]',
+)
+cloudbase_missing = [value for value in cloudbase_required if value not in cloudbase_dockerfile]
+if cloudbase_missing:
+    raise SystemExit(f"CloudBase container contract missing: {cloudbase_missing}")
+cloudbase_guide_required = (
+    "免费体验版",
+    "禁止切换付费套餐",
+    "DATABASE_URL",
+    "独立 Neon staging",
+    "MINIPROGRAM_DOMAIN_NOT_ALLOWED",
+    "wx.cloud.callContainer",
+)
+cloudbase_guide_missing = [
+    value for value in cloudbase_guide_required if value not in cloudbase_guide
+]
+if cloudbase_guide_missing:
+    raise SystemExit(f"CloudBase free staging guide missing: {cloudbase_guide_missing}")
 oregon_required = (
     "girlfriend-menu-api-oregon",
     "plan: free",
@@ -146,6 +173,8 @@ release_surfaces = {
     "render.staging.yaml": staging_render,
     "render.production-oregon.yaml": oregon_render,
     "scripts/backup_production_api.py": backup_source,
+    "backend/Dockerfile": cloudbase_dockerfile,
+    "docs/release-v3/CLOUDBASE_FREE_STAGING.md": cloudbase_guide,
 }
 for unsafe in ("admin123", "love2026", "replace-with"):
     contaminated = [
