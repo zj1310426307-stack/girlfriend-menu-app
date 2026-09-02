@@ -14,7 +14,7 @@
 | 独立 staging 数据库/分支 | PASS | 新建 Neon 项目 `loveos-staging-release-00`，AWS 新加坡、PostgreSQL 18；创建时存储为 0，不含生产业务数据 |
 | 独立 staging API Origin | PASS | `https://girlfriend-menu-api-staging.onrender.com`，与生产 Origin 不同 |
 | staging 服务 | PASS | Render 服务 `girlfriend-menu-api-staging` 首次部署成功，来源 `d11a708`，健康检查持续 200 |
-| CloudBase 免费备用环境 | IN PROGRESS | 已创建 `loveos-staging`（`loveos-staging-d4gchuaw70bdc5234`）；0 元、6 个月、3000 资源点，且页面明确不支持加购资源包和开启按量付费；当前 `UNAVAILABLE`，尚未部署云托管 |
+| CloudBase 免费备用环境 | BLOCKED | 已尝试创建 `loveos-staging`（`loveos-staging-d4gchuaw70bdc5234`）；0 元、6 个月、3000 资源点，且页面明确不支持加购资源包和开启按量付费；费用中心显示“发货失败已退款”，1 个资源发货失败、实付 0 元，尚未部署云托管 |
 | 生产库复用防线 | PASS | 只读门拒绝 production Origin；hosted readiness 确认数据库为 PostgreSQL，未使用生产 API Origin |
 
 ## 待执行验收
@@ -44,4 +44,4 @@
 
 2026-08-30 的公众平台截图确认 request、socket、uploadFile、downloadFile 列表均包含 Render staging 主机，运行时 `getAccountInfoSync` 也确认 AppID 为 `wx08cb090781c3e679`、环境为 develop。清除开发者工具全部缓存并重新获取 AppID 权限后，严格校验仍稳定返回同一域名拒绝，因此已排除未保存、错误运行时 AppID和普通本地缓存。当前推断为 Render 共享域名不满足微信严格域名合规要求；在得到权威平台状态前不把推断写成定论。
 
-2026-09-02 已创建 CloudBase 免费体验环境 `loveos-staging`（环境 ID：`loveos-staging-d4gchuaw70bdc5234`）。购买页确认费用为 0 元、试用期 6 个月、3000 资源点，并明确不支持加购资源包和开启按量付费。环境列表当前显示 `UNAVAILABLE`；依据 CloudBase 官方错误说明，这可能是资源初始化尚未完成或环境异常。现阶段只等待初始化并保留免费边界，尚未部署云托管、切换小程序 Origin 或产生新的 hosted/真机通过证据，Gate 04 状态不变。
+2026-09-02 已尝试创建 CloudBase 免费体验环境 `loveos-staging`（环境 ID：`loveos-staging-d4gchuaw70bdc5234`）。购买页确认费用为 0 元、试用期 6 个月、3000 资源点，并明确不支持加购资源包和开启按量付费。环境持续显示 `UNAVAILABLE`；费用中心对应云开发体验版订单显示“发货失败已退款”，1 个资源发货失败，折后总价与实付金额均为 0 元。该证据将状态从“等待初始化”收敛为“腾讯云发货失败，等待供应商支持”，不得直接删除重建或改用付费套餐。尚未部署云托管、切换小程序 Origin 或产生新的 hosted/真机通过证据，Gate 04 状态不变。
