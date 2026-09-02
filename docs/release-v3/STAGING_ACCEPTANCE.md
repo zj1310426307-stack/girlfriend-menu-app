@@ -1,6 +1,6 @@
 # LoveOS V3 Staging 验收记录
 
-更新日期：2026-08-30
+更新日期：2026-09-02
 
 ## 状态
 
@@ -14,6 +14,7 @@
 | 独立 staging 数据库/分支 | PASS | 新建 Neon 项目 `loveos-staging-release-00`，AWS 新加坡、PostgreSQL 18；创建时存储为 0，不含生产业务数据 |
 | 独立 staging API Origin | PASS | `https://girlfriend-menu-api-staging.onrender.com`，与生产 Origin 不同 |
 | staging 服务 | PASS | Render 服务 `girlfriend-menu-api-staging` 首次部署成功，来源 `d11a708`，健康检查持续 200 |
+| CloudBase 免费备用环境 | IN PROGRESS | 已创建 `loveos-staging`（`loveos-staging-d4gchuaw70bdc5234`）；0 元、6 个月、3000 资源点，且页面明确不支持加购资源包和开启按量付费；当前 `UNAVAILABLE`，尚未部署云托管 |
 | 生产库复用防线 | PASS | 只读门拒绝 production Origin；hosted readiness 确认数据库为 PostgreSQL，未使用生产 API Origin |
 
 ## 待执行验收
@@ -41,4 +42,6 @@
 
 2026-08-29 已定位 Windows 微信开发者工具把 IDE HTTP 服务与自动化 WebSocket 绑定到同一端口、不同回环地址的问题；改用未被 HTTP 服务抢占的回环地址后，系统信息读取与模拟器清缓存均通过。随后使用安全注入的 staging 邀请码重跑，开发者工具稳定返回 `MINIPROGRAM_DOMAIN_NOT_ALLOWED`，请求未到达 Render。当前应用交互不能签署通过：需先在 AppID `wx08cb090781c3e679` 的微信公众平台配置中确认 staging HTTPS Origin 位于 `request` 合法域名，并同步核对 socket、uploadFile 与 downloadFile 域名，再重新编译/清缓存验收。真实微信 code2Session、OpenID 绑定和微信真机门禁继续保持未通过状态。
 
-2026-08-30 的公众平台截图确认 request、socket、uploadFile、downloadFile 列表均包含 Render staging 主机，运行时 `getAccountInfoSync` 也确认 AppID 为 `wx08cb090781c3e679`、环境为 develop。清除开发者工具全部缓存并重新获取 AppID 权限后，严格校验仍稳定返回同一域名拒绝，因此已排除未保存、错误运行时 AppID和普通本地缓存。当前推断为 Render 共享域名不满足微信严格域名合规要求；在得到权威平台状态前不把推断写成定论。仓库已准备不改变 API/Neon 数据的 CloudBase 免费 staging 容器入口，尚未创建云资源或部署，Gate 04 状态不变。
+2026-08-30 的公众平台截图确认 request、socket、uploadFile、downloadFile 列表均包含 Render staging 主机，运行时 `getAccountInfoSync` 也确认 AppID 为 `wx08cb090781c3e679`、环境为 develop。清除开发者工具全部缓存并重新获取 AppID 权限后，严格校验仍稳定返回同一域名拒绝，因此已排除未保存、错误运行时 AppID和普通本地缓存。当前推断为 Render 共享域名不满足微信严格域名合规要求；在得到权威平台状态前不把推断写成定论。
+
+2026-09-02 已创建 CloudBase 免费体验环境 `loveos-staging`（环境 ID：`loveos-staging-d4gchuaw70bdc5234`）。购买页确认费用为 0 元、试用期 6 个月、3000 资源点，并明确不支持加购资源包和开启按量付费。环境列表当前显示 `UNAVAILABLE`；依据 CloudBase 官方错误说明，这可能是资源初始化尚未完成或环境异常。现阶段只等待初始化并保留免费边界，尚未部署云托管、切换小程序 Origin 或产生新的 hosted/真机通过证据，Gate 04 状态不变。
