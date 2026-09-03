@@ -14,7 +14,6 @@ from test_api import admin_headers, app
 
 import models
 import schemas
-from api.routes import orders as orders_route
 from database import Base, SessionLocal, engine
 from services import dish_service, order_service, review_service, stats_service
 
@@ -101,7 +100,12 @@ def test_review_service_preserves_validation_integrity_and_reward_order(monkeypa
             "完成一次五星评价",
             order.id,
         )
-        task.assert_called_once_with(db, order.customer_id, "REVIEW")
+        task.assert_called_once_with(
+            db,
+            order.customer_id,
+            "REVIEW",
+            event_date=review_service._review_business_date(review.created_at),
+        )
 
         with pytest.raises(HTTPException) as duplicate:
             review_service.create_review(
@@ -260,7 +264,14 @@ def test_order_service_preserves_pagination_transition_audit_reward_and_rollback
             "完成一次晚餐制作",
             completed.id,
         )
-        task.assert_called_once_with(db, customer, "MEAL")
+        task.assert_called_once_with(
+            db,
+            customer,
+            "MEAL",
+            event_date=order_service._status_business_date(
+                completed.status_updated_at,
+            ),
+        )
         order_service.update_order_status(db, order.id, "已完成")
         assert reward.call_count == 1
         assert task.call_count == 1
@@ -294,11 +305,11 @@ def test_review_router_keeps_notification_and_broadcast_once(monkeypatch):
     notification = Mock()
     broadcast = AsyncMock()
     monkeypatch.setattr(
-        orders_route.notification_service,
-        "create_notification",
+        review_service.notification_service,
+        "create_notification_once",
         notification,
     )
-    monkeypatch.setattr(orders_route.order_event_hub, "broadcast", broadcast)
+    monkeypatch.setattr(review_service.order_event_hub, "broadcast", broadcast)
     with TestClient(app) as client:
         response = client.post(
             f"/api/orders/{order_id}/review",
@@ -330,16 +341,16 @@ def test_order_status_router_keeps_notification_memory_and_broadcast(monkeypatch
     memory = Mock()
     broadcast = AsyncMock()
     monkeypatch.setattr(
-        orders_route.notification_service,
+        order_service.notification_service,
         "create_notification",
         notification,
     )
     monkeypatch.setattr(
-        orders_route.couple_profile_service,
+        order_service.couple_profile_service,
         "record_first_memory",
         memory,
     )
-    monkeypatch.setattr(orders_route.order_event_hub, "broadcast", broadcast)
+    monkeypatch.setattr(order_service.order_event_hub, "broadcast", broadcast)
 
     with TestClient(app) as client:
         admin = admin_headers(client)

@@ -154,9 +154,6 @@ export function connectGameRoom({
       try {
         const message = JSON.parse(event.data);
         const messageType = String(message.type || "").toLowerCase();
-        if (messageType === "session" && message.data?.room_session_token) {
-          Taro.setStorageSync(`gf_room_session_${roomCode}`, message.data);
-        }
         onEvent?.({ ...message, type: messageType });
         if (
           messageType === "state"

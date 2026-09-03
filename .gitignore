@@ -17,3 +17,4 @@ miniprogram/dist/
 miniprogram/.test-tmp/
 miniprogram/.swc/
 miniprogram/project.private.config.json
+artifacts/release-00/

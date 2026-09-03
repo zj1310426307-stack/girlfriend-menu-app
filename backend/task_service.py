@@ -1,7 +1,7 @@
 """Daily couple-task generation and idempotent reward settlement."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
@@ -25,11 +25,19 @@ def china_now() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=8)
 
 
-def ensure_today_tasks(db: Session, customer_id: str) -> list[models.DailyTask]:
-    today = china_now().date()
+def ensure_today_tasks(
+    db: Session,
+    customer_id: str,
+    event_date: date | None = None,
+) -> list[models.DailyTask]:
+    """Ensure the standard task set for today or an authoritative event date."""
+    task_date = event_date or china_now().date()
     existing = (
         db.query(models.DailyTask)
-        .filter(models.DailyTask.customer_id == customer_id, models.DailyTask.date == today)
+        .filter(
+            models.DailyTask.customer_id == customer_id,
+            models.DailyTask.date == task_date,
+        )
         .order_by(models.DailyTask.id)
         .all()
     )
@@ -41,7 +49,7 @@ def ensure_today_tasks(db: Session, customer_id: str) -> list[models.DailyTask]:
             type=template["type"],
             reward_score=template["reward"],
             status="pending",
-            date=today,
+            date=task_date,
         )
         for template in TASK_TEMPLATES
         if template["type"] not in existing_types
@@ -54,7 +62,10 @@ def ensure_today_tasks(db: Session, customer_id: str) -> list[models.DailyTask]:
             db.rollback()
     return (
         db.query(models.DailyTask)
-        .filter(models.DailyTask.customer_id == customer_id, models.DailyTask.date == today)
+        .filter(
+            models.DailyTask.customer_id == customer_id,
+            models.DailyTask.date == task_date,
+        )
         .order_by(models.DailyTask.id)
         .all()
     )
@@ -78,11 +89,16 @@ def _settle_task(db: Session, task: models.DailyTask) -> models.DailyTask:
     return task
 
 
-def complete_task_type(db: Session, customer_id: str | None, task_type: str):
-    """Settle an automatic task after its authoritative backend event."""
+def complete_task_type(
+    db: Session,
+    customer_id: str | None,
+    task_type: str,
+    event_date: date | None = None,
+):
+    """Settle an automatic task on the date of its authoritative backend event."""
     if not customer_id:
         return None
-    tasks = ensure_today_tasks(db, customer_id)
+    tasks = ensure_today_tasks(db, customer_id, event_date)
     task = next((item for item in tasks if item.type == task_type), None)
     return _settle_task(db, task) if task else None
 

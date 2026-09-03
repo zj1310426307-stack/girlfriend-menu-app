@@ -6,7 +6,7 @@
 
 ## 当前版本与线上状态
 
-- 当前源码版本：`2.11.2`（Phase 3.0 基线与游戏体验候选版）
+- 当前源码版本：`3.0.0`（LoveOS V3 渐进式重构功能分支）
 - 当前微信体验版：`2.11.2`（2026-08-17 构建并上传）
 - AppID：`wx08cb090781c3e679`
 - 后端：FastAPI，部署于 Render
@@ -147,7 +147,7 @@ python -m venv .venv
 .venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 copy .env.example .env
 .venv\Scripts\python.exe -m alembic -c alembic.ini upgrade head
-.venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8000 --reload
+.venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8000 --reload --no-access-log
 ```
 
 本地环境变量示例在 `backend/.env.example`。未配置 `DATABASE_URL` 时会使用 `backend/girlfriend_menu.db`。
@@ -160,10 +160,12 @@ http://127.0.0.1:8000/api/ready
 http://127.0.0.1:8000/docs
 ```
 
+`/api/ready` 保持 HTTP 200，通过顶层 `status` 表示是否可发布；`authentication.missing` 只列出缺失或不可用的配置项名称，不包含密码、邀请码或散列值。
+
 如果 Windows 对 8000 端口报 `WinError 10013`，可改用 8010：
 
 ```bat
-.venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8010 --reload
+.venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8010 --reload --no-access-log
 ```
 
 小程序当前固定请求生产 API。若要联调本机后端，需要把 `miniprogram/src/api/index.js` 中的 API 地址临时改为手机或开发者工具能够访问的 HTTPS 地址；真机不能直接访问电脑的 `localhost`。
@@ -257,6 +259,8 @@ V2.0 使用 Alembic 管理数据库版本。部署启动会先执行迁移，再
 
 V2.7 架构、API、Redis 降级边界和部署说明见 `docs/V27_STABILITY_COUPLE_PROFILE.md`。
 
+LoveOS V3 微信身份、数据库管理账号、首屏生产化、部署/回滚和发布门禁见 [V3 生产化发布包](docs/release-v3/README.md)。
+
 ## 生产部署
 
 ### Render + Neon PostgreSQL
@@ -265,8 +269,10 @@ Render 只部署 `backend/`，构建和启动命令已经写在 `render.yaml`：
 
 ```text
 pip install -r requirements.txt
-alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port $PORT
+python serve.py
 ```
+
+三个 Blueprint 都保持 Render 免费计划。生产 `autoDeploy=false`，只能在备份、隔离恢复和候选提交门禁通过后手动发布。`serve.py` 会先检查数据库版本与参考数据；只在首次部署或发现漂移时执行迁移与幂等修复，然后在同一进程启动 Uvicorn。
 
 生产环境必须配置：
 
@@ -275,18 +281,23 @@ alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port $PORT
 | `DATABASE_URL` | Neon PostgreSQL 连接串 |
 | `CUSTOMER_INVITE_CODE` | 普通端新建设备会话与找回旧身份使用的邀请码；必须与管理凭据分离 |
 | `CUSTOMER_SESSION_TTL_DAYS` | 设备会话有效期，默认 90 天，可配置 1～365 天 |
-| `ADMIN_PASSWORD` | 小程序管理端密码 |
-| `ADMIN_INVITE_CODE` | 仅管理端登录使用的邀请码 |
-| `ADMIN_SECRET` | 生成管理令牌的长随机密钥 |
+| `ADMIN_PASSWORD` | 仅兼容迁移时显式配置；新部署优先使用下方散列 |
+| `ADMIN_PASSWORD_HASH` | 推荐：由 `python scripts/hash_admin_password.py` 生成的 scrypt 启动散列 |
+| `ADMIN_INVITE_CODE` | 显式生成的管理邀请码，必须与客户邀请码不同 |
+| `ADMIN_SECRET` | 用 `secrets.token_urlsafe(48)` 显式生成的独立令牌签名密钥 |
+| `WECHAT_LOGIN_ENABLED` | 微信身份恢复发布开关；凭据就绪并完成体验版验收后设为 `true` |
+| `WECHAT_APP_ID` | 微信小程序 AppID |
+| `WECHAT_APP_SECRET` | 仅后端保存的 AppSecret，严禁写入小程序或提交到 Git |
 
 可选变量：
 
 | 变量 | 用途 |
 | --- | --- |
 | `FRONTEND_URL` | 未来获准浏览器客户端的 CORS 域名；微信小程序无需配置 |
-| `UPLOAD_PROVIDER` | 当前仅支持 `local` |
+| `UPLOAD_PROVIDER` | `database`（私人部署默认）或 `s3`；生产环境不可使用 `local` |
+| `REDIS_URL` | 可选的跨进程缓存、限流与热状态协调；单实例可安全降级 |
 
-不要把生产 `.env`、Neon 密码或管理密码提交到 GitHub 或放进项目压缩包。
+`backend/.env.example` 中的所有秘密字段故意留空。管理密码散列由 `python scripts/hash_admin_password.py` 在本机生成；`ADMIN_SECRET`、管理邀请码和客户邀请码需分别使用 Python `secrets` 显式生成。不要把生产 `.env`、Neon 密码或管理密码提交到 GitHub 或放进项目压缩包。
 
 ### 微信公众平台服务器域名
 
@@ -448,7 +459,17 @@ miniprogram/.env.staging
 miniprogram/.env.production
 ```
 
-每套至少配置 `TARO_APP_ENV_NAME` 和 `TARO_APP_API_ORIGIN`。WebSocket 地址由 API Origin 自动派生；生产地址必须为 HTTPS，缺失时构建直接失败。生产域名可以通过部署平台或 CI 环境变量覆盖，不要在业务源码重复硬编码。
+每套至少配置 `TARO_APP_ENV_NAME` 和 `TARO_APP_API_ORIGIN`。WebSocket 地址由 API Origin 自动派生；staging 和生产地址都必须为 HTTPS，缺失时构建直接失败。仓库中的 `.env.staging` 故意不预填地址，只有独立 staging 服务创建并通过隔离核对后才能写入；staging 明确禁止复用生产 API。使用 `npm run build:weapp:staging` 构建真机验收包，生产域名可以通过部署平台或 CI 环境变量覆盖，不要在业务源码重复硬编码。
+
+独立服务部署后，先在仓库根目录执行只读门；它只访问 health/ready，并拒绝生产 Origin、非 HTTPS、重定向、私网/本机目标和非持久存储：
+
+```powershell
+$env:STAGING_API_ORIGIN="https://<独立-staging-host>"
+backend\.venv\Scripts\python.exe scripts\check_staging_readiness.py
+backend\.venv\Scripts\python.exe scripts\check_staging_readiness.py --require-wechat
+```
+
+第一条允许微信处于 `optional-disabled`，用于先验收基础设施；配置真实 AppID/AppSecret 并启用微信登录后，第二条必须通过。脚本通过不替代微信开发者工具、体验版或真机验收。
 
 后端正式环境必须配置：
 
@@ -456,9 +477,12 @@ miniprogram/.env.production
 APP_ENV=production
 DATABASE_URL
 CUSTOMER_INVITE_CODE
-ADMIN_PASSWORD
+ADMIN_PASSWORD_HASH
 ADMIN_INVITE_CODE
 ADMIN_SECRET
+WECHAT_LOGIN_ENABLED=true
+WECHAT_APP_ID
+WECHAT_APP_SECRET
 ALLOW_LEGACY_CUSTOMER_HEADER=false
 CUSTOMER_SESSION_TTL_DAYS=90
 UPLOAD_PROVIDER=database
@@ -472,7 +496,7 @@ S3_PUBLIC_BASE_URL
 
 私人部署默认使用 `UPLOAD_PROVIDER=database`：后端会先校验并压缩图片，再将少量菜品图片保存到现有 PostgreSQL，通过 `/api/images/{id}` 长缓存访问。这样不需要额外的 R2/S3 账号或密钥。若图片规模增大，可把 `UPLOAD_PROVIDER` 改回 `s3` 并配置上面的 S3/R2 环境变量，现有 `image_url` 不受影响。
 
-`REDIS_URL` 可选；PostgreSQL 是权威状态来源。`GAME_ROOM_LEASE_SECONDS` 默认 30 秒，通常无需修改；`GAME_INSTANCE_ID` 可选，Render 会自动使用实例标识或主机名。正式启动命令先执行 `alembic upgrade head`，生产应用进程不再自动建表或运行手写 `ALTER TABLE`。
+`REDIS_URL` 可选；PostgreSQL 是权威状态来源。`GAME_ROOM_LEASE_SECONDS` 默认 30 秒，通常无需修改；`GAME_INSTANCE_ID` 可选，Render 会自动使用实例标识或主机名。正式启动使用 `python serve.py`：它在 Uvicorn 启动前检查 Alembic head，只在需要时迁移；生产应用生命周期本身不自动建表或运行手写 `ALTER TABLE`。
 
 发布前依次执行：
 

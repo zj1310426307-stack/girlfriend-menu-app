@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from api.dependencies import verify_admin_token
 from database import get_db
 import models
-from storage import save_image
+from storage import save_image_variants
 
 
 router = APIRouter()
@@ -55,7 +55,7 @@ async def upload_image(file: UploadFile = File(...)):
         )
 
     try:
-        image_url = save_image(content, extension)
+        image_urls = save_image_variants(content, extension)
     except ValueError as error:
         invalid_image = any(
             marker in str(error) for marker in ("有效图片", "扩展名", "图片内容")
@@ -68,4 +68,4 @@ async def upload_image(file: UploadFile = File(...)):
             ),
             detail=str(error),
         )
-    return {"image_url": image_url}
+    return image_urls

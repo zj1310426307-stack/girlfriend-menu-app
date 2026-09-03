@@ -1,10 +1,14 @@
 const environmentName = process.env.TARO_APP_ENV_NAME || (process.env.NODE_ENV === "development" ? "development" : "production");
 const apiOrigin = (process.env.TARO_APP_API_ORIGIN || "").replace(/\/$/, "");
+const productionApiOrigin = "https://girlfriend-menu-api.onrender.com";
 if (!apiOrigin) {
   throw new Error(`Missing TARO_APP_API_ORIGIN for ${environmentName} build`);
 }
-if (environmentName === "production" && !apiOrigin.startsWith("https://")) {
-  throw new Error("Production TARO_APP_API_ORIGIN must use HTTPS");
+if (["staging", "production"].includes(environmentName) && !apiOrigin.startsWith("https://")) {
+  throw new Error(`${environmentName} TARO_APP_API_ORIGIN must use HTTPS`);
+}
+if (environmentName === "staging" && apiOrigin === productionApiOrigin) {
+  throw new Error("Staging TARO_APP_API_ORIGIN must not use the production API");
 }
 
 const config = {
@@ -19,10 +23,10 @@ const config = {
   sourceRoot: "src",
   outputRoot: "dist",
   plugins: [],
-  // Reuse Taro's supported Webpack filesystem cache for repeat local builds.
-  // Taro tracks this config as a build dependency and invalidates stale output.
+  // Keep production artifacts deterministic across main-package/subpackage graph changes.
+  // Taro 4.2 filesystem cache can retain obsolete numeric module references here.
   cache: {
-    enable: true
+    enable: false
   },
   defineConstants: {
     __APP_ENV_NAME__: JSON.stringify(environmentName),

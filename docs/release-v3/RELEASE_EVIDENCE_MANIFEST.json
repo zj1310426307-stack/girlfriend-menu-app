@@ -1,0 +1,70 @@
+{
+  "release": "LOVEOS-RELEASE-00",
+  "observed_at": "2026-08-28",
+  "candidate": {
+    "branch": "feature/continuous-optimization-03",
+    "code_sha": "d11a708a6cf1fc9b807e734ee111670ce674625d",
+    "evidence_revision": "git commit containing this manifest",
+    "base_branch": "main",
+    "base_sha": "641c0d612d2c5b77e731e43271e0b6462fdb52b9",
+    "pull_request": "https://github.com/zj1310426307-stack/girlfriend-menu-app/pull/21"
+  },
+  "gates": {
+    "gate_00_candidate_freeze": "pass",
+    "gate_01_local_validation": "pass",
+    "gate_02_pr_ci": "pass_for_d11a708",
+    "gate_03_staging_infrastructure": "pass",
+    "gate_04_staging_and_real_device": "in_progress",
+    "gate_05_production_backup": "not_started",
+    "gate_06_merge": "not_started",
+    "gate_07_production_deploy": "not_started",
+    "gate_08_production_smoke": "not_started",
+    "gate_09_wechat_release": "not_started",
+    "gate_10_tag_release": "not_started"
+  },
+  "local_validation": {
+    "backend_tests": "275 passed, 11 warnings",
+    "ruff": "pass",
+    "import_contracts": "5 kept, 0 broken",
+    "schema_export": "current",
+    "openapi_export": "current",
+    "secret_scan": "514 files passed",
+    "release_config": "pass",
+    "sqlite_migration_head": "20260817_14",
+    "miniprogram_build": "pass",
+    "miniprogram_ci": "pass",
+    "dist_integrity": "71 JavaScript files, 140 modules",
+    "main_package_bytes": 470867,
+    "total_package_bytes": 890679
+  },
+  "remote_checks": {
+    "backend": "pass",
+    "miniprogram": "pass",
+    "release_safety": "pass",
+    "vercel_preview_comments": "pass",
+    "vercel": "non_blocking_failure"
+  },
+  "staging_audit": {
+    "neon_plan": "free",
+    "neon_projects": 2,
+    "isolated_staging_project": "long-river-71712327",
+    "isolated_staging_database": true,
+    "neon_region": "aws-ap-southeast-1",
+    "postgres_version": 18,
+    "staging_origin": "https://girlfriend-menu-api-staging.onrender.com",
+    "staging_origin_configured": true,
+    "render_service": "srv-da8insfqj5pc73ekd270",
+    "deployed_commit": "d11a708a6cf1fc9b807e734ee111670ce674625d",
+    "hosted_readiness": "pass",
+    "authenticated_business_acceptance": "pass",
+    "credential_rotation_after_diagnostic_exposure": "pass",
+    "business_acceptance_checks": 8,
+    "remaining_gate": "Real WeChat credentials, OpenID binding, and physical-device acceptance."
+  },
+  "artifacts": [
+    "artifacts/release-00/gate00-baseline.json",
+    "artifacts/release-00/gate01-local.json",
+    "artifacts/release-00/gate03-staging-audit.json",
+    "artifacts/release-00/gate04-staging-acceptance.json"
+  ]
+}

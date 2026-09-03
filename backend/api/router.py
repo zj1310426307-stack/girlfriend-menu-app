@@ -9,6 +9,7 @@ from fastapi import APIRouter
 from api.routes import (
     admin,
     auth,
+    bootstrap,
     couple,
     dishes,
     games,
@@ -24,6 +25,7 @@ from api.routes import (
 router = APIRouter()
 router.include_router(system.router)
 router.include_router(auth.router)
+router.include_router(bootstrap.router)
 router.include_router(users.router)
 router.include_router(dishes.router)
 router.include_router(notifications.router)

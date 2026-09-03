@@ -6,15 +6,17 @@ services:
     region: singapore
     rootDir: backend
     buildCommand: pip install -r requirements.txt
-    startCommand: alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port $PORT
+    startCommand: python serve.py
     healthCheckPath: /api/health
-    autoDeploy: true
+    autoDeploy: false
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.11
       - key: DATABASE_URL
         sync: false
       - key: ADMIN_PASSWORD
+        sync: false
+      - key: ADMIN_PASSWORD_HASH
         sync: false
       - key: ADMIN_INVITE_CODE
         sync: false
@@ -28,6 +30,12 @@ services:
         value: production
       - key: ALLOW_LEGACY_CUSTOMER_HEADER
         value: false
+      - key: WECHAT_LOGIN_ENABLED
+        value: false
+      - key: WECHAT_APP_ID
+        sync: false
+      - key: WECHAT_APP_SECRET
+        sync: false
       - key: UPLOAD_PROVIDER
         value: database
       - key: S3_ENDPOINT

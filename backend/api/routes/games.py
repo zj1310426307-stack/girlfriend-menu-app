@@ -26,7 +26,7 @@ from api.dependencies import (
 from core.cache import state_cache
 from database import get_db
 from game_runtime import game_room_manager
-from services import game_persistence_service
+from services import game_compatibility_service, game_persistence_service
 
 
 router = APIRouter()
@@ -79,33 +79,11 @@ async def reconnect_game(
     """Resume a room from a hashed token and its authoritative durable state."""
     _, user, room = game_recovery_service.verify_token(db, data.reconnect_token)
     state_cache.touch_presence(user.user_code)
-    if room.game_type == "aeroplane":
-        payload = flight_service.get_state(db, room.room_code, user.user_code)
-    elif room.game_type in {"landlord", "animal", "chinese_chess"}:
-        payload = animal_service.get_any_state(db, room.room_code, user.user_code)
-    elif room.game_type in {"dice", "gomoku"}:
-        await game_room_manager.ensure_room(
-            room.room_code,
-            room.game_type,
-            room.max_players,
-        )
-        await game_room_manager.restore_players(
-            room.room_code,
-            game_persistence_service.list_game_players(db, room.room_code),
-        )
-        payload = await game_room_manager.recovery_state(
-            room.room_code,
-            user.user_code,
-        )
-        if payload is None:
-            raise HTTPException(status_code=404, detail="游戏状态暂时无法恢复")
-    else:
-        payload = {
-            "room_code": room.room_code,
-            "game_type": room.game_type,
-            "room_status": room.status,
-            "reconnect_required": True,
-        }
+    payload = await game_compatibility_service.recover_game_state(
+        db,
+        room,
+        user.user_code,
+    )
     return {"room_code": room.room_code, "game_type": room.game_type, "state": payload}
 
 

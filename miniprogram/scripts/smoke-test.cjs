@@ -15,10 +15,16 @@ const SCREENSHOT_DIR =
     ? null
     : process.env.DICE_SCREENSHOT_DIR || process.env.TEMP;
 const DEVTOOLS_HTTP_PORT = Number(process.env.WECHAT_DEVTOOLS_PORT || 9330);
-const DEVTOOLS_CLI_PORT = Number(process.env.WECHAT_DEVTOOLS_CLI_PORT || 9421);
+const DEVTOOLS_HOSTS = ["127.0.0.2", "127.0.0.1"];
 const DICE_ONLY = process.env.DICE_ONLY === "1" || process.argv.includes("--dice-only");
 const KEEP_OPEN = process.argv.includes("--keep-open");
 const STOP_BEFORE_OPEN = process.argv.includes("--stop-before-open");
+// Hosted smoke credentials are injected only for this process. Keeping the
+// invite out of source prevents a rotated staging secret from becoming stale
+// or leaking into the repository and compiled mini-program.
+const CUSTOMER_INVITE_CODE = String(
+  process.env.WECHAT_SMOKE_CUSTOMER_INVITE_CODE || ""
+).trim();
 
 /**
  * Throw a readable error when an automated interaction does not meet a condition.
@@ -34,6 +40,27 @@ function withTimeout(promise, timeout, message) {
     promise,
     new Promise((_, reject) => setTimeout(() => reject(new Error(message)), timeout))
   ]);
+}
+
+/**
+ * WeChat DevTools can briefly stop answering automation calls while its
+ * simulator recompiles. Retry only idempotent bootstrap operations so a
+ * transient protocol timeout does not look like an application failure.
+ */
+async function retryBootstrapOperation(operation, failureMessage, attempts = 3) {
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      if (attempt === attempts) break;
+      console.log(`[smoke] 开发者工具暂未响应，重试启动步骤 ${attempt}/${attempts - 1}`);
+      await new Promise((resolve) => setTimeout(resolve, 1200 * attempt));
+    }
+  }
+  const detail = String(lastError?.message || "unknown").replace(/https?:\/\/\S+/g, "[redacted-url]");
+  throw new Error(`${failureMessage}：${detail}`);
 }
 
 /**
@@ -85,36 +112,57 @@ async function waitForElementToDisappear(page, selector, timeout = 8000) {
   return !element;
 }
 
+/** Reuse one responsive automation socket or launch a fresh project instance. */
+async function connectOrLaunch() {
+  for (const host of DEVTOOLS_HOSTS) {
+    try {
+      const miniProgram = await automator.connect({
+        wsEndpoint: `ws://${host}:${DEVTOOLS_HTTP_PORT}`
+      });
+      await withTimeout(
+        miniProgram.callWxMethod("getSystemInfoSync"),
+        8000,
+        "现有开发者工具自动化连接没有响应"
+      );
+      return { miniProgram, ownsDevtools: false };
+    } catch (_) {
+      // Recent Windows DevTools builds may bind the IDE HTTP service to
+      // 127.0.0.1 and the automator socket to 0.0.0.0 on the same port.
+      // Trying 127.0.0.2 first avoids routing the WebSocket to the IDE server.
+    }
+  }
+
+  const miniProgram = await automator.launch({
+    cliPath: CLI_PATH,
+    projectPath: PROJECT_PATH,
+    port: DEVTOOLS_HTTP_PORT,
+    trustProject: true,
+    timeout: 120000
+  });
+  return { miniProgram, ownsDevtools: true };
+}
+
 /**
  * Verify invite entry, live dishes and the native WebGL dice game.
  * The test uses the installed WeChat DevTools and the deployed backend API.
  */
 async function run() {
+  assert(
+    CUSTOMER_INVITE_CODE && CUSTOMER_INVITE_CODE.length <= 200,
+    "缺少安全注入的 WECHAT_SMOKE_CUSTOMER_INVITE_CODE"
+  );
   console.log("[smoke] 正在连接微信开发者工具");
-  let miniProgram;
-  let ownsDevtools = false;
-  // Always ask DevTools to open this exact project. Connecting to a leftover
-  // automation port can succeed even when no mini-program project is active,
-  // which makes currentPage/reLaunch hang without a useful error.
-  try {
-    miniProgram = await automator.launch({
-      cliPath: CLI_PATH,
-      projectPath: PROJECT_PATH,
-      args: ["--port", String(DEVTOOLS_CLI_PORT)],
-      port: DEVTOOLS_HTTP_PORT,
-      trustProject: true,
-      timeout: 120000
-    });
-    ownsDevtools = true;
-  } catch (error) {
-    if (!/port .* in use/i.test(error?.message || "")) throw error;
-    console.log(`[smoke] 端口 ${DEVTOOLS_HTTP_PORT} 已有开发者工具，连接现有项目`);
-    miniProgram = await automator.connect({
-      wsEndpoint: `ws://127.0.0.1:${DEVTOOLS_HTTP_PORT}`
-    });
-  }
+  const { miniProgram, ownsDevtools } = await connectOrLaunch();
+  let networkPolicyError = null;
 
   miniProgram.on("console", (entry) => {
+    const serialized = JSON.stringify(entry || {});
+    if (serialized.includes("[network]")) {
+      console.log("[devtools network]", serialized);
+    }
+    if (serialized.includes("MINIPROGRAM_DOMAIN_NOT_ALLOWED")) {
+      networkPolicyError = "微信小程序 request 合法域名未允许 staging API";
+    }
     if (entry?.type === "error" || entry?.level === "error") {
       console.error("[devtools console]", entry);
     }
@@ -124,15 +172,16 @@ async function run() {
   });
 
   try {
+    // A freshly opened IDE may accept the automation socket before the
+    // mini-program runtime can answer wx method calls.
+    if (ownsDevtools) await new Promise((resolve) => setTimeout(resolve, 8000));
     console.log("[smoke] 清理缓存并验证邀请码");
-    await withTimeout(
-      miniProgram.callWxMethod("clearStorageSync"),
-      8000,
+    await retryBootstrapOperation(
+      () => miniProgram.callWxMethod("clearStorageSync"),
       "当前开发者工具实例没有响应清缓存请求，请确认已打开本项目"
     );
-    let page = await withTimeout(
-      miniProgram.reLaunch("/pages/index/index"),
-      15000,
+    let page = await retryBootstrapOperation(
+      () => miniProgram.reLaunch("/pages/index/index"),
       "当前开发者工具实例没有打开本项目，无法重新加载首页"
     );
     await page.waitFor(1500);
@@ -145,7 +194,11 @@ async function run() {
     assert(inviteTitle && inviteInput && inviteButton, "冷启动后未渲染邀请码表单");
 
     const inviteText = await inviteTitle.text();
-    await inviteInput.input("love2026");
+    await inviteInput.input(CUSTOMER_INVITE_CODE);
+    // Taro commits controlled-input state asynchronously. Give the input event
+    // one render turn before tapping so submitInvite never reads the previous
+    // empty value from a fast automation sequence.
+    await page.waitFor(300);
     await inviteButton.tap();
 
     // Poll in short intervals instead of one long wait. This keeps the
@@ -155,9 +208,11 @@ async function run() {
     } else {
       const menuExpiresAt = Date.now() + 70000;
       while (Date.now() < menuExpiresAt) {
+        const readyHero = await page.$(".v2-home-title");
         const readyCards = await page.$$(".shared-dish-card");
         const readyError = await page.$(".state-box.error");
-        if (readyCards.length > 0 || readyError) break;
+        const readyInviteError = await page.$(".invite-error");
+        if (readyHero || readyCards.length > 0 || readyError || readyInviteError) break;
         await page.waitFor(800);
       }
     }
@@ -166,7 +221,10 @@ async function run() {
     const heroTitle = await page.$(".v2-home-title");
     const dishCards = await page.$$(".shared-dish-card");
     const menuError = await page.$(".state-box.error");
+    const inviteError = await page.$(".invite-error");
 
+    assert(!networkPolicyError, networkPolicyError);
+    assert(!inviteError, `邀请码登录失败：${inviteError ? await inviteError.text() : "未知错误"}`);
     assert(heroTitle, "邀请码通过后未渲染菜单首页");
     if (!DICE_ONLY) {
       assert(
@@ -371,12 +429,12 @@ async function run() {
   } finally {
     if (KEEP_OPEN || !ownsDevtools) {
       miniProgram.disconnect();
-      return;
+    } else {
+      await Promise.race([
+        miniProgram.close(),
+        new Promise((resolve) => setTimeout(resolve, 8000))
+      ]);
     }
-    await Promise.race([
-      miniProgram.close(),
-      new Promise((resolve) => setTimeout(resolve, 8000))
-    ]);
   }
 }
 

@@ -12,6 +12,7 @@ export default function DishCard({
   dish,
   compact = false,
   favorite = false,
+  favoriteBusy = false,
   onOpen,
   onAdd,
   onToggleFavorite
@@ -28,7 +29,7 @@ export default function DishCard({
       {dish.image_url && !imageFailed ? (
         <Image
           className="shared-dish-image"
-          src={resolveImageUrl(dish.image_url)}
+          src={resolveImageUrl(dish.image_url, { maxWidth: compact ? 640 : 480 })}
           mode="aspectFill"
           lazyLoad
           onError={() => setImageFailed(true)}
@@ -45,10 +46,13 @@ export default function DishCard({
           </View>
           {onToggleFavorite && (
             <View
-              className={`shared-favorite-button ${favorite ? "is-favorite" : ""}`}
-              onClick={(event) => stopAndRun(event, onToggleFavorite)}
+              className={`shared-favorite-button ${favorite ? "is-favorite" : ""} ${favoriteBusy ? "is-busy" : ""}`}
+              onClick={(event) => {
+                event?.stopPropagation?.();
+                if (!favoriteBusy) onToggleFavorite(dish);
+              }}
             >
-              <Text>{favorite ? "♥" : "♡"}</Text>
+              <Text>{favoriteBusy ? "…" : favorite ? "♥" : "♡"}</Text>
             </View>
           )}
         </View>

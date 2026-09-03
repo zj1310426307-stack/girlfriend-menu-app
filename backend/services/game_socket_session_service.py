@@ -15,6 +15,7 @@ from fastapi import HTTPException
 
 import customer_service
 from core.game_room_lease import acquire_room_lease, release_room_lease
+from core.logging_privacy import opaque_log_reference
 from database import SessionLocal
 from game_runtime import game_room_manager
 from services import game_persistence_service
@@ -241,5 +242,9 @@ async def release_lease_if_idle(setup: RoomSetup) -> None:
     try:
         with SessionLocal() as db:
             release_room_lease(db, setup.room_code)
-    except Exception:
-        logger.exception("failed to release room lease room=%s", setup.room_code)
+    except Exception as error:
+        logger.error(
+            "room_lease_release_failed room_ref=%s error_type=%s",
+            opaque_log_reference("room", setup.room_code),
+            type(error).__name__,
+        )

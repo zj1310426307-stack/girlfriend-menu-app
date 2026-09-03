@@ -1,0 +1,11 @@
+.env
+.env.*
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.pytest-tmp/
+.test-tmp/
+tests/
+girlfriend_menu.db
+uploads/

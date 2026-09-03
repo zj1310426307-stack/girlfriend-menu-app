@@ -132,6 +132,20 @@ def _validated_image(content: bytes, requested_extension: str) -> tuple[bytes, s
         raise ValueError("文件不是有效图片") from error
 
 
+def _webp_thumbnail(content: bytes, max_edge: int = 960) -> bytes:
+    """Create a bounded WebP derivative while preserving the validated original."""
+    try:
+        with Image.open(BytesIO(content)) as source:
+            image = ImageOps.exif_transpose(source)
+            image.thumbnail((max_edge, max_edge), Image.Resampling.LANCZOS)
+            mode = "RGBA" if "A" in image.getbands() else "RGB"
+            output = BytesIO()
+            image.convert(mode).save(output, "WEBP", quality=82, method=6)
+            return output.getvalue()
+    except (UnidentifiedImageError, OSError, Image.DecompressionBombError) as error:
+        raise ValueError("文件不是有效图片") from error
+
+
 def get_storage_provider() -> StorageProvider:
     """Select a provider from the runtime-observable upload configuration."""
     settings = load_settings()
@@ -183,5 +197,17 @@ def storage_readiness() -> dict[str, object]:
 
 
 def save_image(content: bytes, extension: str) -> str:
+    """Preserve the original upload contract for compatibility callers."""
     normalized, actual_extension, content_type = _validated_image(content, extension)
     return get_storage_provider().save(normalized, actual_extension, content_type)
+
+
+def save_image_variants(content: bytes, extension: str) -> dict[str, str]:
+    """Store the compatible original plus a small WebP derivative for dish cards."""
+    normalized, actual_extension, content_type = _validated_image(content, extension)
+    thumbnail = _webp_thumbnail(normalized)
+    provider = get_storage_provider()
+    return {
+        "image_url": provider.save(normalized, actual_extension, content_type),
+        "thumbnail_url": provider.save(thumbnail, ".webp", CONTENT_TYPE[".webp"]),
+    }

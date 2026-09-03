@@ -103,7 +103,7 @@ export default function AdminDishesPage() {
       }
       setUploading(true);
       const uploaded = await uploadAdminImage(filePath, token);
-      updateField("image_url", uploaded.image_url);
+      updateField("image_url", uploaded.thumbnail_url || uploaded.image_url);
       Taro.showToast({ title: "图片已上传", icon: "success" });
     } catch (requestError) {
       if (/cancel/i.test(requestError?.errMsg || "")) return;

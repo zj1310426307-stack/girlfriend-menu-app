@@ -3,7 +3,6 @@
 from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.orm import Session
 
-import crud
 import schemas
 from api.dependencies import get_customer_id, verify_admin_token
 from database import get_db
@@ -96,5 +95,4 @@ def favorite_ranking(
     db: Session = Depends(get_db),
 ):
     """Return the current customer's dish ranking without changing its formula."""
-    # Cross-domain ranking stays in the compatibility facade until the Stats step.
-    return crud.get_favorite_ranking(db, customer_id)
+    return favorite_service.rank_favorite_dishes(db, customer_id)

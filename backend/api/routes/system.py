@@ -5,7 +5,9 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from core.cache import state_cache
+from core.settings import load_settings
 from database import engine, get_db
+from services.readiness_service import authentication_readiness
 from storage import storage_readiness
 
 
@@ -26,7 +28,7 @@ def health_check():
 
 @router.get("/api/ready", include_in_schema=False)
 def readiness_check(db: Session = Depends(get_db)):
-    """Verify database reachability and expose the existing release blockers."""
+    """Verify infrastructure and authentication release readiness."""
     try:
         db.execute(text("SELECT 1"))
     except Exception as error:
@@ -35,9 +37,18 @@ def readiness_check(db: Session = Depends(get_db)):
             detail="数据库暂时不可用",
         ) from error
     storage = storage_readiness()
+    wechat = load_settings().wechat_login_readiness()
+    authentication = authentication_readiness(db)
+    release_blocked = (
+        storage["status"] != "ready"
+        or wechat["status"] == "release-blocked"
+        or authentication["status"] == "release-blocked"
+    )
     return {
-        "status": "ready" if storage["status"] == "ready" else "release-blocked",
+        "status": "release-blocked" if release_blocked else "ready",
         "database": engine.dialect.name,
         "redis": "ready" if state_cache.enabled else "optional-disabled",
         "storage": storage,
+        "wechat_login": wechat,
+        "authentication": authentication,
     }

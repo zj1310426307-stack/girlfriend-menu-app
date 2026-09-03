@@ -6,10 +6,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-import couple_profile_service
-import notification_service
 import schemas
-import user_service
 from api.dependencies import (
     allow_legacy_customer_header,
     get_customer_id,
@@ -17,7 +14,6 @@ from api.dependencies import (
     verify_admin_token,
 )
 from database import get_db
-from realtime_events import order_event_hub
 from services import order_service, review_service
 
 
@@ -35,38 +31,16 @@ async def submit_order(
     customer_id: str | None = Depends(get_optional_customer_id),
     db: Session = Depends(get_db),
 ):
-    """Create an owned order and preserve notifications, memory and broadcast side effects."""
+    """Authenticate an owned order submission and delegate product orchestration."""
     if not customer_id and allow_legacy_customer_header() and data.customer_id:
         customer_id = data.customer_id.strip()[:100]
         logger.warning("deprecated_order_body_customer_id")
     if not customer_id:
         raise HTTPException(status_code=401, detail="请先用邀请码验证设备")
-    order = order_service.create_order(
+    return await order_service.submit_order(
         db,
         data.model_copy(update={"customer_id": customer_id}),
     )
-    if order.customer_id:
-        user_service.ensure_user(db, order.customer_id)
-        couple_profile_service.record_first_memory(
-            db,
-            order.customer_id,
-            "FIRST_MEAL",
-            "第一次在这里点菜",
-            "从这一顿开始，把喜欢慢慢写进共同菜单。",
-            "ORDER",
-            order.id,
-            order.created_at.date(),
-        )
-    notification_service.create_notification(
-        db,
-        "admin",
-        "ORDER_CREATED",
-        f"收到新点菜单 #{order.id}",
-        "她已经选好想吃的菜，去小厨房看看吧。",
-        order.id,
-    )
-    await order_event_hub.broadcast("order_created", order.id)
-    return order
 
 
 @router.post(
@@ -189,31 +163,8 @@ async def change_order_status(
     data: schemas.OrderStatusUpdate,
     db: Session = Depends(get_db),
 ):
-    """Update an order and preserve notification, memory and WebSocket effects."""
-    previous_status = order_service.get_order(db, order_id).status
-    order = order_service.update_order_status(db, order_id, data.status)
-    if order.customer_id and previous_status != order.status:
-        notification_service.create_notification(
-            db,
-            order.customer_id,
-            "ORDER_STATUS",
-            f"订单 #{order.id}：{order.status}",
-            "小厨房有新的进度，点开就能看到。",
-            order.id,
-        )
-        if order.status == "已完成":
-            couple_profile_service.record_first_memory(
-                db,
-                order.customer_id,
-                "FIRST_COOK",
-                "第一次完成专属晚餐",
-                "认真准备的一顿饭，成为了我们的共同记录。",
-                "ORDER_COMPLETE",
-                order.id,
-                order.created_at.date(),
-            )
-    await order_event_hub.broadcast("order_status_changed", order.id)
-    return order
+    """Authorize and delegate a truthful administrator status mutation."""
+    return await order_service.change_order_status(db, order_id, data)
 
 
 @router.post(
@@ -221,11 +172,13 @@ async def change_order_status(
     response_model=schemas.OrderOut,
     dependencies=[Depends(verify_admin_token)],
 )
-async def rollback_order_status(order_id: int, db: Session = Depends(get_db)):
-    """Rollback an order through the administrator audit service and notify clients."""
-    order = order_service.rollback_order_status(db, order_id)
-    await order_event_hub.broadcast("order_status_changed", order.id)
-    return order
+async def rollback_order_status(
+    order_id: int,
+    data: schemas.OrderRollbackRequest | None = None,
+    db: Session = Depends(get_db),
+):
+    """Authorize and delegate a retry-safe administrator rollback."""
+    return await order_service.rollback_admin_order(db, order_id, data)
 
 
 @router.post(
@@ -239,23 +192,13 @@ async def add_order_review(
     customer_id: str | None = Depends(get_optional_customer_id),
     db: Session = Depends(get_db),
 ):
-    """Create one owned review and preserve administrator notification and broadcast."""
+    """Authorize one owned review and delegate truthful product orchestration."""
     order = order_service.get_order(db, order_id)
     if not customer_id and not allow_legacy_customer_header():
         raise HTTPException(status_code=401, detail="请先用邀请码验证设备")
     if customer_id and order.customer_id != customer_id:
         raise HTTPException(status_code=404, detail="订单不存在")
-    review = review_service.create_review(db, order_id, data)
-    notification_service.create_notification(
-        db,
-        "admin",
-        "ORDER_REVIEW",
-        f"订单 #{order_id} 收到 {review.rating} 心评价",
-        review.comment or "这顿饭已经留下新的口味反馈。",
-        order_id,
-    )
-    await order_event_hub.broadcast("order_reviewed", order_id)
-    return review
+    return await review_service.submit_review(db, order_id, data)
 
 
 @router.get("/api/orders/{order_id}/review", response_model=schemas.ReviewOut)

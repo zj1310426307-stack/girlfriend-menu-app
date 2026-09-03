@@ -14,6 +14,7 @@ import subprocess
 
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, inspect, text
+from sqlalchemy.engine import make_url
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -76,7 +77,52 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def backup(database_url: str, output_dir: Path) -> Path:
+def _postgres_cli(
+    database_url: str,
+    executable: str,
+    *arguments: str,
+) -> tuple[list[str], dict[str, str]]:
+    """Build a PostgreSQL CLI invocation without exposing secrets in argv."""
+    url = make_url(database_url)
+    if not url.drivername.startswith("postgresql"):
+        raise SystemExit("PostgreSQL backup URL must use a postgresql driver")
+    if not url.host or not url.username or not url.database:
+        raise SystemExit("PostgreSQL backup URL must include host, username and database")
+
+    environment = os.environ.copy()
+    environment.pop("DATABASE_URL", None)
+    if url.password is not None:
+        environment["PGPASSWORD"] = url.password
+    query = url.normalized_query
+    for query_name, environment_name in (
+        ("sslmode", "PGSSLMODE"),
+        ("channel_binding", "PGCHANNELBINDING"),
+    ):
+        values = query.get(query_name)
+        if values:
+            environment[environment_name] = values[0]
+
+    command = [
+        executable,
+        *arguments,
+        "--host",
+        url.host,
+        "--port",
+        str(url.port or 5432),
+        "--username",
+        url.username,
+        "--dbname",
+        url.database,
+    ]
+    return command, environment
+
+
+def backup(
+    database_url: str,
+    output_dir: Path,
+    *,
+    prune_older_than_days: int | None = None,
+) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     if database_url.startswith("sqlite"):
@@ -88,9 +134,18 @@ def backup(database_url: str, output_dir: Path) -> Path:
             source.backup(target)
     else:
         destination = output_dir / f"girlfriend-menu-{stamp}.dump"
+        command, environment = _postgres_cli(
+            database_url,
+            "pg_dump",
+            "--format=custom",
+            "--no-owner",
+            "--no-acl",
+            f"--file={destination}",
+        )
         subprocess.run(
-            ["pg_dump", "--format=custom", "--no-owner", "--no-acl", f"--file={destination}", database_url],
+            command,
             check=True,
+            env=environment,
         )
 
     manifest = {
@@ -103,10 +158,13 @@ def backup(database_url: str, output_dir: Path) -> Path:
     destination.with_suffix(destination.suffix + ".manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
     )
-    cutoff = datetime.now(timezone.utc).timestamp() - 14 * 86400
-    for candidate in output_dir.glob("girlfriend-menu-*"):
-        if candidate.stat().st_mtime < cutoff:
-            candidate.unlink(missing_ok=True)
+    if prune_older_than_days is not None:
+        if prune_older_than_days < 1:
+            raise SystemExit("Backup retention must be at least one day")
+        cutoff = datetime.now(timezone.utc).timestamp() - prune_older_than_days * 86400
+        for candidate in output_dir.glob("girlfriend-menu-*"):
+            if candidate.stat().st_mtime < cutoff:
+                candidate.unlink(missing_ok=True)
     print(destination)
     return destination
 
@@ -115,5 +173,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--database-url", default=None)
     parser.add_argument("--output-dir", type=Path, default=ROOT / "backups")
+    parser.add_argument("--prune-older-than-days", type=int, default=None)
     args = parser.parse_args()
-    backup(args.database_url or _url(), args.output_dir.resolve())
+    backup(
+        args.database_url or _url(),
+        args.output_dir.resolve(),
+        prune_older_than_days=args.prune_older_than_days,
+    )

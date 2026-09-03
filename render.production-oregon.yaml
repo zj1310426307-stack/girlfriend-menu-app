@@ -1,0 +1,44 @@
+# Zero-cost candidate for co-locating the API with the existing Oregon database.
+# It remains manual and must not be applied until isolated staging evidence passes.
+services:
+  - type: web
+    name: girlfriend-menu-api-oregon
+    runtime: python
+    plan: free
+    region: oregon
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: python serve.py
+    healthCheckPath: /api/health
+    autoDeploy: false
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.11
+      - key: DATABASE_URL
+        sync: false
+      - key: APP_ENV
+        value: production
+      - key: ADMIN_PASSWORD_HASH
+        sync: false
+      - key: ADMIN_INVITE_CODE
+        sync: false
+      - key: ADMIN_SECRET
+        generateValue: true
+      - key: CUSTOMER_INVITE_CODE
+        sync: false
+      - key: CUSTOMER_SESSION_TTL_DAYS
+        value: 90
+      - key: ALLOW_LEGACY_CUSTOMER_HEADER
+        value: false
+      - key: WECHAT_LOGIN_ENABLED
+        value: false
+      - key: WECHAT_APP_ID
+        sync: false
+      - key: WECHAT_APP_SECRET
+        sync: false
+      - key: UPLOAD_PROVIDER
+        value: database
+      - key: REDIS_URL
+        sync: false
+      - key: GAME_ROOM_LEASE_SECONDS
+        value: 30

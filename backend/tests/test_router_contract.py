@@ -13,6 +13,7 @@ DELETE /api/favorites/{dish_id}
 GET /api/admin/dashboard
 GET /api/admin/games/stats
 GET /api/admin/orders
+GET /api/bootstrap
 GET /api/couple/dates
 GET /api/couple/memories
 GET /api/couple/profile
@@ -66,6 +67,7 @@ POST /api/customers/recover
 POST /api/customers/refresh
 POST /api/customers/revoke
 POST /api/customers/session
+POST /api/customers/wechat-session
 POST /api/dishes
 POST /api/favorites/{dish_id}
 POST /api/games/animal/create
@@ -105,7 +107,7 @@ EXPECTED_WEBSOCKET_ROUTES = {
 
 
 def test_http_route_method_contract_is_unchanged():
-    """Fail on a missing, renamed, duplicated or newly exposed HTTP operation."""
+    """Freeze every current HTTP operation, including the additive V3 bootstrap."""
     actual_operations = [
         (method, route.path)
         for route in app.routes

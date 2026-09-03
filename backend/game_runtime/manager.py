@@ -4,10 +4,11 @@ import secrets
 import time
 from collections import OrderedDict
 
-from ai.gomoku_ai import GomokuAI
-from gomoku import GomokuError, GomokuGame
+from ai.registry import AI_PROVIDERS
+from gomoku import GomokuError
 from core.game_state_store import game_state_store
 from dice_rules import is_higher_bid, resolve_challenge
+from game_runtime.engine_codec import get_room_engine_codec
 
 
 ROOM_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
@@ -51,9 +52,10 @@ class GameRoomManager:
 
     @staticmethod
     def _new_room(room_code, game_type="dice", max_players=2):
+        codec = get_room_engine_codec(game_type)
         room = {
             "room_code": room_code,
-            "game_type": game_type,
+            "game_type": codec.game_type,
             "max_players": max_players,
             "players": OrderedDict(),
             "scores": {},
@@ -72,8 +74,7 @@ class GameRoomManager:
             "mode": "couple",
             "difficulty": "rule",
         }
-        if game_type == "gomoku":
-            room["gomoku"] = GomokuGame()
+        room.update(codec.new_room_fields())
         return room
 
     async def ensure_room(self, room_code, game_type, max_players):
@@ -129,7 +130,7 @@ class GameRoomManager:
             "last_activity_at": room.get("last_activity_at") or time.time(),
             "mode": room.get("mode", "couple"),
             "difficulty": room.get("difficulty", "rule"),
-            "engine": room["gomoku"].serialize() if room["game_type"] == "gomoku" else None,
+            "engine": get_room_engine_codec(room["game_type"]).snapshot_engine(room),
         }
 
     @classmethod
@@ -207,21 +208,10 @@ class GameRoomManager:
                 "socket": None,
                 "connected": False,
             }
-        if room["game_type"] == "gomoku" and snapshot.get("engine"):
-            raw = snapshot["engine"]
-            engine = GomokuGame()
-            for player in raw.get("players") or []:
-                engine.add_player(player["id"])
-            engine.board = [list(row) for row in raw.get("board") or engine.board]
-            engine.phase = raw.get("phase", engine.phase)
-            engine.turn_id = raw.get("turn_id")
-            engine.winner_id = raw.get("winner_id")
-            engine.last_move = raw.get("last_move")
-            engine.move_count = int(raw.get("move_count") or 0)
-            engine.move_history = list(raw.get("move_history") or [])
-            engine.round = int(raw.get("round") or 1)
-            engine.is_draw = bool(raw.get("is_draw"))
-            room["gomoku"] = engine
+        get_room_engine_codec(room["game_type"]).restore_engine(
+            room,
+            snapshot.get("engine"),
+        )
 
     async def has_room(self, room_code):
         async with self.lock:
@@ -490,9 +480,12 @@ class GameRoomManager:
                     and room.get("phase") == "playing"
                     and room.get("turn_id") == GOMOKU_AI_ID
                 ):
-                    decision = GomokuAI(room.get("difficulty", "rule")).choose_action(
-                        room["gomoku"].serialize(), GOMOKU_AI_ID
-                    )
+                    decision = AI_PROVIDERS.choose_action(
+                        "gomoku",
+                        room["gomoku"].serialize(),
+                        GOMOKU_AI_ID,
+                        room.get("difficulty", "rule"),
+                    ).action
                     if decision.get("action") == "MOVE":
                         error = self._gomoku_move(room, GOMOKU_AI_ID, decision)
                     if not error:

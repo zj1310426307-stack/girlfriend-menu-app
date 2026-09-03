@@ -23,6 +23,15 @@ class CustomerSessionCreate(BaseModel):
     device_label: str | None = Field(default=None, max_length=100)
 
 
+class WeChatSessionCreate(BaseModel):
+    """One-time WeChat login code plus optional first-login invite proof."""
+
+    code: str = Field(min_length=1, max_length=256)
+    invite_code: str = Field(default="", max_length=100)
+    display_name: str = Field(default="女朋友", min_length=1, max_length=50)
+    device_label: str | None = Field(default="微信小程序", max_length=100)
+
+
 class CustomerLegacyClaim(CustomerSessionCreate):
     legacy_customer_id: str = Field(min_length=3, max_length=100)
 
@@ -587,6 +596,13 @@ class OrderOut(BaseModel):
 
 class OrderStatusUpdate(BaseModel):
     status: OrderStatus
+    expected_status: OrderStatus | None = None
+
+
+class OrderRollbackRequest(BaseModel):
+    """Optionally guard an administrator rollback against stale page state."""
+
+    expected_status: OrderStatus | None = None
 
 
 class AdminOrderPage(BaseModel):
@@ -734,3 +750,13 @@ class FavoriteRankingItem(BaseModel):
     repeat_count: int
     is_favorite: bool
     score: float
+
+
+class HomeBootstrapOut(BaseModel):
+    """Essential authenticated data for the first home-page render."""
+
+    dishes: list[DishOut]
+    favorite_ranking: list[FavoriteRankingItem]
+    couple_score: LoveScoreSummary
+    today_tasks: DailyTaskSummary
+    recent_order: OrderOut | None = None

@@ -30,3 +30,34 @@ def remove_favorite_dish(db: Session, customer_id: str, dish_id: int) -> None:
     if favorite:
         favorites_repository.remove(db, favorite)
 
+
+def rank_favorite_dishes(
+    db: Session,
+    customer_id: str,
+    limit: int = 5,
+) -> list[dict]:
+    """Rank dishes using the deployed order, review, repeat and favorite formula."""
+    facts = favorites_repository.ranking_inputs(db, customer_id)
+    ranking = []
+    for row in facts.order_rows:
+        count = int(row.count or 0)
+        rating = round(float(row.rating), 1) if row.rating is not None else None
+        repeat_count = facts.repeat_counts.get(row.dish_id, 0)
+        is_favorite = row.dish_id in facts.favorite_ids
+        rating_basis = rating if rating is not None else 3.0
+        score = rating_basis * count * (1 + repeat_count * 0.25)
+        if is_favorite:
+            score += 2
+        ranking.append(
+            {
+                "dish_id": row.dish_id,
+                "name": row.name,
+                "count": count,
+                "rating": rating,
+                "repeat_count": repeat_count,
+                "is_favorite": is_favorite,
+                "score": round(score, 2),
+            }
+        )
+    ranking.sort(key=lambda item: (item["score"], item["count"]), reverse=True)
+    return ranking[: max(1, min(int(limit), 20))]

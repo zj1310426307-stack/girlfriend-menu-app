@@ -19,6 +19,7 @@ import pytest  # noqa: E402
 
 from core.settings import reset_settings_cache  # noqa: E402
 from core.telemetry import shutdown_tracing  # noqa: E402
+from core.rate_limit import MemoryRateLimiter  # noqa: E402
 
 
 def _assert_default_database_unchanged() -> None:
@@ -70,3 +71,16 @@ def isolate_settings_cache():
     yield
     shutdown_tracing()
     reset_settings_cache()
+
+
+@pytest.fixture(autouse=True)
+def isolate_in_memory_rate_limits(monkeypatch):
+    """Prevent one contract test's synthetic client IP from throttling another."""
+    import api.dependencies as api_dependencies
+    import core.rate_limit as rate_limit_module
+    import main as main_module
+
+    limiter = MemoryRateLimiter()
+    monkeypatch.setattr(rate_limit_module, "rate_limiter", limiter)
+    monkeypatch.setattr(api_dependencies, "rate_limiter", limiter)
+    monkeypatch.setattr(main_module, "rate_limiter", limiter)

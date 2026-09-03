@@ -2,8 +2,10 @@
 
 This is the fallback used when PostgreSQL client tools are unavailable locally.
 It exports every resource exposed by the pre-V2.9 production API before the
-database migrations run.  The admin password and token are never written to
-disk or printed.
+database migrations run.  Legacy admin order responses already embed their
+optional review, so the exporter must not call the customer-owned review
+detail endpoint with an admin token.  The admin password and token are never
+written to disk or printed.
 """
 
 from __future__ import annotations
@@ -19,12 +21,36 @@ from urllib.request import Request, urlopen
 
 
 ROOT = Path(__file__).resolve().parents[1]
-API_ORIGIN = os.getenv("PRODUCTION_API_ORIGIN", "https://girlfriend-menu-api.onrender.com").rstrip("/")
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
-ADMIN_INVITE_CODE = os.getenv("ADMIN_INVITE_CODE", "love2026")
 
 
-def request_json(path: str, *, method: str = "GET", body: object | None = None, token: str | None = None):
+def required_configuration() -> tuple[str, str, str]:
+    """Load every production target and credential explicitly before networking."""
+    values = {
+        "PRODUCTION_API_ORIGIN": os.getenv("PRODUCTION_API_ORIGIN", "").strip(),
+        "ADMIN_PASSWORD": os.getenv("ADMIN_PASSWORD", ""),
+        "ADMIN_INVITE_CODE": os.getenv("ADMIN_INVITE_CODE", ""),
+    }
+    missing = [name for name, value in values.items() if not value]
+    if missing:
+        raise SystemExit(
+            "Production API backup requires explicit environment variables: "
+            + ", ".join(missing)
+        )
+    api_origin = values["PRODUCTION_API_ORIGIN"].rstrip("/")
+    if not api_origin.startswith("https://"):
+        raise SystemExit("PRODUCTION_API_ORIGIN must use HTTPS")
+    return api_origin, values["ADMIN_PASSWORD"], values["ADMIN_INVITE_CODE"]
+
+
+def request_json(
+    api_origin: str,
+    path: str,
+    *,
+    method: str = "GET",
+    body: object | None = None,
+    token: str | None = None,
+):
+    """Send one authenticated or public request to the validated explicit origin."""
     headers = {"Accept": "application/json"}
     data = None
     if body is not None:
@@ -32,50 +58,39 @@ def request_json(path: str, *, method: str = "GET", body: object | None = None, 
         data = json.dumps(body).encode("utf-8")
     if token:
         headers["Authorization"] = f"Bearer {token}"
-    request = Request(f"{API_ORIGIN}{path}", data=data, headers=headers, method=method)
+    request = Request(f"{api_origin}{path}", data=data, headers=headers, method=method)
     with urlopen(request, timeout=90) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
-def optional_json(path: str, token: str):
-    try:
-        return request_json(path, token=token)
-    except HTTPError as error:
-        if error.code == 404:
-            return None
-        raise
-
-
 def main() -> int:
-    if not ADMIN_PASSWORD:
-        raise SystemExit("ADMIN_PASSWORD must be provided through the environment")
+    """Validate configuration first, then export the legacy production resources."""
+    api_origin, admin_password, admin_invite_code = required_configuration()
 
     login = request_json(
+        api_origin,
         "/api/admin/login",
         method="POST",
-        body={"password": ADMIN_PASSWORD, "invite_code": ADMIN_INVITE_CODE},
+        body={"password": admin_password, "invite_code": admin_invite_code},
     )
     token = login.get("token")
     if not token:
         raise SystemExit("Admin login did not return a token")
 
-    orders = request_json("/api/orders", token=token)
-    reviews = {
-        str(order["id"]): optional_json(f"/api/orders/{order['id']}/review", token)
-        for order in orders
-    }
+    orders = request_json(api_origin, "/api/orders", token=token)
+    reviews = {str(order["id"]): order.get("review") for order in orders}
     payload = {
         "format": "girlfriend-menu-api-logical-backup-v1",
         "created_at": datetime.now(timezone.utc).isoformat(),
-        "source": API_ORIGIN,
-        "health": request_json("/api/health"),
-        "dishes": request_json("/api/dishes"),
+        "source": api_origin,
+        "health": request_json(api_origin, "/api/health"),
+        "dishes": request_json(api_origin, "/api/dishes"),
         "orders": orders,
         "reviews": reviews,
         "stats": {
-            "summary": request_json("/api/stats/summary", token=token),
-            "dishes": request_json("/api/stats/dishes", token=token),
-            "recent": request_json("/api/stats/recent", token=token),
+            "summary": request_json(api_origin, "/api/stats/summary", token=token),
+            "dishes": request_json(api_origin, "/api/stats/dishes", token=token),
+            "recent": request_json(api_origin, "/api/stats/recent", token=token),
         },
     }
 

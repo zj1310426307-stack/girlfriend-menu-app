@@ -14,6 +14,9 @@ from core.settings import load_settings
 import models
 
 
+CUSTOMER_ACTIVITY_TOUCH_INTERVAL = timedelta(minutes=5)
+
+
 def utc_now() -> datetime:
     """Return a timezone-aware UTC timestamp for all new session fields."""
     return datetime.now(timezone.utc)
@@ -50,7 +53,7 @@ def verify_invite(invite_code: str) -> None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="邀请码不正确")
 
 
-def _session_payload(
+def session_payload(
     customer: models.Customer,
     token: str,
     expires_at: datetime,
@@ -120,7 +123,7 @@ def _rotate_all_sessions(
         rotated_from_id=latest.id if latest else None,
     )
     db.commit()
-    return _session_payload(customer, token, new_session.expires_at)
+    return session_payload(customer, token, new_session.expires_at)
 
 
 def create_session(
@@ -131,6 +134,21 @@ def create_session(
 ) -> dict:
     """Create a new customer identity and its first expiring bearer session."""
     verify_invite(invite_code)
+    customer, token, session = stage_new_customer(
+        db,
+        display_name,
+        device_label,
+    )
+    db.commit()
+    return session_payload(customer, token, session.expires_at)
+
+
+def stage_new_customer(
+    db: Session,
+    display_name: str,
+    device_label: str | None = None,
+) -> tuple[models.Customer, str, models.CustomerSession]:
+    """Stage a customer and first session so identity adapters can commit atomically."""
     for _ in range(5):
         customer_id, token = new_customer_credentials()
         if db.get(models.Customer, customer_id):
@@ -143,9 +161,106 @@ def create_session(
         db.add(customer)
         db.flush()
         session = _add_session(db, customer, token, device_label=device_label)
-        db.commit()
-        return _session_payload(customer, token, session.expires_at)
+        return customer, token, session
     raise HTTPException(status_code=503, detail="暂时无法创建设备会话，请稍后重试")
+
+
+def stage_customer_session(
+    db: Session,
+    customer: models.Customer,
+    device_label: str | None = None,
+) -> tuple[str, models.CustomerSession]:
+    """Stage an additional device session without revoking another signed-in phone."""
+    token = _new_token()
+    session = _add_session(db, customer, token, device_label=device_label)
+    return token, session
+
+
+def _customer_session_query(db: Session, token_digest: str):
+    """Build the eager session lookup shared by normal and CAS-reload paths."""
+    return (
+        db.query(models.CustomerSession)
+        .options(joinedload(models.CustomerSession.customer))
+        .filter(models.CustomerSession.token_hash == token_digest)
+    )
+
+
+def _require_active_session(
+    db: Session,
+    session: models.CustomerSession,
+    now: datetime,
+) -> models.Customer:
+    """Recheck revocation, expiry and account state before trusting one session."""
+    customer = session.customer
+    expired = _as_utc(session.expires_at) <= now
+    if not customer or not customer.is_active or session.revoked_at is not None or expired:
+        if expired and session.revoked_at is None:
+            session.revoked_at = now
+            db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="设备登录已失效，请重新验证邀请码",
+        )
+    return customer
+
+
+def _touch_stale_session(
+    db: Session,
+    session: models.CustomerSession,
+    customer: models.Customer,
+    token_digest: str,
+    now: datetime,
+) -> models.Customer:
+    """Let one database winner refresh activity while stale contenders stay read-only."""
+    cutoff = now - CUSTOMER_ACTIVITY_TOUCH_INTERVAL
+    if _as_utc(session.last_seen_at) > cutoff:
+        return customer
+
+    touched = (
+        db.query(models.CustomerSession)
+        .filter(
+            models.CustomerSession.id == session.id,
+            models.CustomerSession.last_seen_at <= cutoff,
+            models.CustomerSession.revoked_at.is_(None),
+            models.CustomerSession.expires_at > now,
+        )
+        .update(
+            {models.CustomerSession.last_seen_at: now},
+            synchronize_session=False,
+        )
+    )
+    if touched == 1:
+        customer_touched = (
+            db.query(models.Customer)
+            .filter(
+                models.Customer.id == customer.id,
+                models.Customer.is_active.is_(True),
+            )
+            .update(
+                {
+                    models.Customer.last_seen_at: now,
+                    models.Customer.updated_at: now,
+                },
+                synchronize_session=False,
+            )
+        )
+        if customer_touched == 1:
+            db.commit()
+            return customer
+        # The account changed after the first validation. Undo the session CAS
+        # before reloading so a disabled identity never advances its window.
+        db.rollback()
+
+    # Another request may have touched the session or invalidated the session/account
+    # after our first read. Reload authoritative state so a stale identity-map view
+    # can neither overwrite the new window nor bypass revocation/account checks.
+    current = _customer_session_query(db, token_digest).populate_existing().first()
+    if not current:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="设备登录已失效，请重新验证邀请码",
+        )
+    return _require_active_session(db, current, now)
 
 
 def authenticate(
@@ -163,28 +278,18 @@ def authenticate(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="请重新验证邀请码")
     token_digest = hash_token(token)
     now = utc_now()
-    session = (
-        db.query(models.CustomerSession)
-        .options(joinedload(models.CustomerSession.customer))
-        .filter(models.CustomerSession.token_hash == token_digest)
-        .first()
-    )
+    session = _customer_session_query(db, token_digest).first()
     if session:
-        customer = session.customer
-        expired = _as_utc(session.expires_at) <= now
-        if not customer or not customer.is_active or session.revoked_at is not None or expired:
-            if expired and session.revoked_at is None:
-                session.revoked_at = now
-                db.commit()
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="设备登录已失效，请重新验证邀请码",
-            )
-        if update_last_seen:
-            session.last_seen_at = now
-            customer.last_seen_at = now
-            db.commit()
-        return customer
+        customer = _require_active_session(db, session, now)
+        if not update_last_seen:
+            return customer
+        return _touch_stale_session(
+            db,
+            session,
+            customer,
+            token_digest,
+            now,
+        )
 
     # Compatibility bridge for databases upgraded before customer_sessions existed.
     customer = (
@@ -239,7 +344,7 @@ def refresh_session(
         rotated_from_id=current.id,
     )
     db.commit()
-    return _session_payload(customer, token, new_session.expires_at)
+    return session_payload(customer, token, new_session.expires_at)
 
 
 def revoke_session(db: Session, customer: models.Customer, current_token: str) -> None:
@@ -319,7 +424,7 @@ def _claim_new_legacy(
     session = _add_session(db, customer, token, device_label=device_label)
     _migrate_legacy_ownership(db, legacy, customer_id, display_name)
     db.commit()
-    return _session_payload(customer, token, session.expires_at)
+    return session_payload(customer, token, session.expires_at)
 
 
 def claim_legacy(

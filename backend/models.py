@@ -12,7 +12,7 @@ def utc_now():
 
 
 class Customer(Base):
-    """Authenticated device identity; only a hash of the bearer token is stored."""
+    """Stable LoveOS identity authenticated by revocable bearer sessions."""
 
     __tablename__ = "customers"
 
@@ -30,6 +30,12 @@ class Customer(Base):
         back_populates="customer",
         cascade="all, delete-orphan",
         foreign_keys="CustomerSession.customer_id",
+    )
+    wechat_user = relationship(
+        "WeChatUser",
+        back_populates="customer",
+        cascade="all, delete-orphan",
+        uselist=False,
     )
 
 
@@ -65,6 +71,67 @@ class CustomerSession(Base):
     )
 
 
+class WeChatUser(Base):
+    """Stable WeChat identity bound to one existing LoveOS customer."""
+
+    __tablename__ = "wx_users"
+    __table_args__ = (
+        UniqueConstraint("app_id", "openid", name="uq_wx_user_app_openid"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    customer_id = Column(
+        String(100),
+        ForeignKey("customers.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    app_id = Column(String(64), nullable=False, index=True)
+    openid = Column(String(128), nullable=False, index=True)
+    unionid = Column(String(128), nullable=True, index=True)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
+    last_login_at = Column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
+
+    customer = relationship("Customer", back_populates="wechat_user")
+
+
+class AdminAccount(Base):
+    """Database-owned administrator identity with a one-way password verifier."""
+
+    __tablename__ = "admin_accounts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(80), nullable=False, unique=True, index=True)
+    password_hash = Column(String(255), nullable=False)
+    role = Column(String(30), nullable=False, default="ADMIN", index=True)
+    is_active = Column(Boolean, nullable=False, default=True, index=True)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+    last_login_at = Column(DateTime(timezone=True), nullable=True, index=True)
+
+    auth_events = relationship("AdminAuthEvent", back_populates="admin")
+
+
+class AdminAuthEvent(Base):
+    """Append-only success/failure trail containing no submitted credentials."""
+
+    __tablename__ = "admin_auth_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    admin_id = Column(
+        Integer,
+        ForeignKey("admin_accounts.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    username = Column(String(80), nullable=False, index=True)
+    outcome = Column(String(30), nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
+
+    admin = relationship("AdminAccount", back_populates="auth_events")
+
+
 class Dish(Base):
     __tablename__ = "dishes"
 
@@ -77,7 +144,7 @@ class Dish(Base):
     cook_time = Column(Integer, nullable=True)
     difficulty = Column(Integer, nullable=True)
     spicy_level = Column(Integer, nullable=True, default=0)
-    tags = Column(JSON, nullable=True, default=list)
+    tags = Column(JSON().with_variant(JSONB, "postgresql"), nullable=True, default=list)
     is_active = Column(Boolean, nullable=False, default=True, index=True)
     created_at = Column(DateTime, default=datetime.now, nullable=False)
 
@@ -295,7 +362,7 @@ class GameRecord(Base):
     game_type = Column(String(50), nullable=False, index=True)
     winner = Column(String(100), nullable=True, index=True)
     duration = Column(Integer, nullable=False, default=0)
-    result = Column(JSON, nullable=False, default=dict)
+    result = Column(JSON().with_variant(JSONB, "postgresql"), nullable=False, default=dict)
     settlement_status = Column(String(20), nullable=False, default="pending", index=True)
     settlement_attempts = Column(Integer, nullable=False, default=0)
     settlement_error = Column(Text, nullable=True)

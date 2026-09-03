@@ -6,6 +6,7 @@ import logging
 import time
 from typing import Any
 
+from core.logging_privacy import opaque_log_reference
 from core.settings import get_settings
 
 
@@ -36,10 +37,18 @@ class StateCache:
         self.last_attempt = now
         if self.url and redis:
             try:
-                self.client = redis.Redis.from_url(self.url, decode_responses=True, socket_timeout=2, socket_connect_timeout=2)
+                self.client = redis.Redis.from_url(
+                    self.url,
+                    decode_responses=True,
+                    socket_timeout=2,
+                    socket_connect_timeout=2,
+                )
                 self.client.ping()
             except Exception as error:
-                logger.warning("Redis unavailable; PostgreSQL/in-memory fallback active: %s", error)
+                logger.warning(
+                    "redis_unavailable fallback=postgresql-memory error_type=%s",
+                    type(error).__name__,
+                )
                 self.client = None
 
     @property
@@ -56,7 +65,11 @@ class StateCache:
         try:
             self.client.setex(key, ttl, json.dumps(value, ensure_ascii=False, default=str))
         except Exception as error:
-            logger.warning("Redis write failed for %s: %s", key, error)
+            logger.warning(
+                "redis_write_failed key_ref=%s error_type=%s",
+                opaque_log_reference("cache-key", key),
+                type(error).__name__,
+            )
             self.client = None
 
     def get_json(self, key: str) -> Any | None:
@@ -68,7 +81,11 @@ class StateCache:
             raw = self.client.get(key)
             return json.loads(raw) if raw else None
         except Exception as error:
-            logger.warning("Redis read failed for %s: %s", key, error)
+            logger.warning(
+                "redis_read_failed key_ref=%s error_type=%s",
+                opaque_log_reference("cache-key", key),
+                type(error).__name__,
+            )
             self.client = None
             return None
 

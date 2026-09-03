@@ -1,115 +1,109 @@
 import Taro from "@tarojs/taro";
-import { API_BASE_URL, API_ORIGIN } from "../config/env";
+import { API_BASE_URL } from "../config/env";
+import {
+  clearApiCapabilityCooldown,
+  isApiCapabilityCoolingDown,
+  markApiCapabilityUnavailable
+} from "../utils/apiCapability";
 import { createGameActionId } from "../utils/gameAction";
 import {
-  getCustomerToken,
   clearCustomerSession,
   getLegacyCustomerId,
   hasCustomerSession,
+  hasWeChatIdentityBinding,
+  markWeChatIdentityBound,
   saveCustomerSession
 } from "../utils/customer";
+import { request } from "./transport";
 
 export { API_BASE_URL };
-const REQUEST_TIMEOUT = 45000;
-const MAX_GET_RETRIES = 2;
-const RETRYABLE_STATUS = new Set([408, 429, 500, 502, 503, 504]);
-const DISH_CACHE_KEY = "gf_dishes_cache_v28";
-const DISH_CACHE_TTL = 10 * 60 * 1000;
-
-const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
-
-function normalizePath(path) {
-  return path.startsWith("/") ? path : `/${path}`;
-}
-
-async function request(path, options = {}, attempt = 0) {
-  const method = options.method || "GET";
-  try {
-    const response = await Taro.request({
-      url: `${API_BASE_URL}${normalizePath(path)}`,
-      method,
-      timeout: options.timeout || REQUEST_TIMEOUT,
-      data: options.data,
-      header: {
-        accept: "application/json",
-        "content-type": "application/json",
-        ...(getCustomerToken() ? { Authorization: `Bearer ${getCustomerToken()}` } : {}),
-        ...(options.header || {})
-      }
-    });
-    if (response.statusCode >= 200 && response.statusCode < 300) {
-      return response.data;
-    }
-    if (
-      method === "GET"
-      && RETRYABLE_STATUS.has(response.statusCode)
-      && attempt < MAX_GET_RETRIES
-    ) {
-      await wait((attempt + 1) * 700);
-      return request(path, options, attempt + 1);
-    }
-    const detail = response.data?.detail || "请求失败，请稍后再试";
-    const message = typeof detail === "string" ? detail : detail?.message || "请求参数不正确";
-    const error = new Error(message);
-    error.statusCode = response.statusCode;
-    if (
-      response.statusCode === 401
-      && !options.preserveSession
-      && !options.header?.Authorization
-      && getCustomerToken()
-    ) {
-      clearCustomerSession();
-    }
-    if (detail?.current_version) error.currentVersion = detail.current_version;
-    throw error;
-  } catch (error) {
-    if (method === "GET" && !error?.statusCode && attempt < MAX_GET_RETRIES) {
-      await wait((attempt + 1) * 700);
-      return request(path, options, attempt + 1);
-    }
-    if (!error?.statusCode && /timeout/i.test(error?.errMsg || error?.message || "")) {
-      throw new Error("服务器正在醒来，请稍后重试");
-    }
-    if (
-      !error?.statusCode
-      && (!error?.message || /request:fail|network/i.test(error?.errMsg || error?.message || ""))
-    ) {
-      throw new Error("网络连接不稳定，请检查网络后重试");
-    }
-    throw error;
-  }
-}
-
-export function resolveImageUrl(imageUrl) {
-  if (!imageUrl) return "";
-  if (/^(https?:|data:|blob:)/i.test(imageUrl)) return imageUrl;
-  return `${API_ORIGIN}${imageUrl.startsWith("/") ? imageUrl : `/${imageUrl}`}`;
-}
-
-export async function getDishes(category, { force = false } = {}) {
-  const cached = Taro.getStorageSync(DISH_CACHE_KEY);
-  const fresh = cached?.savedAt && Date.now() - cached.savedAt < DISH_CACHE_TTL;
-  if (!force && fresh && Array.isArray(cached.items)) {
-    return category ? cached.items.filter((dish) => dish.category === category) : cached.items;
-  }
-  try {
-    const items = await request("/dishes");
-    Taro.setStorageSync(DISH_CACHE_KEY, { savedAt: Date.now(), items });
-    return category ? items.filter((dish) => dish.category === category) : items;
-  } catch (error) {
-    if (Array.isArray(cached?.items)) {
-      return category ? cached.items.filter((dish) => dish.category === category) : cached.items;
-    }
-    throw error;
-  }
-}
-
-export const getDish = (id) => request(`/dishes/${id}`);
+export { resolveImageUrl } from "./transport";
+export {
+  addFavorite,
+  DISH_CACHE_MAX_AGE,
+  getCachedDishes,
+  getDish,
+  getDishes,
+  getFavoriteRanking,
+  getFavorites,
+  getHomeBootstrap,
+  removeFavorite
+} from "./modules/catalog";
 
 const customerHeader = () => ({});
+const WECHAT_CAPABILITY_FALLBACK_STATUS_CODES = new Set([404, 405, 501, 503]);
+const WECHAT_SESSION_CAPABILITY = "wechat-session";
+
+/** Obtain one short-lived WeChat login code without assuming Promise support. */
+function getWeChatLoginCode() {
+  return new Promise((resolve, reject) => {
+    Taro.login({
+      timeout: 8000,
+      success: (result) => result?.code ? resolve(result.code) : reject(new Error("微信登录没有返回凭证")),
+      fail: () => reject(new Error("暂时无法连接微信登录"))
+    });
+  });
+}
+
+/** Exchange WeChat identity for the same bearer contract used by legacy sessions. */
+async function requestWeChatSession(inviteCode = "") {
+  const code = await getWeChatLoginCode();
+  let session;
+  try {
+    session = await request("/customers/wechat-session", {
+      method: "POST",
+      timeout: 12000,
+      data: {
+        code,
+        invite_code: inviteCode,
+        display_name: "女朋友",
+        device_label: "微信小程序"
+      },
+      preserveSession: true
+    });
+  } catch (error) {
+    if (WECHAT_CAPABILITY_FALLBACK_STATUS_CODES.has(error?.statusCode)) {
+      markApiCapabilityUnavailable(API_BASE_URL, WECHAT_SESSION_CAPABILITY);
+    }
+    throw error;
+  }
+  clearApiCapabilityCooldown(API_BASE_URL, WECHAT_SESSION_CAPABILITY);
+  saveCustomerSession(session);
+  markWeChatIdentityBound();
+  return session;
+}
+
+/** Bind a pre-v3 authenticated customer without creating a second identity. */
+export async function bindCurrentCustomerToWeChat() {
+  if (!hasCustomerSession() || hasWeChatIdentityBinding()) return null;
+  if (isApiCapabilityCoolingDown(API_BASE_URL, WECHAT_SESSION_CAPABILITY)) return null;
+  return requestWeChatSession();
+}
+
+/** Silently restore a previously bound WeChat identity on a new phone. */
+export async function restoreWeChatCustomerSession() {
+  if (hasCustomerSession()) return { authenticated: true };
+  if (isApiCapabilityCoolingDown(API_BASE_URL, WECHAT_SESSION_CAPABILITY)) return null;
+  try {
+    return await requestWeChatSession();
+  } catch (error) {
+    console.info("微信身份尚未绑定，将显示邀请码入口", error?.statusCode || error?.message);
+    return null;
+  }
+}
 
 export async function establishCustomerSession(inviteCode) {
   if (hasCustomerSession()) return { authenticated: true };
+  try {
+    return await requestWeChatSession(inviteCode);
+  } catch (error) {
+    // Preserve phased-rollout compatibility only when the WeChat capability is
+    // absent or unavailable. Validation, conflicts and rate limits must surface.
+    if (
+      error?.statusCode
+      && !WECHAT_CAPABILITY_FALLBACK_STATUS_CODES.has(error.statusCode)
+    ) throw error;
+  }
   const legacyCustomerId = getLegacyCustomerId();
   const session = await request("/customers/recover", {
     method: "POST",
@@ -135,26 +129,6 @@ export async function revokeCustomerSession() {
   await request("/customers/revoke", { method: "POST", preserveSession: true });
   clearCustomerSession();
 }
-
-export const getFavorites = (customerId) =>
-  request("/favorites", { header: customerHeader(customerId) });
-
-export const addFavorite = (dishId, customerId) =>
-  request(`/favorites/${dishId}`, {
-    method: "POST",
-    header: customerHeader(customerId)
-  });
-
-export const removeFavorite = (dishId, customerId) =>
-  request(`/favorites/${dishId}`, {
-    method: "DELETE",
-    header: customerHeader(customerId)
-  });
-
-export const getFavoriteRanking = (customerId) =>
-  request("/stats/favorite-ranking", {
-    header: customerHeader(customerId)
-  });
 
 export const createOrder = (data) =>
   request("/orders", {
@@ -185,7 +159,7 @@ export const createDiceRoom = (inviteCode) =>
     data: { invite_code: inviteCode }
   });
 
-export const getGames = () => request("/games");
+export const getGames = () => request("/games", { maxRetries: 0 });
 
 export const createGameRoom = (
   gameType,
@@ -417,7 +391,7 @@ export const deleteCoupleDate = (customerId, dateId) =>
   request(`/couple/dates/${dateId}`, { method: "DELETE", header: customerHeader(customerId) });
 
 export const getActiveGames = (customerId) =>
-  request("/games/active", { header: customerHeader(customerId) });
+  request("/games/active", { header: customerHeader(customerId), maxRetries: 0 });
 
 export const issueReconnectToken = (customerId, roomCode) =>
   request("/games/reconnect/token", {
@@ -474,16 +448,22 @@ export const getAdminOrders = async (token) => {
   return page.items || [];
 };
 
-export const rollbackAdminOrderStatus = (orderId, token) =>
+/** Roll back only the order state the administrator actually saw. */
+export const rollbackAdminOrderStatus = (orderId, token, expectedStatus) =>
   request(`/admin/orders/${orderId}/rollback`, {
     method: "POST",
+    data: expectedStatus ? { expected_status: expectedStatus } : undefined,
     header: { Authorization: `Bearer ${token}` }
   });
 
-export const updateAdminOrderStatus = (orderId, status, token) =>
+/** Advance an order with an optional stale-page precondition for rolling compatibility. */
+export const updateAdminOrderStatus = (orderId, status, token, expectedStatus) =>
   request(`/orders/${orderId}/status`, {
     method: "PATCH",
-    data: { status },
+    data: {
+      status,
+      ...(expectedStatus ? { expected_status: expectedStatus } : {})
+    },
     header: { Authorization: `Bearer ${token}` }
   });
 

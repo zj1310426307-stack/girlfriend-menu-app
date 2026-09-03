@@ -1,29 +1,66 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Taro, { useDidShow } from "@tarojs/taro";
 import { Text, View } from "@tarojs/components";
 
 import { getMyOrders, repeatOrder } from "../../api";
-import { replaceCart, saveRepeatDraft } from "../../utils/cart";
-import { getCustomerId } from "../../utils/customer";
-import { ensureInvitePassed } from "../../utils/invite";
-import { formatTime, reviewHint, STATUS_TEXT } from "../../utils/status";
 import AsyncState from "../../components/AsyncState";
+import PageSyncNotice from "../../components/PageSyncNotice";
+import { replaceCart, saveRepeatDraft } from "../../utils/cart";
+import { getAuthenticatedCustomerId, getCustomerId, hasCustomerSession } from "../../utils/customer";
+import { ensureInvitePassed } from "../../utils/invite";
+import {
+  claimPageRefresh,
+  PAGE_SNAPSHOT_MAX_AGE,
+  readPageSnapshot,
+  releasePageRefresh,
+  writePageSnapshot
+} from "../../utils/pageSnapshot";
+import { formatTime, reviewHint, STATUS_TEXT } from "../../utils/status";
 import "./index.css";
 
+/** Restore a recent, structurally safe order list before the tab requests fresh data. */
+function createInitialOrdersState() {
+  if (!hasCustomerSession()) return { orders: [], hasSnapshot: false };
+  const customerId = getAuthenticatedCustomerId();
+  const snapshot = readPageSnapshot("orders", customerId, PAGE_SNAPSHOT_MAX_AGE.orders);
+  const orders = Array.isArray(snapshot?.orders)
+    && snapshot.orders.every((order) => Array.isArray(order?.items))
+    ? snapshot.orders
+    : [];
+  return { orders, hasSnapshot: Boolean(snapshot && orders === snapshot.orders) };
+}
+
+/** Order history keeps the last verified list visible while refreshing in the background. */
 export default function MyOrders() {
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [initialOrders] = useState(createInitialOrdersState);
+  const [orders, setOrders] = useState(initialOrders.orders);
+  const [loading, setLoading] = useState(!initialOrders.hasSnapshot);
+  const [hasLoaded, setHasLoaded] = useState(initialOrders.hasSnapshot);
   const [error, setError] = useState("");
   const [repeatingId, setRepeatingId] = useState(null);
+  const ordersLoadingRef = useRef(false);
 
-  const loadOrders = () => {
+  /** Own one order-list read so repeated tab events cannot compete for state. */
+  const loadOrders = async ({ force = false } = {}) => {
     if (!ensureInvitePassed()) return;
+    if (ordersLoadingRef.current) return;
+    const customerId = getCustomerId();
+    if (!claimPageRefresh("orders", customerId, { force })) return;
+    ordersLoadingRef.current = true;
     setLoading(true);
     setError("");
-    getMyOrders(getCustomerId())
-      .then(setOrders)
-      .catch((err) => setError(err.message || "历史点菜单加载失败"))
-      .finally(() => setLoading(false));
+    try {
+      const nextOrders = await getMyOrders(customerId);
+      setOrders(nextOrders);
+      setHasLoaded(true);
+      writePageSnapshot("orders", customerId, { orders: nextOrders });
+    } catch (requestError) {
+      releasePageRefresh("orders", customerId);
+      setError(requestError.message || "历史点菜单加载失败");
+    } finally {
+      setLoading(false);
+      ordersLoadingRef.current = false;
+    }
   };
 
   useDidShow(loadOrders);
@@ -65,11 +102,11 @@ export default function MyOrders() {
     }
   };
 
-  if (loading) return <View className="page"><AsyncState message="正在找回之前点过的菜…" /></View>;
-  if (error) {
+  if (loading && !hasLoaded) return <View className="page"><AsyncState message="正在找回之前点过的菜…" /></View>;
+  if (error && !hasLoaded) {
     return (
       <View className="page">
-        <AsyncState type="error" message={error} onRetry={loadOrders} />
+        <AsyncState type="error" message={error} onRetry={() => loadOrders({ force: true })} />
       </View>
     );
   }
@@ -85,6 +122,8 @@ export default function MyOrders() {
           <Text>去点菜</Text>
         </View>
       </View>
+
+      <PageSyncNotice loading={loading} offline={Boolean(error)} onRetry={() => loadOrders({ force: true })} />
 
       {orders.length === 0 ? (
         <View className="empty-card card">
