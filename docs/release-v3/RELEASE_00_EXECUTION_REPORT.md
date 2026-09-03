@@ -1,10 +1,10 @@
 # LOVEOS-RELEASE-00 执行报告
 
-更新日期：2026-09-02
+更新日期：2026-09-03
 
 ## 当前结论
 
-**GATE 00-03 PASS — GATE 04 IN PROGRESS — NO MERGE / NO PRODUCTION CHANGE**
+**GATE 00-03 PASS — GATE 04 DEVTOOLS WECHAT PASS / REAL DEVICE PENDING — NO MERGE / NO PRODUCTION CHANGE**
 
 候选分支和 PR 已冻结核验，本地完整回归、迁移、契约、构建、密钥扫描与远端必需 CI 均通过。独立 Neon Free staging 项目和 Render Free staging 服务已建立，冻结候选 `d11a708` 首次部署成功，hosted health/readiness 只读门及带邀请码的 HTTP/WebSocket 写链路均通过。Gate 04 仍缺真实微信凭据、OpenID 绑定和微信真机证据；本轮尚未合并 PR、未迁移或部署生产、未创建 Tag/Release。
 
@@ -67,6 +67,10 @@ Gate 03 当前为 **PASS**。Gate 04 的 hosted 业务子门已通过：客户�
 随后通过 MCP 连接微信开发者工具自动化端口完成候选页面级验收：冷启动邀请码页、5 个主导航域及主要资料/消息/情侣记录页面均可打开；一起玩大厅显示 6 个游戏入口并完成点击路由；五子棋、飞行棋、斗地主、斗兽棋、中国象棋均通过大厅结构与人机模式切换；转盘新增选项通过；单机 3D 骰子 WebGL 场景完成初始化；双人大话骰大厅可加载。应用运行时异常与错误级控制台均为 0，隔离假会话的网络请求仅产生 8 条信息级超时标记，验收结束后模拟器存储已原样恢复。本证据只关闭开发者工具页面结构/本地交互子门，不包含真实微信凭据、code2Session、OpenID 绑定、在线对局或真机证据；因此不重新上传体验版，Gate 04 仍为进行中。
 
 在重建同一 `3.0.0` staging 产物后，合同测试、构建、产物完整性、发布配置和密钥扫描再次通过；微信运行时直接访问 staging `/api/health` 返回 200，确认 request 合法域名已生效，旧的严格域名阻塞项关闭。严格 hosted readiness 仍因 `wechat_login=optional-disabled` 失败，对应 Render 当前仍设置 `WECHAT_LOGIN_ENABLED=false`。因此本轮停止在上传之前：已有 `3.0.0` 体验版保持不变，待服务端真实微信凭据启用并完成 code2Session/OpenID 验收后再上传新的候选。
+
+2026-09-03 Render staging 启用真实微信凭据并完成重新部署。`check_staging_readiness.py --require-wechat` 返回通过；开发者工具使用真实 `wx.login` code 完成首次邀请码绑定、鉴权 bootstrap、清除本地会话后的无邀请码恢复和恢复后 bootstrap，四个请求均为 HTTP 200，恢复前后客户身份一致。随后以恢复会话冷启动首页，邀请码门不再出现，应用运行时异常、连接错误和错误级控制台均为 0。验收只输出布尔状态与 HTTP 状态，不输出邀请码、code、OpenID、客户标识或 token。
+
+同日重新上传 `3.0.0` 开发版本成功，总包 849.9 KB、主包 444.4 KB；上传前产物完整性为 71 个 JavaScript 文件 / 140 个模块，182 个文件共 891,235 bytes，`dist/app.js` SHA-256 为 `2AADD07F0912A74F2038C385974D3B597A86B80DC010F5F477EDA015AD76E45E`。公众平台自动化连接在上传后持续超时，未取得本次上传快照重新设为体验版的权威证据；未提交审核、未正式发布。Gate 04 仍保留真机弱网/切后台/断线恢复、存量账号原地绑定及双设备在线对局缺口。
 
 ## 依赖安全观察
 

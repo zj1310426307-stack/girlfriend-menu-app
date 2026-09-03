@@ -12,13 +12,13 @@
 - [x] staging 只读门拒绝生产/非 HTTPS/本机目标，并验证 PostgreSQL、持久存储和认证 readiness。
 - [x] GitHub Actions 已配置 PostgreSQL 18 临时迁移矩阵；候选 `ed8f2dc` 的远端 backend job 已通过。
 - [x] 基础 staging 只读门在微信关闭状态通过。
-- [ ] Render staging 配置真实 AppID/AppSecret 并启用开关。
-- [ ] `check_staging_readiness.py --require-wechat` 在 staging 通过。
+- [x] Render staging 配置真实 AppID/AppSecret 并启用开关。
+- [x] `check_staging_readiness.py --require-wechat` 在 staging 通过。
 
 ## 微信公众平台
 
 - [x] 当前 AppID 后台列表的 request、socket、uploadFile、downloadFile 均包含 staging Origin。
-- [ ] 严格域名校验下 staging 请求实际成功（当前仍返回 `MINIPROGRAM_DOMAIN_NOT_ALLOWED`）。
+- [x] 严格域名校验下 staging `/api/health` 与真实登录/bootstrap 请求成功。
 - [ ] request 合法域名为生产 HTTPS API Origin，不含 `/api` 路径。
 - [ ] socket 合法域名为对应 WSS Origin。
 - [ ] uploadFile / downloadFile 域名与真实存储路径一致。
@@ -44,7 +44,7 @@ Hosted 自动验收已通过客户会话/存量恢复、管理登录、菜单收
 ## 外部操作状态
 
 - [x] 微信小程序 `3.0.0` 当前候选已上传为开发版本。
-- [x] 微信公众平台版本管理页显示 `3.0.0` 为“体验版”，操作菜单显示“取消体验”。
+- [ ] 2026-09-03 最新上传的 `3.0.0` 开发快照已再次“选为体验版”（公众平台自动化连接超时，待权威页面复核）。
 - [x] 候选后端已 commit/push 并形成 PR #21。
 - [x] 候选已部署到隔离 staging。
 - [ ] 已提交审核。
@@ -53,6 +53,8 @@ Hosted 自动验收已通过客户会话/存量恢复、管理登录、菜单收
 2026-08-28 已创建独立 Neon Free staging 项目和 Render Free staging 服务，基础只读门与 hosted 业务写链路通过。真实微信凭据、OpenID 绑定、开发工具交互和真机验收仍待完成；生产迁移、提交审核与正式发布均未执行。
 
 2026-09-02 已对当前 PR #21 候选重新执行小程序测试、staging 构建和产物完整性检查，并通过微信开发者工具上传 `3.0.0`。上传结果为总包 849.9 KB、主包 444.4 KB；微信公众平台显示最新提交时间为 2026-09-02 15:31:54，版本带“体验版”标记，操作菜单为“取消体验”。这证明当前上传构建已成为体验版，但不替代严格域名、真实微信登录、OpenID 绑定和真机业务验收；未提交审核、未正式发布。
+
+2026-09-03 staging 的真实微信配置与严格 readiness 已通过。开发者工具使用真实 `wx.login` code 完成首次邀请码绑定与无邀请码恢复，同一客户身份保持不变，两轮 bootstrap 均为 200；已认证首页冷启动无异常。随后再次上传 `3.0.0` 开发版本成功，总包 849.9 KB、主包 444.4 KB。由于上传后公众平台控制通道持续超时，不能沿用 2026-09-02 的体验版页面状态冒充本次新上传快照已被选为体验版；真机、生产备份/迁移、提交审核与正式发布仍未完成。
 
 官方依据：
 

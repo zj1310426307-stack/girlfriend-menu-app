@@ -1,10 +1,10 @@
 # LoveOS V3 Staging 验收记录
 
-更新日期：2026-09-02
+更新日期：2026-09-03
 
 ## 状态
 
-**IN PROGRESS — HOSTED READINESS + AUTHENTICATED BUSINESS PASS / WECHAT REAL DEVICE PENDING**
+**IN PROGRESS — HOSTED + REAL WECHAT DEVTOOLS PASS / WECHAT REAL DEVICE PENDING**
 
 ## 隔离前置审计
 
@@ -28,7 +28,7 @@
 - [x] 使用 staging 专用邀请码完成客户会话、bootstrap、存量设备认领/换机恢复与旧会话撤销。
 - [x] 完成菜单/收藏、管理登录与管理 WebSocket、数据库图片上传/下载、订单归属隔离、重复点单预览、状态流转、评价、撤回，以及双客户游戏 WebSocket/重连验收。
 - [x] 验收凭据在一次诊断输出风险后立即二次轮换；新管理员首次登录已完成数据库 verifier 轮换，复验通过，明文未写入仓库、文件或验收输出。
-- [ ] 配置真实微信凭据并用 `--require-wechat` 复核。
+- [x] 配置真实微信凭据并用 `--require-wechat` 复核。
 - [ ] 使用真实微信 code 完成新用户邀请、存量 OpenID 原地绑定与新手机恢复同一业务身份。
 - [x] staging 小程序构建完成，`dist/app.json` 存在，产物完整性检查通过且 API Origin 指向独立 Render staging。
 - [x] 微信开发者工具使用本轮 staging 产物普通启动，红色应用错误为 0；MCP 自动化只签署页面结构与本地交互，不替代真实微信登录和真机业务验收。
@@ -51,3 +51,7 @@
 同日通过 MCP 直接连接微信开发者工具自动化 WebSocket `127.0.0.1:9330` 完成页面级验收。运行时确认 AppID 与候选项目一致、环境为 `develop`、基础库为 3.15.2。冷启动邀请码页、菜单、点菜单、一起玩、情侣中心、个人资料、消息、购物车、情侣积分/记录/成就/游戏记录/任务/时间轴、排行榜、陪伴小结、双人大话骰大厅均成功打开；一起玩大厅渲染 6 个游戏卡片并可点击进入五子棋。五子棋、飞行棋、斗地主、斗兽棋和中国象棋大厅均完成双人/人机模式切换检查，今晚转盘完成新增选项交互，单机 3D 骰子完成 WebGL 画布和场景初始化。验收期间应用运行时异常为 0、错误级控制台为 0；隔离假会话产生 8 条 `MINIPROGRAM_NETWORK_TIMEOUT` 信息级标记，不作为 hosted 业务通过证据。模拟器原存储已完整恢复。真实邀请码提交、微信 code2Session、OpenID 绑定和真机网络/业务流程仍未完成，因此不重新上传、不提交审核，Gate 04 结论不变。
 
 后续重新生成同一 `3.0.0` staging 候选并复验：小程序合同测试、Webpack 构建、71 个 JavaScript / 140 个模块产物完整性、发布配置与 518 个候选文件密钥扫描均通过。新构建在微信运行时内直接请求 staging `/api/health` 返回 HTTP 200，证明当前 AppID 的 request 合法域名与 HTTPS 网络链路已生效，2026-08-29 的严格域名阻塞项由此关闭；冷启动、6 游戏入口和单机 3D 场景复验仍为 0 运行时异常、0 错误级控制台。严格 hosted 门 `check_staging_readiness.py --require-wechat` 仍失败于 `wechat_login=optional-disabled`，源码语义明确对应 `WECHAT_LOGIN_ENABLED=false`。在服务端配置真实 `WECHAT_APP_ID`、`WECHAT_APP_SECRET` 并启用微信登录前，不上传新的体验构建。
+
+2026-09-03 在 Render staging 配置真实微信凭据并重新部署后，严格 hosted 门 `check_staging_readiness.py --require-wechat` 通过，返回 PostgreSQL、database storage、authentication 与 `wechat_login=ready`。微信开发者工具通过真实 `wx.login` 一次性 code 完成首次邀请码绑定，随后清除本地客户会话并再次获取新 code；第二次请求未携带邀请码仍返回同一客户身份，两轮 `/api/bootstrap` 均为 HTTP 200。恢复后的会话已持久化，首页冷启动直接进入已认证界面，应用运行时异常、连接错误与错误级控制台均为 0。邀请码、code、OpenID、客户标识和 token 均未写入仓库或验收输出。
+
+同日复核上传候选：`test:dist` 通过 71 个 JavaScript 文件 / 140 个模块，目录共 182 个文件、891,235 bytes，`dist/app.js` SHA-256 为 `2AADD07F0912A74F2038C385974D3B597A86B80DC010F5F477EDA015AD76E45E`。微信开发者工具再次上传 `3.0.0` 成功，总包 849.9 KB、主包 444.4 KB。该操作只证明最新开发版本上传成功；公众平台自动化连接随后超时，尚未取得新上传快照再次“选为体验版”的权威页面证据，也未提交审核或正式发布。真实微信开发者工具链路不能替代真机弱网、切后台、断线恢复、存量账号原地绑定或双设备在线对局，Gate 04 因此仍为进行中。
