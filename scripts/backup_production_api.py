@@ -2,8 +2,10 @@
 
 This is the fallback used when PostgreSQL client tools are unavailable locally.
 It exports every resource exposed by the pre-V2.9 production API before the
-database migrations run.  The admin password and token are never written to
-disk or printed.
+database migrations run.  Legacy admin order responses already embed their
+optional review, so the exporter must not call the customer-owned review
+detail endpoint with an admin token.  The admin password and token are never
+written to disk or printed.
 """
 
 from __future__ import annotations
@@ -61,16 +63,6 @@ def request_json(
         return json.loads(response.read().decode("utf-8"))
 
 
-def optional_json(api_origin: str, path: str, token: str):
-    """Read a legacy optional resource while preserving non-404 failures."""
-    try:
-        return request_json(api_origin, path, token=token)
-    except HTTPError as error:
-        if error.code == 404:
-            return None
-        raise
-
-
 def main() -> int:
     """Validate configuration first, then export the legacy production resources."""
     api_origin, admin_password, admin_invite_code = required_configuration()
@@ -86,14 +78,7 @@ def main() -> int:
         raise SystemExit("Admin login did not return a token")
 
     orders = request_json(api_origin, "/api/orders", token=token)
-    reviews = {
-        str(order["id"]): optional_json(
-            api_origin,
-            f"/api/orders/{order['id']}/review",
-            token,
-        )
-        for order in orders
-    }
+    reviews = {str(order["id"]): order.get("review") for order in orders}
     payload = {
         "format": "girlfriend-menu-api-logical-backup-v1",
         "created_at": datetime.now(timezone.utc).isoformat(),
