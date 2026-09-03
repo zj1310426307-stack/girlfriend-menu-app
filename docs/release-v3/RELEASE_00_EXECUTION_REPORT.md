@@ -24,10 +24,10 @@
 ## Gate 01：本地发布候选验证
 
 - 后端依赖：`requirements-dev.txt` 已按现有虚拟环境校准，无依赖漂移。
-- 后端测试：当前 PR head `277 passed`；11 条 Python 3.12 SQLite datetime adapter 弃用警告。
+- 后端测试：当前 PR head `279 passed`；11 条 Python 3.12 SQLite datetime adapter 弃用警告。
 - 质量门：Ruff 通过；Import Linter 5/5 契约通过；compileall 通过。
 - 契约门：V3 schema 与 OpenAPI 导出均为 current。
-- 安全门：519 个候选文件密钥扫描通过；发布配置检查通过。
+- 安全门：520 个候选文件密钥扫描通过；发布配置检查通过。
 - SQLite 迁移：空库升至 `20260817_14`；降至 `20260817_13` 后再升 head；V2 `20260808_01` 升 head，全部通过。
 - PostgreSQL：本机没有 Docker、psql 或 pg_dump；PR backend job 已在 PostgreSQL 18 服务上通过同等迁移矩阵。
 - 性能基线：bootstrap p95 43.150 ms；旧五请求 p95 88.698 ms；本地 AI p95 0.399 ms；建房 p95 0.027 ms；重连 p95 0.071 ms；回放 p95 0.069 ms。

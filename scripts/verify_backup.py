@@ -6,12 +6,15 @@ import argparse
 from contextlib import closing
 import hashlib
 import json
+import os
 from pathlib import Path
 import sqlite3
 import subprocess
 import tempfile
 
 from sqlalchemy import create_engine, inspect, text
+
+from backup_database import _postgres_cli
 
 
 def _sha256(path: Path) -> str:
@@ -52,9 +55,19 @@ def verify(backup: Path, target_url: str | None = None) -> None:
     else:
         if not target_url or "restore_verify" not in target_url:
             raise SystemExit("PostgreSQL verification requires an isolated --target-url containing 'restore_verify'")
+        command, environment = _postgres_cli(
+            target_url,
+            "pg_restore",
+            "--clean",
+            "--if-exists",
+            "--no-owner",
+            "--no-acl",
+            str(backup),
+        )
         subprocess.run(
-            ["pg_restore", "--clean", "--if-exists", "--no-owner", "--no-acl", f"--dbname={target_url}", str(backup)],
+            command,
             check=True,
+            env=environment,
         )
         actual = _counts(target_url, list(manifest["counts"]))
     if actual != manifest["counts"]:
@@ -65,6 +78,6 @@ def verify(backup: Path, target_url: str | None = None) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("backup", type=Path)
-    parser.add_argument("--target-url", default=None)
+    parser.add_argument("--target-url", default=os.getenv("RESTORE_VERIFY_DATABASE_URL"))
     args = parser.parse_args()
     verify(args.backup.resolve(), args.target_url)
