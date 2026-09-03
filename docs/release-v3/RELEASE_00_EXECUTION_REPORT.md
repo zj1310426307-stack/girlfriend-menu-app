@@ -4,9 +4,9 @@
 
 ## 当前结论
 
-**GATE 00-03 PASS — GATE 04 DEVTOOLS WECHAT PASS / REAL DEVICE PENDING — GATE 05 LOGICAL BACKUP PASS / DATABASE RESTORE PENDING — NO MERGE / NO V3 PRODUCTION DEPLOY**
+**GATE 00-03 PASS — GATE 04 DEVTOOLS WECHAT PASS / REAL DEVICE PENDING — GATE 05 PASS — NO MERGE / NO V3 PRODUCTION DEPLOY**
 
-候选分支和 PR 已冻结核验，本地完整回归、迁移、契约、构建、密钥扫描与远端必需 CI 均通过。独立 Neon Free staging 项目和 Render Free staging 服务已建立，hosted health/readiness、业务写链路及真实微信 code2Session/OpenID 恢复链路均已通过开发者工具验收。Gate 04 仍缺微信真机弱网、后台恢复及双设备在线对局证据。生产仅轮换管理凭据并重新部署原 V2.11 服务，随后完成只读逻辑备份；尚未执行 V3 数据库迁移、V3 部署、PR 合并或 Tag/Release。
+候选分支和 PR 已冻结核验，本地完整回归、迁移、契约、构建、密钥扫描与远端必需 CI 均通过。独立 Neon Free staging 项目和 Render Free staging 服务已建立，hosted health/readiness、业务写链路及真实微信 code2Session/OpenID 恢复链路均已通过开发者工具验收。Gate 04 仍缺微信真机弱网、后台恢复及双设备在线对局证据。生产仅轮换管理凭据并重新部署原 V2.11 服务；生产 API 逻辑备份及 PostgreSQL 自定义格式 dump 均完成，后者已通过本地隔离恢复。尚未执行 V3 数据库迁移、V3 部署、PR 合并或 Tag/Release。
 
 ## Gate 00：候选冻结
 
@@ -29,7 +29,7 @@
 - 契约门：V3 schema 与 OpenAPI 导出均为 current。
 - 安全门：520 个候选文件密钥扫描通过；发布配置检查通过。
 - SQLite 迁移：空库升至 `20260817_14`；降至 `20260817_13` 后再升 head；V2 `20260808_01` 升 head，全部通过。
-- PostgreSQL：本机没有 Docker、psql 或 pg_dump；PR backend job 已在 PostgreSQL 18 服务上通过同等迁移矩阵。
+- PostgreSQL：PR backend job 已在 PostgreSQL 18 服务上通过迁移矩阵；Gate 05 随后使用 PostgreSQL 官网链接的 EDB 18.6 可移植客户端完成生产 `pg_dump` 与本地隔离 `pg_restore`。
 - 性能基线：bootstrap p95 43.150 ms；旧五请求 p95 88.698 ms；本地 AI p95 0.399 ms；建房 p95 0.027 ms；重连 p95 0.071 ms；回放 p95 0.069 ms。
 - 小程序：`npm ci`、生产构建、`test:ci`、dist 完整性全部通过；71 个 JS 文件、140 个模块。
 - 包体：主包 57 文件 / 470,867 B；总包 182 文件 / 890,679 B。
@@ -76,7 +76,9 @@ Gate 03 当前为 **PASS**。Gate 04 的 hosted 业务子门已通过：客户�
 
 2026-09-03 在重新部署生产管理凭据后，管理员登录验证成功。只读逻辑备份导出 19 道菜、3 个订单、0 条评价，来源固定为生产 HTTPS API；备份 SHA-256 `4289d86bd3aee96ab4823521a6ad1ec5080fc7c93e7d0ffe7186397bfc81a184` 与 manifest 复算一致。备份文件位于被 Git 忽略的本地 `backups/`，凭据未进入备份或日志，使用后已清空。
 
-该结果只关闭旧 API 逻辑备份与校验和子门。尚无生产 PostgreSQL 连接串/`pg_dump` 产物，也未在隔离数据库执行恢复并核对行数、外键与迁移 revision，因此 Gate 05 保持进行中，不得据此部署 V3 或提交正式审核。
+同日完成 PostgreSQL 18.6 自定义格式备份 `girlfriend-menu-20260903T085441Z.dump`：203,551 bytes，SHA-256 `d1b637945731d6a7f63e4fb4fe6c408a3c7e503bd9bcbec74fe4a7f6bec19af5`。manifest 覆盖 19 个核心表；归档可由 `pg_restore --list` 读取并包含 35 个 TABLE DATA 条目。数据库连接密码不进入子进程命令行，生产连接串和一次性密钥在导出后均已清除。
+
+该 dump 随后恢复到仅监听本机回环地址的 PostgreSQL 18.6 `restore_verify` 数据库。19 个核心表行数与 manifest 完全一致，恢复库包含 24 个外键，Alembic revision 为 `20260812_12`。验证结束后临时数据库正常关闭并删除，生产 dump 与 manifest 保留在 Git 忽略的 `backups/`。Gate 05 当前为 **PASS**。
 
 ## 依赖安全观察
 
