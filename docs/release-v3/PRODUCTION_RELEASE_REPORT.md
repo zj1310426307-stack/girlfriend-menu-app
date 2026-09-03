@@ -30,6 +30,5 @@
 ## 进入生产前必须补齐
 
 1. Gate 03 独立 staging 数据库与部署通过。
-2. Gate 04 hosted API、核心业务、游戏/WebSocket 和微信真机通过。
-3. PR 新 head 的审查线程为 0，必需 CI 全绿。
-4. 记录生产发布前 deploy ID、数据库 revision 与回滚责任人。
+2. PR 新 head 的审查线程为 0，必需 CI 全绿。
+3. 记录生产发布前 deploy ID、数据库 revision 与回滚责任人。

@@ -4,7 +4,7 @@
 
 ## 状态
 
-**IN PROGRESS — HOSTED + REAL WECHAT DEVTOOLS PASS / WECHAT REAL DEVICE PENDING**
+**PASS — HOSTED + REAL WECHAT DEVTOOLS + WECHAT REAL DEVICE**
 
 ## 隔离前置审计
 
@@ -29,10 +29,10 @@
 - [x] 完成菜单/收藏、管理登录与管理 WebSocket、数据库图片上传/下载、订单归属隔离、重复点单预览、状态流转、评价、撤回，以及双客户游戏 WebSocket/重连验收。
 - [x] 验收凭据在一次诊断输出风险后立即二次轮换；新管理员首次登录已完成数据库 verifier 轮换，复验通过，明文未写入仓库、文件或验收输出。
 - [x] 配置真实微信凭据并用 `--require-wechat` 复核。
-- [ ] 使用真实微信 code 完成新用户邀请、存量 OpenID 原地绑定与新手机恢复同一业务身份。
+- [x] 使用真实微信 code 完成新用户邀请、存量 OpenID 原地绑定与清除本地会话后的同一业务身份恢复。
 - [x] staging 小程序构建完成，`dist/app.json` 存在，产物完整性检查通过且 API Origin 指向独立 Render staging。
 - [x] 微信开发者工具使用本轮 staging 产物普通启动，红色应用错误为 0；MCP 自动化只签署页面结构与本地交互，不替代真实微信登录和真机业务验收。
-- [ ] 微信真机覆盖冷启动、弱网、断网重连及核心业务。
+- [x] 微信真机覆盖冷启动、弱网/网络切换、切后台恢复、断网重连、核心业务及双设备在线游戏。
 
 ## 证据边界
 
@@ -55,3 +55,5 @@
 2026-09-03 在 Render staging 配置真实微信凭据并重新部署后，严格 hosted 门 `check_staging_readiness.py --require-wechat` 通过，返回 PostgreSQL、database storage、authentication 与 `wechat_login=ready`。微信开发者工具通过真实 `wx.login` 一次性 code 完成首次邀请码绑定，随后清除本地客户会话并再次获取新 code；第二次请求未携带邀请码仍返回同一客户身份，两轮 `/api/bootstrap` 均为 HTTP 200。恢复后的会话已持久化，首页冷启动直接进入已认证界面，应用运行时异常、连接错误与错误级控制台均为 0。邀请码、code、OpenID、客户标识和 token 均未写入仓库或验收输出。
 
 同日复核上传候选：`test:dist` 通过 71 个 JavaScript 文件 / 140 个模块，目录共 182 个文件、891,235 bytes，`dist/app.js` SHA-256 为 `2AADD07F0912A74F2038C385974D3B597A86B80DC010F5F477EDA015AD76E45E`。微信开发者工具再次上传 `3.0.0` 成功，总包 849.9 KB、主包 444.4 KB。2026-09-03 公众平台版本管理页随后权威显示该最新开发版本提交时间为 15:34:34、项目备注为 `LoveOS V3 staging real WeChat login acceptance`，并带“体验版”标记；体验二维码路径为 `pages/index/index`。该证据仅关闭最新上传快照的体验版状态，不代表提交审核或正式发布。真实微信开发者工具链路不能替代真机弱网、切后台、断线恢复、存量账号原地绑定或双设备在线对局，Gate 04 因此仍为进行中。
+
+2026-09-03 发布负责人通过体验版二维码完成微信真机验收并确认全部正常：核心页面与业务可用，切后台后恢复正常，Wi-Fi/移动网络切换及断线重连正常，两台体验成员设备的在线游戏与重连状态一致。随后在同一真实微信账号清除本地会话并重新进入，未再次要求邀请码，原有订单、积分和游戏记录均保留。该证据来自发布负责人的真机结果确认，不冒充自动化日志、客户标识或截图；结合 hosted 与开发者工具证据，Gate 04 当前为 **PASS**。

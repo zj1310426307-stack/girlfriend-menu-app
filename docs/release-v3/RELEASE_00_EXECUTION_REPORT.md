@@ -4,9 +4,9 @@
 
 ## 当前结论
 
-**GATE 00-03 PASS — GATE 04 DEVTOOLS WECHAT PASS / REAL DEVICE PENDING — GATE 05 PASS — NO MERGE / NO V3 PRODUCTION DEPLOY**
+**GATE 00-05 PASS — AWAITING CONTROLLED V3 PRODUCTION DEPLOY**
 
-候选分支和 PR 已冻结核验，本地完整回归、迁移、契约、构建、密钥扫描与远端必需 CI 均通过。独立 Neon Free staging 项目和 Render Free staging 服务已建立，hosted health/readiness、业务写链路及真实微信 code2Session/OpenID 恢复链路均已通过开发者工具验收。Gate 04 仍缺微信真机弱网、后台恢复及双设备在线对局证据。生产仅轮换管理凭据并重新部署原 V2.11 服务；生产 API 逻辑备份及 PostgreSQL 自定义格式 dump 均完成，后者已通过本地隔离恢复。尚未执行 V3 数据库迁移、V3 部署、PR 合并或 Tag/Release。
+候选分支和 PR 已冻结核验，本地完整回归、迁移、契约、构建、密钥扫描与远端必需 CI 均通过。独立 Neon Free staging 项目和 Render Free staging 服务已建立，hosted health/readiness、业务写链路、真实微信 code2Session/OpenID 恢复链路以及发布负责人真机弱网、后台恢复、身份恢复和双设备在线对局均通过。生产 API 逻辑备份及 PostgreSQL 自定义格式 dump 均完成，后者已通过本地隔离恢复。生产仍运行 V2.11；尚未执行 V3 数据库迁移、V3 部署、PR 合并或 Tag/Release。
 
 ## Gate 00：候选冻结
 
@@ -72,6 +72,8 @@ Gate 03 当前为 **PASS**。Gate 04 的 hosted 业务子门已通过：客户�
 
 同日重新上传 `3.0.0` 开发版本成功，总包 849.9 KB、主包 444.4 KB；上传前产物完整性为 71 个 JavaScript 文件 / 140 个模块，182 个文件共 891,235 bytes，`dist/app.js` SHA-256 为 `2AADD07F0912A74F2038C385974D3B597A86B80DC010F5F477EDA015AD76E45E`。2026-09-03 公众平台版本管理页随后权威显示该最新版本提交时间为 15:34:34、项目备注为 `LoveOS V3 staging real WeChat login acceptance`，并带“体验版”标记；体验二维码路径为 `pages/index/index`。该证据仅关闭最新上传快照的体验版状态；未提交审核、未正式发布。Gate 04 仍保留真机弱网/切后台/断线恢复、存量账号原地绑定及双设备在线对局缺口。
 
+随后发布负责人通过体验版二维码完成微信真机验收并确认全部正常：核心页面与业务、切后台恢复、网络切换/断线重连、双设备在线游戏及重连状态均正常；同一真实微信账号清除本地会话后无需再次输入邀请码，原有订单、积分和游戏记录保持。该结果按发布负责人真机确认记录，不伪造自动化日志、客户标识或截图。结合 hosted 与开发者工具证据，Gate 04 当前为 **PASS**。
+
 ## Gate 05：生产备份与恢复
 
 2026-09-03 在重新部署生产管理凭据后，管理员登录验证成功。只读逻辑备份导出 19 道菜、3 个订单、0 条评价，来源固定为生产 HTTPS API；备份 SHA-256 `4289d86bd3aee96ab4823521a6ad1ec5080fc7c93e7d0ffe7186397bfc81a184` 与 manifest 复算一致。备份文件位于被 Git 忽略的本地 `backups/`，凭据未进入备份或日志，使用后已清空。
@@ -90,4 +92,4 @@ Gate 03 当前为 **PASS**。Gate 04 的 hosted 业务子门已通过：客户�
 - 不对生产数据库执行迁移或写入。
 - 不部署或切换生产服务。
 - 不创建 `v3.0.0` Tag/GitHub Release。
-- 不把开发工具自动化超时写成微信真机通过。
+- 不把发布负责人真机确认写成自动化日志或截图证据。
