@@ -2,7 +2,7 @@
 
 ## 结论
 
-**候选 Gate 00-03 通过；Gate 04 hosted/微信真机验收进行中。**
+**Gate 00-08 通过；LoveOS V3 已部署生产，微信正式审核尚未提交。**
 
 本轮以兼容式方式完成微信标准身份、后台账号散列/审计和首屏收敛，没有删除旧 API、旧 Customer、旧订单、旧游戏数据或原有设备恢复桥梁。
 
@@ -28,21 +28,20 @@
 - 不重复引入 Nginx、另一套 session 表、另一套 cache、另一套 telemetry 或前端请求层。
 - 不在缺少配对/解绑业务定义时虚构 `couple_bindings` 状态机。
 - 不把多 worker 当作免费性能优化；当前 WebSocket/定时任务所有权不支持盲目扩进程。
-- 不自动操作 GitHub、Render、生产数据库或微信公众平台。
+- 不在缺少发布负责人动作时自动提交微信正式审核或正式发布。
 
 ## Git 与外部状态
 
 - 候选分支：`feature/continuous-optimization-03`。
-- 候选提交：`d11a708a6cf1fc9b807e734ee111670ce674625d`。
-- PR #21：OPEN、非 Draft、MERGEABLE；未解决审查线程 0。
-- `backend`、`miniprogram`、`release-safety` 已通过；Vercel 失败按发布任务书为非阻断。
-- 微信小程序 `3.0.0` 有较早的开发版本上传记录，但本轮仍无 staging 真机、体验版、审核或正式发布证据。
-- 独立 Neon Free staging 项目与 Render Free staging 服务已创建；hosted health/readiness 和带邀请码的 HTTP/WebSocket 业务验收通过，生产 Origin 与数据库未复用。
-- 本轮未合并 PR，未修改生产数据库或 Render 生产服务。
+- 候选提交：`bca5dd5be148920dd1ebe2b45047a0ac168c01d8`；合并提交：`f363128e4db49392e64c8cc00e2e6e926957e9f9`。
+- PR #21 已合并；合并提交的 `backend`、`miniprogram`、`release-safety` 与 Dependabot checks 全部通过。
+- 独立 Neon Free staging、真实微信登录、OpenID 恢复链路、体验版和发布负责人真机验收均已通过。
+- Render Free 生产服务已部署 V3；数据库启动守卫处于 `20260817_14`，production readiness 与微信登录均为 ready。
+- 微信正式审核、正式发布、`v3.0.0` Tag 和 GitHub Release 尚未执行。
 
 ## 下一门禁
 
-1. 配置真实微信凭据，复核 code2Session readiness、OpenID 绑定和换机恢复。
-2. 执行开发工具与真机验收并收集证据。
-3. 通过 [微信发布清单](wechat-release-checklist.md)。
-4. 完成生产备份与恢复抽查后，才允许合并、生产部署、Tag 或正式发布。
+1. 上传并复核仅指向生产 Origin 的 `3.0.0` 小程序构建。
+2. 按 [微信发布清单](wechat-release-checklist.md) 做生产体验版回归。
+3. 发布负责人单独确认后，才提交微信正式审核。
+4. 审核通过后再决定正式发布与 `v3.0.0` Tag/GitHub Release。
