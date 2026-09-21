@@ -7,6 +7,7 @@ const MAX_PENDING_MESSAGES = 20;
 const RECONNECT_BASE_DELAY_MS = 1000;
 const RECONNECT_MAX_DELAY_MS = 30000;
 const RECONNECT_JITTER_RATIO = 0.25;
+const TERMINAL_CLOSE_CODES = new Set([4400, 4401, 4404]);
 
 function isHeartbeat(message) {
   const type = String(message?.type || "").toLowerCase();
@@ -134,7 +135,7 @@ export function connectGameRoom({
       reconnectErrorNotified = false;
       clearReconnect();
       clearHeartbeat();
-      onStatus?.("online");
+      onStatus?.("authenticating");
       sendNow({
         type: "join",
         game: gameType,
@@ -159,6 +160,7 @@ export function connectGameRoom({
           messageType === "state"
           && (!message.game || String(message.game).toLowerCase() === String(gameType).toLowerCase())
         ) {
+          onStatus?.("online");
           onState?.({ room_code: message.room_code, ...(message.data || {}) });
         }
         if (messageType === "error") {
@@ -175,7 +177,17 @@ export function connectGameRoom({
       notifyReconnectError();
     });
 
-    socketTask.onClose(() => {
+    socketTask.onClose((event = {}) => {
+      if (TERMINAL_CLOSE_CODES.has(Number(event.code))) {
+        closed = true;
+        open = false;
+        connecting = false;
+        clearHeartbeat();
+        clearReconnect();
+        pendingMessages.splice(0);
+        onStatus?.("rejected");
+        return;
+      }
       markDisconnected(socketTask);
     });
   };

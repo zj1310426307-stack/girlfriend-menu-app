@@ -12,6 +12,7 @@ const orderDetail = read("src/pages/order-detail/index.jsx");
 const adminOrders = read("src/pages/admin-orders/index.jsx");
 const status = read("src/utils/status.js");
 const transport = read("src/api/transport.js");
+const diceOnline = read("src/pages/dice-online/index.jsx");
 
 assert.match(menu, /favoriteUpdatingRef\s*=\s*useRef\(new Set\(\)\)/);
 assert.match(menu, /favoriteUpdatingRef\.current\.has\(dish\.id\)/);
@@ -76,5 +77,14 @@ assert.match(
   adminOrders,
   /rollbackAdminOrderStatus\(order\.id,\s*token,\s*order\.status\)/
 );
+
+assert.match(api, /export async function wakeGameService\(\)/);
+assert.match(api, /request\(["']\/health["'],\s*\{[\s\S]*timeout:\s*60000[\s\S]*preserveSession:\s*true/);
+assert.match(api, /return request\(["']\/health["'],\s*\{[\s\S]*timeout:\s*45000/);
+assert.match(api, /createGameRoom[\s\S]*timeout:\s*60000/);
+assert.match(diceOnline, /await wakeGameService\(\)[\s\S]*await createGameRoom\(["']dice["']/);
+assert.match(diceOnline, /creationStage === ["']waking["'][\s\S]*正在唤醒服务器/);
+assert.match(diceOnline, /if \(!hasCustomerSession\(\)\)[\s\S]*Taro\.reLaunch/);
+assert.match(diceOnline, /connectionStatus === ["']rejected["'][\s\S]*房间连接失败/);
 
 console.log("core product flow contracts: PASS");

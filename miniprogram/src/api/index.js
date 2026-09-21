@@ -161,6 +161,24 @@ export const createDiceRoom = (inviteCode) =>
 
 export const getGames = () => request("/games", { maxRetries: 0 });
 
+/** Wake a sleeping free-tier backend before issuing a non-idempotent room write. */
+export async function wakeGameService() {
+  try {
+    return await request("/health", {
+      timeout: 60000,
+      maxRetries: 0,
+      preserveSession: true
+    });
+  } catch (error) {
+    if (error?.statusCode) throw error;
+    return request("/health", {
+      timeout: 45000,
+      maxRetries: 0,
+      preserveSession: true
+    });
+  }
+}
+
 export const createGameRoom = (
   gameType,
   creator,
@@ -176,7 +194,8 @@ export const createGameRoom = (
       mode,
       difficulty,
       invite_code: inviteCode
-    }
+    },
+    timeout: 60000
   });
 
 export const getGameRoom = (roomCode) =>

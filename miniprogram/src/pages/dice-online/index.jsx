@@ -2,9 +2,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Taro, { useDidHide, useDidShow, useRouter } from "@tarojs/taro";
 import { Canvas, Input, Text, View } from "@tarojs/components";
 
-import { createGameRoom } from "../../api";
+import { createGameRoom, wakeGameService } from "../../api";
 import { connectDiceRoom } from "../../api/diceSocket";
-import { getCustomerId } from "../../utils/customer";
+import {
+  getAuthenticatedCustomerId,
+  hasCustomerSession
+} from "../../utils/customer";
 import { ensureInvitePassed } from "../../utils/invite";
 import { ensureGameRecovery } from "../../utils/gameRecovery";
 import { createNativeDiceScene } from "../dice/nativeScene";
@@ -65,12 +68,13 @@ export default function DiceOnline() {
   const [sceneError, setSceneError] = useState("");
   const [rolling, setRolling] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [creationStage, setCreationStage] = useState("");
   const [bidQuantity, setBidQuantity] = useState(1);
   const [bidFace, setBidFace] = useState(2);
 
   const socketRef = useRef(null);
   const sceneRef = useRef(null);
-  const playerIdRef = useRef(getCustomerId());
+  const playerIdRef = useRef(getAuthenticatedCustomerId());
 
   const me = room.players.find((player) => player.id === playerIdRef.current);
   const opponent = room.players.find((player) => player.id !== playerIdRef.current);
@@ -85,6 +89,7 @@ export default function DiceOnline() {
   }, [activeRoomCode, connectionStatus]);
 
   const roomMessage = useMemo(() => {
+    if (connectionStatus === "rejected") return "房间连接失败，请返回后重新进入";
     if (connectionStatus !== "online") return "正在连接实时房间…";
     if (room.players.length < 2) return "把房间码发给女朋友，等她加入";
     if (room.phase === "rolling") {
@@ -155,6 +160,12 @@ export default function DiceOnline() {
   }, [room.current_bid]);
 
   const connectToRoom = (code) => {
+    if (!hasCustomerSession()) {
+      Taro.showToast({ title: "登录已失效，请重新进入", icon: "none" });
+      Taro.reLaunch({ url: "/pages/index/index" }).catch(() => {});
+      return;
+    }
+    playerIdRef.current = getAuthenticatedCustomerId();
     const normalized = String(code || "").trim().toUpperCase();
     if (!/^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{6}$/.test(normalized)) {
       Taro.showToast({ title: "请输入 6 位房间码", icon: "none" });
@@ -182,14 +193,27 @@ export default function DiceOnline() {
 
   const makeRoom = async () => {
     if (creating) return;
+    if (!hasCustomerSession()) {
+      Taro.showToast({ title: "登录已失效，请重新进入", icon: "none" });
+      Taro.reLaunch({ url: "/pages/index/index" }).catch(() => {});
+      return;
+    }
     setCreating(true);
+    setCreationStage("waking");
     try {
+      await wakeGameService();
+      setCreationStage("creating");
+      playerIdRef.current = getAuthenticatedCustomerId();
       const result = await createGameRoom("dice", playerIdRef.current, "");
       connectToRoom(result.room_code);
     } catch (error) {
       Taro.showToast({ title: error.message || "创建房间失败", icon: "none" });
+      if (error?.statusCode === 401) {
+        Taro.reLaunch({ url: "/pages/index/index" }).catch(() => {});
+      }
     } finally {
       setCreating(false);
+      setCreationStage("");
     }
   };
 
@@ -236,7 +260,9 @@ export default function DiceOnline() {
               <View key={name} className={playerName === name ? "active" : ""} onClick={() => setPlayerName(name)}><Text>{name}</Text></View>
             ))}
           </View>
-          <View className="online-primary" onClick={makeRoom}><Text>{creating ? "正在创建…" : "创建双人房间"}</Text></View>
+          <View className={`online-primary ${creating ? "disabled" : ""}`} onClick={makeRoom}>
+            <Text>{creationStage === "waking" ? "正在唤醒服务器…" : creationStage === "creating" ? "正在创建房间…" : "创建双人房间"}</Text>
+          </View>
           <Text className="online-or">或者加入已有房间</Text>
           <Input
             className="online-input"
