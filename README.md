@@ -9,9 +9,9 @@
 - 当前源码版本：`3.0.0`（LoveOS V3 渐进式重构功能分支）
 - 当前微信体验版：`2.11.2`（2026-08-17 构建并上传）
 - AppID：`wx08cb090781c3e679`
-- 后端：FastAPI，部署于 Render
+- 后端：FastAPI，部署于 CloudBase 云托管（免费体验额度）
 - 生产数据库：Neon PostgreSQL
-- 生产 API：`https://girlfriend-menu-api.onrender.com`
+- 生产 API：`https://loveos-api-317508-4-1479584710.sh.run.tcloudbase.com`
 - 2026-08-08 验证结果：API 健康检查正常、数据库为 PostgreSQL、线上有 19 道启用菜品
 
 后端模块化状态：Phase 2A 已将 Router 从 `main.py` 拆分；Phase 2B 已将 Dish、
@@ -83,7 +83,7 @@ Favorite、Review、Order 与非游戏 Stats 收敛为
 | 本地数据库 | SQLite（未配置 `DATABASE_URL` 时） |
 | 实时通信 | FastAPI WebSocket（管理订单推送、大话骰与五子棋双人房间） |
 | 游戏状态 | PostgreSQL 权威快照；Redis 可选热缓存（未配置时不丢进行中棋局） |
-| 部署 | Render Blueprint + GitHub 自动部署 |
+| 部署 | CloudBase 云托管 + Neon PostgreSQL；Render 配置保留为回滚参考 |
 | 自动化 | Pytest、GitHub Actions、微信开发者工具自动化冒烟脚本 |
 
 ## 项目结构
@@ -129,7 +129,7 @@ girlfriend-menu-app/
 │   ├── project.config.json      # 微信项目配置
 │   └── package.json
 ├── docs/PROJECT_HANDOFF.md      # 完整产品、架构、数据和审计交接
-├── render.yaml                  # Render 后端部署蓝图
+├── render.yaml                  # 历史 Render 部署/回滚参考
 └── README.md
 ```
 
@@ -263,16 +263,16 @@ LoveOS V3 微信身份、数据库管理账号、首屏生产化、部署/回滚
 
 ## 生产部署
 
-### Render + Neon PostgreSQL
+### CloudBase 云托管 + Neon PostgreSQL
 
-Render 只部署 `backend/`，构建和启动命令已经写在 `render.yaml`：
+CloudBase 生产服务为 `loveos-api`，只部署 `backend/`，容器通过 `backend/Dockerfile` 构建并启动：
 
 ```text
 pip install -r requirements.txt
 python serve.py
 ```
 
-三个 Blueprint 都保持 Render 免费计划。生产 `autoDeploy=false`，只能在备份、隔离恢复和候选提交门禁通过后手动发布。`serve.py` 会先检查数据库版本与参考数据；只在首次部署或发现漂移时执行迁移与幂等修复，然后在同一进程启动 Uvicorn。
+CloudBase 环境 `xsw-d8gknzbsu0b34e1b2` 使用 Trial/basic 免费额度，禁止付费和超额计费；服务最小实例为 0，可能冷启动。`serve.py` 会先检查数据库版本与参考数据；只在首次部署或发现漂移时执行迁移与幂等修复，然后在同一进程启动 Uvicorn。
 
 生产环境必须配置：
 
@@ -305,10 +305,10 @@ python serve.py
 
 | 类型 | 域名 |
 | --- | --- |
-| request 合法域名 | `https://girlfriend-menu-api.onrender.com` |
-| socket 合法域名 | `wss://girlfriend-menu-api.onrender.com` |
-| uploadFile 合法域名 | `https://girlfriend-menu-api.onrender.com` |
-| downloadFile 合法域名 | `https://girlfriend-menu-api.onrender.com` |
+| request 合法域名 | `https://loveos-api-317508-4-1479584710.sh.run.tcloudbase.com` |
+| socket 合法域名 | `wss://loveos-api-317508-4-1479584710.sh.run.tcloudbase.com` |
+| uploadFile 合法域名 | `https://loveos-api-317508-4-1479584710.sh.run.tcloudbase.com` |
+| downloadFile 合法域名 | `https://loveos-api-317508-4-1479584710.sh.run.tcloudbase.com` |
 
 域名末尾不要添加 `/api`、路径、端口或分号。
 
@@ -346,7 +346,7 @@ python serve.py
 新房间通过 `POST /api/games/rooms` 创建，实时连接统一使用：
 
 ```text
-wss://girlfriend-menu-api.onrender.com/ws/game/{room_code}
+wss://loveos-api-317508-4-1479584710.sh.run.tcloudbase.com/ws/game/{room_code}
 ```
 
 现有 `/api/games/dice/rooms` 与 `/ws/games/dice/{room_code}` 保留兼容，已经上传的旧小程序不会因后端升级立即失效。协议细节见 [游戏中心通信协议](docs/GAME_CENTER_PROTOCOL.md)。
@@ -370,7 +370,7 @@ wss://girlfriend-menu-api.onrender.com/ws/game/{room_code}
 统一实时入口保持为：
 
 ```text
-wss://girlfriend-menu-api.onrender.com/ws/game/{room_code}
+wss://loveos-api-317508-4-1479584710.sh.run.tcloudbase.com/ws/game/{room_code}
 ```
 
 完成一局五子棋后，`game_records` 持久化胜者、时长和结果快照；`game_players` 持久化房间席位和累计局分。情侣积分由后端自动写入：参与双方各 +1，胜者额外 +5，连续第三场获胜额外 +10。用户可在“我们 → 游戏记录”查看自己的历史，管理统计页可查看总局数、五子棋局数、创建者胜率、最常玩的游戏和游戏积分变化。
@@ -384,7 +384,7 @@ wss://girlfriend-menu-api.onrender.com/ws/game/{room_code}
 
 ## V2.4 情侣飞行棋与每日任务
 
-飞行棋复用统一游戏目录和房间表，但采用服务端权威 HTTP 动作接口与 PostgreSQL `game_states` 持久状态。情侣模式下房主创建后自动入座，第二台设备凭 6 位房间码加入；人机模式由服务端立即补齐 AI 席位。每人四颗棋子，掷出 6 才能起飞，公共航线可碰撞，必须精确到达终点。所有骰子点数与 AI 移动都由后端生成，客户端不能提交点数。情侣模式使用不重叠的自适应轮询，页面进入后台后暂停；人机模式不轮询。关闭页面或 Render 进程重启后仍能从数据库恢复棋局。
+飞行棋复用统一游戏目录和房间表，但采用服务端权威 HTTP 动作接口与 PostgreSQL `game_states` 持久状态。情侣模式下房主创建后自动入座，第二台设备凭 6 位房间码加入；人机模式由服务端立即补齐 AI 席位。每人四颗棋子，掷出 6 才能起飞，公共航线可碰撞，必须精确到达终点。所有骰子点数与 AI 移动都由后端生成，客户端不能提交点数。情侣模式使用不重叠的自适应轮询，页面进入后台后暂停；人机模式不轮询。关闭页面或 CloudBase 实例重启后仍能从数据库恢复棋局。
 
 公共航线和回家跑道设有 LOVE、FOOD、FUN、TASK 事件格。落地时后端从 `game_events` 选择一条启用事件，写入 `game_event_logs`；当前玩家确认完成后获得事件分。同一个事件日志只能结算一次。
 
@@ -414,7 +414,7 @@ wss://girlfriend-menu-api.onrender.com/ws/game/{room_code}
 
 游戏大厅改为数据驱动的统一卡片，不再在大厅重复承担五子棋建房和加入逻辑；六款长期玩法、人机/双人能力、未完房间和轻量工具有固定层级。飞行棋、斗地主、斗兽棋和中国象棋从“继续游戏”进入时会恢复原房间，并统一显示同步中、在线、离线原因和重试入口；连续失败采用有上限的指数退避，动作增加同步锁，象棋和斗兽棋只在服务器确认后更新棋盘。
 
-实时连接增加指数退避自动重连、抖动和 20 条有界离线队列。大话骰与五子棋快照写入 PostgreSQL `game_states`，Render 进程重启后可恢复棋盘、骰子、轮次和待结算事件；大话骰重连严格按查看者过滤，开盅前只返回本人骰子。实现、参考与剩余边界见 [2.10.0 游戏长期稳定化说明](docs/GAME_LONGEVITY_2_10_0.md)。
+实时连接增加指数退避自动重连、抖动和 20 条有界离线队列。大话骰与五子棋快照写入 PostgreSQL `game_states`，CloudBase 实例重启后可恢复棋盘、骰子、轮次和待结算事件；大话骰重连严格按查看者过滤，开盅前只返回本人骰子。实现、参考与剩余边界见 [2.10.0 游戏长期稳定化说明](docs/GAME_LONGEVITY_2_10_0.md)。
 
 ## V2.11.0 游戏运行时稳定化
 
@@ -442,8 +442,8 @@ HTTP/WebSocket 路径、消息字段和关闭码均未改变。
 - 普通端使用后端设备会话和 Bearer token；数据库只保存 token 哈希。会话默认 90 天有效，支持轮换和主动撤销。旧 `gf_customer_id` 可通过 `/api/customers/recover` 恢复原身份；恢复时撤销该身份的旧会话，避免丢失历史订单、收藏、积分和游戏记录。
 - 邀请码仅发送到后端验证，不再编译进小程序包；它仍是私人应用的设备准入方式，不等同于微信账号登录。
 - 所有已开放游戏的进行中权威状态均写入 PostgreSQL；WebSocket 连接对象仍只存在于当前进程，Redis 仅加速热状态。数据库租约保证一个房间同一时刻只有一个写入实例，跨实例切换依靠客户端重连，不承诺不断线迁移。
-- 私人部署默认把压缩后的菜品图片持久化到 PostgreSQL；Render 本地 `uploads/` 只允许开发使用。图片量明显增大时再切换 S3-compatible 对象存储。
-- 当前没有微信 OpenID、手机号、订阅消息、支付、库存或采购清单。
+- 私人部署默认把压缩后的菜品图片持久化到 PostgreSQL；容器本地 `uploads/` 只允许开发使用。图片量明显增大时再切换 S3-compatible 对象存储。
+- 当前已启用微信 OpenID 登录；没有手机号、订阅消息、支付、库存或采购清单。
 
 更完整的当前产品审计见 [项目交接文档](docs/PROJECT_HANDOFF.md)，未来目标架构和分阶段执行提示词见 [V2.0 产品与架构方案](docs/V2_PRODUCT_PLAN.md)。
 
@@ -496,7 +496,7 @@ S3_PUBLIC_BASE_URL
 
 私人部署默认使用 `UPLOAD_PROVIDER=database`：后端会先校验并压缩图片，再将少量菜品图片保存到现有 PostgreSQL，通过 `/api/images/{id}` 长缓存访问。这样不需要额外的 R2/S3 账号或密钥。若图片规模增大，可把 `UPLOAD_PROVIDER` 改回 `s3` 并配置上面的 S3/R2 环境变量，现有 `image_url` 不受影响。
 
-`REDIS_URL` 可选；PostgreSQL 是权威状态来源。`GAME_ROOM_LEASE_SECONDS` 默认 30 秒，通常无需修改；`GAME_INSTANCE_ID` 可选，Render 会自动使用实例标识或主机名。正式启动使用 `python serve.py`：它在 Uvicorn 启动前检查 Alembic head，只在需要时迁移；生产应用生命周期本身不自动建表或运行手写 `ALTER TABLE`。
+`REDIS_URL` 可选；PostgreSQL 是权威状态来源。`GAME_ROOM_LEASE_SECONDS` 默认 30 秒，通常无需修改；`GAME_INSTANCE_ID` 可选，CloudBase 未显式配置时使用容器主机名。正式启动使用 `python serve.py`：它在 Uvicorn 启动前检查 Alembic head，只在需要时迁移；生产应用生命周期本身不自动建表或运行手写 `ALTER TABLE`。
 
 发布前依次执行：
 

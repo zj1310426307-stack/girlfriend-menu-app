@@ -1,6 +1,6 @@
 const environmentName = process.env.TARO_APP_ENV_NAME || (process.env.NODE_ENV === "development" ? "development" : "production");
 const apiOrigin = (process.env.TARO_APP_API_ORIGIN || "").replace(/\/$/, "");
-const productionApiOrigin = "https://girlfriend-menu-api.onrender.com";
+const productionApiOrigin = "https://loveos-api-317508-4-1479584710.sh.run.tcloudbase.com";
 if (!apiOrigin) {
   throw new Error(`Missing TARO_APP_API_ORIGIN for ${environmentName} build`);
 }
@@ -21,7 +21,7 @@ const config = {
     828: 1.81 / 2
   },
   sourceRoot: "src",
-  outputRoot: "dist",
+  outputRoot: process.env.TARO_OUTPUT_ROOT || "dist",
   plugins: [],
   // Keep production artifacts deterministic across main-package/subpackage graph changes.
   // Taro 4.2 filesystem cache can retain obsolete numeric module references here.

@@ -3,7 +3,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const root = path.resolve(__dirname, "..");
-const dist = path.join(root, "dist");
+const dist = path.join(root, process.env.TARO_OUTPUT_ROOT || "dist");
 
 function collectJavaScriptFiles(directory) {
   return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
