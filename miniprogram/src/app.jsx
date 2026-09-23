@@ -1,7 +1,13 @@
 import { Component } from "react";
 import { Text, View } from "@tarojs/components";
 
+import { ensureCloudContainerReady } from "./api/cloudContainer";
 import "./app.css";
+
+// Start CloudBase initialization without blocking the first visible page.
+ensureCloudContainerReady().catch(() => {
+  console.info("[network] MINIPROGRAM_CLOUDBASE_UNAVAILABLE");
+});
 
 // Keep a visible recovery screen when an unexpected page render error occurs.
 class AppErrorBoundary extends Component {

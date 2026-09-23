@@ -13,6 +13,7 @@ const adminOrders = read("src/pages/admin-orders/index.jsx");
 const status = read("src/utils/status.js");
 const transport = read("src/api/transport.js");
 const diceOnline = read("src/pages/dice-online/index.jsx");
+const cloudImage = read("src/components/CloudImage.jsx");
 
 assert.match(menu, /favoriteUpdatingRef\s*=\s*useRef\(new Set\(\)\)/);
 assert.match(menu, /favoriteUpdatingRef\.current\.has\(dish\.id\)/);
@@ -23,7 +24,8 @@ assert.match(menu, /favoriteBusy={favoriteUpdatingIds\.includes\(dish\.id\)}/);
 assert.match(dishCard, /favoriteBusy\s*=\s*false/);
 assert.match(dishCard, /favoriteBusy\s*\?\s*"is-busy"/);
 assert.match(dishCard, /if\s*\(!favoriteBusy\)\s*onToggleFavorite\(dish\)/);
-assert.match(dishCard, /resolveImageUrl\(dish\.image_url,\s*\{ maxWidth: compact \? 640 : 480 \}\)/);
+assert.match(dishCard, /<CloudImage[\s\S]*src={dish\.image_url}[\s\S]*maxWidth={compact \? 640 : 480}/);
+assert.match(cloudImage, /requestImageBinary\(imageUrl\)/);
 assert.match(transport, /images\\\.unsplash\\\.com/);
 assert.match(transport, /MINIPROGRAM_DOMAIN_NOT_ALLOWED/);
 assert.match(transport, /MINIPROGRAM_NETWORK_TIMEOUT/);

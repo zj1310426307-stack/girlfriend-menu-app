@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
 import Taro, { usePullDownRefresh } from "@tarojs/taro";
-import { Image, Input, Text, Textarea, View } from "@tarojs/components";
+import { Input, Text, Textarea, View } from "@tarojs/components";
 
 import {
   createAdminDish,
   deleteAdminDish,
   getDishes,
-  resolveImageUrl,
   updateAdminDish,
   uploadAdminImage
 } from "../../api";
 import AdminNav from "../../components/AdminNav";
+import CloudImage from "../../components/CloudImage";
 import { clearAdminToken, getAdminToken } from "../../utils/admin";
 import { ensureInvitePassed } from "../../utils/invite";
 import "./index.css";
@@ -213,7 +213,7 @@ export default function AdminDishesPage() {
         <View className="dish-field"><Text>图片链接</Text><Input value={form.image_url} maxlength={500} placeholder="可手动填写 https://..." onInput={(event) => updateField("image_url", event.detail.value)} /></View>
         <View className="dish-image-tools">
           <View className={`dish-upload-button ${uploading ? "is-disabled" : ""}`} onClick={chooseAndUpload}><Text>{uploading ? "正在上传…" : "从相册或相机上传"}</Text></View>
-          {form.image_url && <Image className="dish-image-preview" src={resolveImageUrl(form.image_url)} mode="aspectFill" />}
+          {form.image_url && <CloudImage className="dish-image-preview" src={form.image_url} mode="aspectFill" />}
         </View>
         <View className={`dish-save-button ${(saving || uploading) ? "is-disabled" : ""}`} onClick={save}>
           <Text>{saving ? "正在保存…" : editingId ? "保存修改" : "加入今日菜单"}</Text>
@@ -228,7 +228,7 @@ export default function AdminDishesPage() {
         {dishes.map((dish) => (
           <View className="dish-admin-card" key={dish.id}>
             {dish.image_url
-              ? <Image className="dish-admin-photo" src={resolveImageUrl(dish.image_url)} mode="aspectFill" lazyLoad />
+              ? <CloudImage className="dish-admin-photo" src={dish.image_url} mode="aspectFill" lazyLoad />
               : <View className="dish-admin-photo dish-admin-placeholder"><Text>菜</Text></View>}
             <View className="dish-admin-copy">
               <View><Text>{dish.name}</Text><Text>{dish.category}</Text></View>

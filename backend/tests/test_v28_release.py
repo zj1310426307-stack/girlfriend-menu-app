@@ -1,4 +1,5 @@
 import asyncio
+import base64
 from datetime import timedelta
 from io import BytesIO
 import time
@@ -159,12 +160,59 @@ def test_upload_rejects_extension_disguise_and_reencodes_image(monkeypatch, tmp_
         assert uploaded.status_code == 200
         assert uploaded.json()["image_url"].startswith("/uploads/")
 
+        cloud_uploaded = client.post(
+            "/api/upload/image-base64",
+            headers=admin,
+            json={
+                "filename": "dish.png",
+                "content_type": "image/png",
+                "content_base64": base64.b64encode(raw.getvalue()).decode("ascii"),
+            },
+        )
+        assert cloud_uploaded.status_code == 200
+        assert cloud_uploaded.json()["image_url"].startswith("/uploads/")
+
+        invalid_base64 = client.post(
+            "/api/upload/image-base64",
+            headers=admin,
+            json={
+                "filename": "dish.png",
+                "content_type": "image/png",
+                "content_base64": "not-valid-base64!",
+            },
+        )
+        assert invalid_base64.status_code == 400
+
+        disguised_base64 = client.post(
+            "/api/upload/image-base64",
+            headers=admin,
+            json={
+                "filename": "fake.png",
+                "content_type": "image/png",
+                "content_base64": base64.b64encode(b"not-an-image").decode("ascii"),
+            },
+        )
+        assert disguised_base64.status_code == 400
+
         oversized = client.post(
             "/api/upload/image",
             headers=admin,
             files={"file": ("large.png", b"x" * (5 * 1024 * 1024 + 1), "image/png")},
         )
         assert oversized.status_code == 413
+
+        oversized_base64 = client.post(
+            "/api/upload/image-base64",
+            headers=admin,
+            json={
+                "filename": "large.png",
+                "content_type": "image/png",
+                "content_base64": base64.b64encode(
+                    b"x" * (5 * 1024 * 1024 + 1)
+                ).decode("ascii"),
+            },
+        )
+        assert oversized_base64.status_code == 413
 
         monkeypatch.setenv("UPLOAD_PROVIDER", "s3")
         for name in (

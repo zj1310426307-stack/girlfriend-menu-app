@@ -93,6 +93,7 @@ POST /api/orders/repeat/{order_id}
 POST /api/orders/{order_id}/repeat-preview
 POST /api/orders/{order_id}/review
 POST /api/upload/image
+POST /api/upload/image-base64
 POST /api/users/presence
 PUT /api/dishes/{dish_id}
 PUT /api/users/me

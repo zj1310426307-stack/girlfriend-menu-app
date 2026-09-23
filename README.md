@@ -11,7 +11,8 @@
 - AppID：`wx08cb090781c3e679`
 - 后端：FastAPI，部署于 CloudBase 云托管（免费体验额度）
 - 生产数据库：Neon PostgreSQL
-- 生产 API：`https://loveos-api-317508-4-1479584710.sh.run.tcloudbase.com`
+- 生产通信：小程序通过 `wx.cloud.callContainer` / `wx.cloud.connectContainer` 访问 CloudBase 内部链路
+- 公网健康检查：`https://loveos-api-317508-4-1479584710.sh.run.tcloudbase.com`（仅诊断，不作为正式版小程序请求域名）
 - 2026-08-08 验证结果：API 健康检查正常、数据库为 PostgreSQL、线上有 19 道启用菜品
 
 后端模块化状态：Phase 2A 已将 Router 从 `main.py` 拆分；Phase 2B 已将 Dish、
@@ -168,7 +169,7 @@ http://127.0.0.1:8000/docs
 .venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8010 --reload --no-access-log
 ```
 
-小程序当前固定请求生产 API。若要联调本机后端，需要把 `miniprogram/src/api/index.js` 中的 API 地址临时改为手机或开发者工具能够访问的 HTTPS 地址；真机不能直接访问电脑的 `localhost`。
+本机开发使用 `miniprogram/.env.development` 的直连传输；不要修改业务源码。开发者工具可访问本机 `127.0.0.1`，真机联调则需要手机可访问的 HTTPS 地址。生产构建由 `.env.production` 启用 CloudBase 内部链路。
 
 ### 2. 构建小程序
 
@@ -299,18 +300,20 @@ CloudBase 环境 `xsw-d8gknzbsu0b34e1b2` 使用 Trial/basic 免费额度，禁�
 
 `backend/.env.example` 中的所有秘密字段故意留空。管理密码散列由 `python scripts/hash_admin_password.py` 在本机生成；`ADMIN_SECRET`、管理邀请码和客户邀请码需分别使用 Python `secrets` 显式生成。不要把生产 `.env`、Neon 密码或管理密码提交到 GitHub 或放进项目压缩包。
 
-### 微信公众平台服务器域名
+### 微信小程序访问 CloudBase
 
-在“开发管理 → 开发设置 → 服务器域名”配置：
+正式构建使用 CloudBase 内部链路，不把云托管默认公网域名加入微信“服务器域名”：
 
-| 类型 | 域名 |
+| 构建变量 | 当前值/用途 |
 | --- | --- |
-| request 合法域名 | `https://loveos-api-317508-4-1479584710.sh.run.tcloudbase.com` |
-| socket 合法域名 | `wss://loveos-api-317508-4-1479584710.sh.run.tcloudbase.com` |
-| uploadFile 合法域名 | `https://loveos-api-317508-4-1479584710.sh.run.tcloudbase.com` |
-| downloadFile 合法域名 | `https://loveos-api-317508-4-1479584710.sh.run.tcloudbase.com` |
+| `TARO_APP_USE_CLOUDBASE_PRIVATE_ACCESS` | `true`，禁止正式包直接请求默认公网域名 |
+| `TARO_APP_CLOUDBASE_ENV_ID` | `xsw-d8gknzbsu0b34e1b2` |
+| `TARO_APP_CLOUDBASE_SERVICE` | `loveos-api` |
+| `TARO_APP_API_ORIGIN` | 仅保留给公网健康检查、非小程序联调和紧急回滚识别 |
 
-域名末尾不要添加 `/api`、路径、端口或分号。
+HTTP、图片读取与 JSON 图片上传通过 `wx.cloud.callContainer`；实时游戏和管理订单推送通过 `wx.cloud.connectContainer`。这两条小程序到云托管的内部链路不需要配置 request、socket、uploadFile 或 downloadFile 合法域名。CloudBase 默认 `*.run.tcloudbase.com` 域名只用于健康检查和开发诊断，不能作为微信正式版的公网服务器域名。
+
+当前小程序 AppID 必须与 CloudBase 环境完成关联，并保持服务访问类型包含 `MINIAPP`。若真机提示环境无权限，应先修复环境关联，不能回退为“关闭域名校验”，也不能为此开启付费套餐。
 
 ## 预览、体验版和正式发布
 

@@ -8,6 +8,7 @@ const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 const api = read("src/api/index.js");
 const catalogApi = read("src/api/modules/catalog.js");
 const transport = read("src/api/transport.js");
+const cloudContainer = read("src/api/cloudContainer.js");
 const routes = read("src/config/routes.js");
 const home = read("src/pages/index/index.jsx");
 const appConfig = read("src/app.config.js");
@@ -19,6 +20,9 @@ assert.match(api, /getHomeBootstrap/);
 assert.match(catalogApi, /export\s+async\s+function\s+getHomeBootstrap\s*\(/);
 assert.match(catalogApi, /request\(["']\/bootstrap["'],\s*\{\s*timeout:\s*12000,\s*maxRetries:\s*0\s*\}\)/);
 assert.match(transport, /Taro\.request\s*\(/);
+assert.match(transport, /callCloudContainer\s*\(/);
+assert.match(cloudContainer, /"X-WX-SERVICE"/);
+assert.match(cloudContainer, /cloud\.connectContainer\s*\(/);
 assert.doesNotMatch(api, /Taro\.request\s*\(/);
 assert.match(routes, /Object\.freeze\s*\(/);
 for (const name of ["GOMOKU", "FLIGHT", "LANDLORD", "ADMIN_DASHBOARD", "COUPLE_TASKS", "ORDER_DETAIL"]) {

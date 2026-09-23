@@ -17,6 +17,14 @@ class AdminLoginOut(BaseModel):
     expires_at: datetime
 
 
+class ImageUploadBase64(BaseModel):
+    """Validated JSON envelope used by the CloudBase private-link uploader."""
+
+    filename: str = Field(min_length=1, max_length=255)
+    content_type: Literal["image/jpeg", "image/png", "image/webp"]
+    content_base64: str = Field(min_length=1, max_length=7 * 1024 * 1024)
+
+
 class CustomerSessionCreate(BaseModel):
     invite_code: str = Field(min_length=1, max_length=100)
     display_name: str = Field(default="女朋友", min_length=1, max_length=50)

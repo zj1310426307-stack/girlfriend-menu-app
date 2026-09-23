@@ -1,6 +1,5 @@
-import Taro from "@tarojs/taro";
-import { WEBSOCKET_ORIGIN } from "../config/env";
 import { getCustomerToken } from "../utils/customer";
+import { connectContainerSocket } from "./cloudContainer";
 
 const HEARTBEAT_INTERVAL_MS = 25000;
 const MAX_PENDING_MESSAGES = 20;
@@ -197,10 +196,12 @@ export function connectGameRoom({
     connecting = true;
     let connection;
     try {
-      connection = Taro.connectSocket({
-        url: `${WEBSOCKET_ORIGIN}/ws/game/${encodeURIComponent(roomCode)}`,
-        timeout: 20000
-      });
+      connection = connectContainerSocket(
+        `/ws/game/${encodeURIComponent(roomCode)}`,
+        {
+          timeout: 20000
+        }
+      );
     } catch {
       connecting = false;
       onStatus?.("offline");

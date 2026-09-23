@@ -85,7 +85,13 @@ const context = vm.createContext({
   exports: moduleObject.exports,
   require(request) {
     if (request === "@tarojs/taro") return { __esModule: true, default: taro };
-    if (request === "../config/env") return { WEBSOCKET_ORIGIN: "wss://example.test" };
+    if (request === "./cloudContainer") {
+      return {
+        connectContainerSocket() {
+          return taro.connectSocket();
+        }
+      };
+    }
     if (request === "../utils/customer") return { getCustomerToken: () => "customer-token" };
     throw new Error(`Unexpected require: ${request}`);
   },

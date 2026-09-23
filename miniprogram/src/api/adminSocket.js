@@ -1,15 +1,17 @@
-import Taro from "@tarojs/taro";
-import { WEBSOCKET_ORIGIN } from "../config/env";
+import { connectContainerSocket } from "./cloudContainer";
 
-const ADMIN_SOCKET_URL = `${WEBSOCKET_ORIGIN}/ws/admin/orders`;
+const ADMIN_SOCKET_PATH = "/ws/admin/orders";
 const RETRY_DELAYS = [1000, 2000, 4000, 8000, 15000, 30000];
 
+/** Maintain the administrator event stream across CloudBase and network reconnects. */
 export function connectAdminOrders({ token, onEvent, onStatus }) {
   let closed = false;
   let socket;
+  let connecting = false;
   let heartbeat;
   let reconnectTimer;
   let retryIndex = 0;
+  let connectionGeneration = 0;
 
   const scheduleReconnect = () => {
     if (closed) return;
@@ -19,11 +21,20 @@ export function connectAdminOrders({ token, onEvent, onStatus }) {
     reconnectTimer = setTimeout(open, Math.max(500, base + jitter));
   };
 
-  const open = () => {
-    if (closed) return;
-    onStatus?.("connecting");
-    socket = Taro.connectSocket({ url: ADMIN_SOCKET_URL });
+  const bindSocket = (socketTask, generation) => {
+    connecting = false;
+    if (closed || generation !== connectionGeneration) {
+      socketTask?.close?.({ code: 1000, reason: "cancelled" });
+      return;
+    }
+    socket = socketTask;
+    if (!socket) {
+      onStatus?.("offline");
+      scheduleReconnect();
+      return;
+    }
     socket.onOpen(() => {
+      if (closed || generation !== connectionGeneration) return;
       socket.send({ data: JSON.stringify({ type: "auth", token }) });
       clearInterval(heartbeat);
       heartbeat = setInterval(() => {
@@ -31,6 +42,7 @@ export function connectAdminOrders({ token, onEvent, onStatus }) {
       }, 20000);
     });
     socket.onMessage((event) => {
+      if (closed || generation !== connectionGeneration) return;
       try {
         const message = JSON.parse(event.data);
         if (message.type === "ready") {
@@ -41,22 +53,53 @@ export function connectAdminOrders({ token, onEvent, onStatus }) {
         if (["order_created", "order_status_changed", "order_reviewed"].includes(message.type)) {
           onEvent?.(message);
         }
-      } catch (error) {
-        console.warn("管理订单消息解析失败", error);
+      } catch {
+        console.info("[network] ADMIN_SOCKET_MESSAGE_INVALID");
       }
     });
-    socket.onError(() => onStatus?.("offline"));
+    socket.onError(() => {
+      if (closed || generation !== connectionGeneration) return;
+      onStatus?.("offline");
+    });
     socket.onClose(() => {
+      if (generation !== connectionGeneration) return;
       clearInterval(heartbeat);
+      socket = null;
       onStatus?.("offline");
       scheduleReconnect();
     });
+  };
+
+  const open = () => {
+    if (closed || connecting) return;
+    connecting = true;
+    const generation = ++connectionGeneration;
+    onStatus?.("connecting");
+    let connection;
+    try {
+      connection = connectContainerSocket(ADMIN_SOCKET_PATH);
+    } catch {
+      connecting = false;
+      onStatus?.("offline");
+      scheduleReconnect();
+      return;
+    }
+    Promise.resolve(connection)
+      .then((socketTask) => bindSocket(socketTask, generation))
+      .catch(() => {
+        if (closed || generation !== connectionGeneration) return;
+        connecting = false;
+        onStatus?.("offline");
+        scheduleReconnect();
+      });
   };
 
   open();
   return {
     close() {
       closed = true;
+      connecting = false;
+      connectionGeneration += 1;
       clearInterval(heartbeat);
       clearTimeout(reconnectTimer);
       socket?.close({ code: 1000, reason: "leave admin" });

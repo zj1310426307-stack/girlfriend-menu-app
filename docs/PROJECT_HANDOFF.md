@@ -22,7 +22,8 @@
 | 后端 | FastAPI + SQLAlchemy 2 |
 | 生产数据库 | Neon PostgreSQL |
 | 本地数据库 | SQLite 回退 |
-| 生产 API | `https://loveos-api-317508-4-1479584710.sh.run.tcloudbase.com` |
+| 生产小程序通信 | CloudBase 内部 `callContainer` / `connectContainer` |
+| 公网健康检查 | `https://loveos-api-317508-4-1479584710.sh.run.tcloudbase.com`（仅诊断） |
 | 2026-08-08 健康检查 | `/api/health` 正常；`/api/ready` 返回 PostgreSQL ready |
 | 线上启用菜品 | 19 道 |
 | 后端自动测试 | 81 项通过（含 2 项 Router 契约测试） |
@@ -48,10 +49,10 @@
 flowchart LR
   U["女朋友端"] --> MP["Taro React 微信小程序"]
   A["小厨房管理端"] --> MP
-  MP -->|"HTTPS JSON"| API["CloudBase / FastAPI"]
-  MP <-->|"WSS"| RT["订单推送 / 大话骰 / 五子棋房间"]
-  MP -->|"HTTPS 轮询"| FL["持久飞行棋 / 每日任务"]
-  MP -->|"HTTPS + version"| GE["斗地主 / 斗兽棋统一游戏核心"]
+  MP -->|"callContainer"| API["CloudBase / FastAPI"]
+  MP <-->|"connectContainer"| RT["订单推送 / 大话骰 / 五子棋房间"]
+  MP -->|"内部 HTTP 轮询"| FL["持久飞行棋 / 每日任务"]
+  MP -->|"内部 HTTP + version"| GE["斗地主 / 斗兽棋统一游戏核心"]
   API --> DB["Neon PostgreSQL"]
   FL --> DB
   GE --> DB
@@ -64,7 +65,9 @@ flowchart LR
 重要边界：
 
 - 用户端与管理端都在同一个微信小程序包里。
-- HTTP 数据通过 `miniprogram/src/api/index.js` 访问，订单推送和统一游戏协议分别由对应 WebSocket 客户端封装。
+- HTTP 数据统一经过 `miniprogram/src/api/transport.js`，正式构建由 `wx.cloud.callContainer` 进入云托管；订单推送和统一游戏协议通过 `wx.cloud.connectContainer`。开发和隔离 staging 仍可按构建开关使用直连传输。
+- PostgreSQL 图片路径由共享 `CloudImage` 组件经内部链路下载到微信用户缓存；管理端在正式构建中使用受限 JSON/base64 接口上传，因此不依赖公网 downloadFile/uploadFile 合法域名。
+- 云托管默认公网域名仅保留给健康检查和诊断；微信正式版不得把它当作生产服务器域名。小程序 AppID 必须与 CloudBase 环境关联，云托管服务访问类型必须包含 `MINIAPP`。
 - 订单、菜品、评价、游戏玩家、完成对局、飞行棋状态、V2.5 版本棋局、互动、任务、成就、情侣积分和统计持久化到 PostgreSQL。
 - 实时连接对象保留在进程内存；大话骰和五子棋权威快照写入 PostgreSQL `game_states`，Redis 只做可选热缓存。单实例进程重启后可恢复进行中棋盘、骰子与轮次。
 - 旧 React/Vite 网页端已退休且源码已清理，不再作为构建、部署或功能入口。
@@ -315,7 +318,7 @@ waiting → playing → finished → 双方 rematch/playing
 
 ### P0：正式发布前外部验收
 
-1. PostgreSQL 图片 provider 仍需完成一次生产上传、读取验收。
+1. CloudBase 内部链路的 PostgreSQL 图片上传、读取仍需在微信真机完成一次生产验收。
 2. 所有双人游戏仍需两台真机完成加入、弱网、切后台、断线恢复和重开验收。
 
 ### P1：稳定性与维护
