@@ -300,20 +300,19 @@ CloudBase 环境 `xsw-d8gknzbsu0b34e1b2` 使用 Trial/basic 免费额度，禁�
 
 `backend/.env.example` 中的所有秘密字段故意留空。管理密码散列由 `python scripts/hash_admin_password.py` 在本机生成；`ADMIN_SECRET`、管理邀请码和客户邀请码需分别使用 Python `secrets` 显式生成。不要把生产 `.env`、Neon 密码或管理密码提交到 GitHub 或放进项目压缩包。
 
-### 微信小程序访问 CloudBase
+### 微信小程序生产访问
 
-正式构建使用 CloudBase 内部链路，不把云托管默认公网域名加入微信“服务器域名”：
+当前正式构建通过已备案到微信后台的 Render HTTPS/WSS 域名访问 FastAPI；不依赖无法关联当前小程序的 CloudBase 体验环境：
 
 | 构建变量 | 当前值/用途 |
 | --- | --- |
-| `TARO_APP_USE_CLOUDBASE_PRIVATE_ACCESS` | `true`，禁止正式包直接请求默认公网域名 |
-| `TARO_APP_CLOUDBASE_ENV_ID` | `xsw-d8gknzbsu0b34e1b2` |
-| `TARO_APP_CLOUDBASE_SERVICE` | `loveos-api` |
-| `TARO_APP_API_ORIGIN` | 仅保留给公网健康检查、非小程序联调和紧急回滚识别 |
+| `TARO_APP_USE_CLOUDBASE_PRIVATE_ACCESS` | `false`；当前不启用 CloudBase 私有链路 |
+| `TARO_APP_CLOUDBASE_ENV_ID` / `TARO_APP_CLOUDBASE_SERVICE` | 留空；仅为未来具备小程序关联资格的 CloudBase 环境预留 |
+| `TARO_APP_API_ORIGIN` | `https://girlfriend-menu-api.onrender.com` |
 
-HTTP、图片读取与 JSON 图片上传通过 `wx.cloud.callContainer`；实时游戏和管理订单推送通过 `wx.cloud.connectContainer`。这两条小程序到云托管的内部链路不需要配置 request、socket、uploadFile 或 downloadFile 合法域名。CloudBase 默认 `*.run.tcloudbase.com` 域名只用于健康检查和开发诊断，不能作为微信正式版的公网服务器域名。
+HTTP、图片读取、标准图片上传、实时游戏与管理订单推送都走 Render 的 HTTPS/WSS 服务域名。微信公众平台必须同时配置该生产域名的 request、socket、uploadFile 与 downloadFile 合法域名。客户端保留 CloudBase 私有链路实现，但只有目标 CloudBase 环境已关联当前小程序时才允许启用；不能把未关联的免费环境用于正式包。
 
-当前小程序 AppID 必须与 CloudBase 环境完成关联，并保持服务访问类型包含 `MINIAPP`。若真机提示环境无权限，应先修复环境关联，不能回退为“关闭域名校验”，也不能为此开启付费套餐。
+Render 免费服务在连续 HTTP 或 WebSocket 消息期间保持活跃；空闲后首次访问可能需要唤醒。房间创建页会先执行健康探测并展示唤醒状态，实时客户端使用心跳和指数退避重连。
 
 ## 预览、体验版和正式发布
 

@@ -15,6 +15,7 @@ const appConfig = read("src/app.config.js");
 const buildConfig = read("config/index.js");
 const packageConfig = JSON.parse(read("package.json"));
 const stagingEnv = read(".env.staging");
+const productionEnv = read(".env.production");
 
 assert.match(api, /getHomeBootstrap/);
 assert.match(catalogApi, /export\s+async\s+function\s+getHomeBootstrap\s*\(/);
@@ -51,6 +52,9 @@ assert.equal(
 );
 assert.match(stagingEnv, /^TARO_APP_ENV_NAME=staging$/m);
 assert.doesNotMatch(stagingEnv, /girlfriend-menu-api\.onrender\.com/);
+assert.match(productionEnv, /^TARO_APP_API_ORIGIN=https:\/\/girlfriend-menu-api\.onrender\.com$/m);
+assert.match(productionEnv, /^TARO_APP_USE_CLOUDBASE_PRIVATE_ACCESS=false$/m);
+assert.doesNotMatch(productionEnv, /run\.tcloudbase\.com/);
 
 const compiledConfigPath = path.join(root, "dist", "app.json");
 if (fs.existsSync(compiledConfigPath)) {
