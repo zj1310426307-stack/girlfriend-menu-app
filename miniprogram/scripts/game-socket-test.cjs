@@ -62,8 +62,9 @@ class FakeSocketTask {
   send({ data }) { this.sent.push(JSON.parse(data)); }
   close(options) { this.closeCalls.push(options); }
   emitOpen() { this.handlers.open?.(); }
+  emitMessage(payload) { this.handlers.message?.({ data: JSON.stringify(payload) }); }
   emitError() { this.handlers.error?.({}); }
-  emitClose() { this.handlers.close?.({}); }
+  emitClose(event = {}) { this.handlers.close?.(event); }
 }
 
 const tasks = [];
@@ -84,7 +85,13 @@ const context = vm.createContext({
   exports: moduleObject.exports,
   require(request) {
     if (request === "@tarojs/taro") return { __esModule: true, default: taro };
-    if (request === "../config/env") return { WEBSOCKET_ORIGIN: "wss://example.test" };
+    if (request === "./cloudContainer") {
+      return {
+        connectContainerSocket() {
+          return taro.connectSocket();
+        }
+      };
+    }
     if (request === "../utils/customer") return { getCustomerToken: () => "customer-token" };
     throw new Error(`Unexpected require: ${request}`);
   },
@@ -117,6 +124,14 @@ for (let sequence = 0; sequence < 25; sequence += 1) {
 connection.send({ type: "ping" });
 connection.send({ type: "heartbeat" });
 tasks[0].emitOpen();
+assert.equal(statuses.at(-1), "authenticating", "socket open must still await room validation");
+tasks[0].emitMessage({
+  type: "state",
+  game: "gomoku",
+  room_code: "ABCD",
+  data: { phase: "waiting", players: [] }
+});
+assert.equal(statuses.at(-1), "online", "validated room state should mark the connection online");
 
 assert.equal(tasks[0].sent[0].type, "join", "join must be sent before queued actions");
 const firstFlush = tasks[0].sent.slice(1);
@@ -155,6 +170,20 @@ tasks[2].emitClose();
 assert.equal(timeouts.size, 0, "manual close should never schedule another reconnect");
 assert.equal(connection.send({ type: "move", sequence: 101 }), false, "closed connection rejects sends");
 
-assert.ok(statuses.includes("online"));
+assert.ok(statuses.includes("authenticating"));
 assert.ok(statuses.includes("offline"));
+
+const rejectedStatuses = [];
+const rejected = connectGameRoom({
+  roomCode: "REJECT",
+  gameType: "dice",
+  playerName: "tester",
+  onStatus: (status) => rejectedStatuses.push(status)
+});
+const rejectedTask = tasks.at(-1);
+rejectedTask.emitOpen();
+rejectedTask.emitClose({ code: 4401 });
+assert.ok(rejectedStatuses.includes("rejected"), "authentication rejection must reach the page");
+assert.equal(timeouts.size, 0, "terminal authentication rejection must not reconnect forever");
+assert.equal(rejected.send({ type: "roll" }), false, "terminal rejection must close the transport");
 console.log("gameSocket reconnect/queue lifecycle: PASS");

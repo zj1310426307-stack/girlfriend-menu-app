@@ -7,7 +7,9 @@ childProcess.spawn = (command, args, options = {}) => originalSpawn(command, arg
 
 const automator = require("miniprogram-automator");
 const CLI_PATH = "F:/浏览器/微信web开发者工具/cli.bat";
-const PROJECT_PATH = path.resolve(__dirname, "..");
+const PROJECT_PATH = process.env.WECHAT_PROJECT_PATH
+  ? path.resolve(process.env.WECHAT_PROJECT_PATH)
+  : path.resolve(__dirname, "..");
 const OUTPUT_PATH = path.join(PROJECT_PATH, ".test-tmp", "acceptance-2.11.2");
 const HTTP_PORT = Number(process.env.WECHAT_DEVTOOLS_PORT || 9330);
 const PAGES = [

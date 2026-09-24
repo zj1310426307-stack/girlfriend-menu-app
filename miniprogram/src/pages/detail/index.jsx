@@ -1,8 +1,9 @@
 import { useState } from "react";
 import Taro, { useLoad } from "@tarojs/taro";
-import { Image, Text, View } from "@tarojs/components";
+import { Text, View } from "@tarojs/components";
 
-import { addFavorite, getDish, getFavorites, removeFavorite, resolveImageUrl } from "../../api";
+import { addFavorite, getDish, getFavorites, removeFavorite } from "../../api";
+import CloudImage from "../../components/CloudImage";
 import { addToCart } from "../../utils/cart";
 import { ensureInvitePassed } from "../../utils/invite";
 import { getCustomerId } from "../../utils/customer";
@@ -73,9 +74,9 @@ export default function Detail() {
   return (
     <View className="page detail-page">
       {dish.image_url && !imageFailed ? (
-        <Image
+        <CloudImage
           className="detail-image"
-          src={resolveImageUrl(dish.image_url)}
+          src={dish.image_url}
           mode="aspectFill"
           onError={() => setImageFailed(true)}
         />

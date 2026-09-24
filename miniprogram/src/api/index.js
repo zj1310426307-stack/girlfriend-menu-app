@@ -1,5 +1,5 @@
 import Taro from "@tarojs/taro";
-import { API_BASE_URL } from "../config/env";
+import { API_BASE_URL, USE_CLOUDBASE_PRIVATE_ACCESS } from "../config/env";
 import {
   clearApiCapabilityCooldown,
   isApiCapabilityCoolingDown,
@@ -161,6 +161,24 @@ export const createDiceRoom = (inviteCode) =>
 
 export const getGames = () => request("/games", { maxRetries: 0 });
 
+/** Wake a sleeping free-tier backend before issuing a non-idempotent room write. */
+export async function wakeGameService() {
+  try {
+    return await request("/health", {
+      timeout: 60000,
+      maxRetries: 0,
+      preserveSession: true
+    });
+  } catch (error) {
+    if (error?.statusCode) throw error;
+    return request("/health", {
+      timeout: 45000,
+      maxRetries: 0,
+      preserveSession: true
+    });
+  }
+}
+
 export const createGameRoom = (
   gameType,
   creator,
@@ -176,7 +194,8 @@ export const createGameRoom = (
       mode,
       difficulty,
       invite_code: inviteCode
-    }
+    },
+    timeout: 60000
   });
 
 export const getGameRoom = (roomCode) =>
@@ -487,7 +506,58 @@ export const deleteAdminDish = (dishId, token) =>
     header: { Authorization: `Bearer ${token}` }
   });
 
+/** Read one selected image as base64 for the CloudBase JSON transport. */
+function readFileAsBase64(filePath) {
+  return new Promise((resolve, reject) => {
+    const fileSystem = Taro.getFileSystemManager?.();
+    if (!fileSystem) {
+      reject(new Error("当前微信版本不支持图片上传"));
+      return;
+    }
+    fileSystem.readFile({
+      filePath,
+      encoding: "base64",
+      success: (result) => resolve(result.data),
+      fail: reject
+    });
+  });
+}
+
+/** Infer the server-validated upload metadata from the selected local path. */
+function imageUploadMetadata(filePath) {
+  const cleanPath = String(filePath || "").split("?")[0];
+  const detectedExtension = cleanPath.match(/\.(jpe?g|png|webp)$/i)?.[0]?.toLowerCase();
+  const extension = detectedExtension === ".jpeg" ? ".jpeg" : detectedExtension || ".jpg";
+  const contentType = extension === ".png"
+    ? "image/png"
+    : extension === ".webp"
+      ? "image/webp"
+      : "image/jpeg";
+  return { filename: `dish${extension}`, content_type: contentType };
+}
+
+/** Upload an administrator image through private JSON access or direct multipart in local builds. */
 export async function uploadAdminImage(filePath, token) {
+  if (USE_CLOUDBASE_PRIVATE_ACCESS) {
+    try {
+      const contentBase64 = await readFileAsBase64(filePath);
+      return await request("/upload/image-base64", {
+        method: "POST",
+        timeout: 60000,
+        header: { Authorization: `Bearer ${token}` },
+        data: {
+          ...imageUploadMetadata(filePath),
+          content_base64: contentBase64
+        }
+      });
+    } catch (error) {
+      if (error?.statusCode) throw error;
+      throw new Error(/timeout/i.test(error?.errMsg || error?.message || "")
+        ? "图片上传超时，请稍后重试"
+        : error?.message || "图片上传失败，请检查网络");
+    }
+  }
+
   let response;
   try {
     response = await Taro.uploadFile({

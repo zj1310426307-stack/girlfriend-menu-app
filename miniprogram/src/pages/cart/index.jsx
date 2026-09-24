@@ -1,8 +1,9 @@
 import { useRef, useState } from "react";
 import Taro, { useDidShow } from "@tarojs/taro";
-import { Image, Input, Text, Textarea, View } from "@tarojs/components";
+import { Input, Text, Textarea, View } from "@tarojs/components";
 
-import { createOrder, resolveImageUrl } from "../../api";
+import { createOrder } from "../../api";
+import CloudImage from "../../components/CloudImage";
 import { clearCart, getCart, getRepeatDraft, setCartItemQuantity } from "../../utils/cart";
 import { ensureInvitePassed } from "../../utils/invite";
 import "./index.css";
@@ -70,7 +71,7 @@ export default function Cart() {
         {cart.map((item) => (
           <View className="cart-item" key={item.id}>
             {item.image_url ? (
-              <Image className="cart-image" src={resolveImageUrl(item.image_url)} mode="aspectFill" />
+              <CloudImage className="cart-image" src={item.image_url} mode="aspectFill" />
             ) : (
               <View className="cart-image cart-placeholder">🍲</View>
             )}

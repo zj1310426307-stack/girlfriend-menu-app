@@ -4,9 +4,9 @@
 
 ## 当前结论
 
-**GATE 00-05 PASS — AWAITING CONTROLLED V3 PRODUCTION DEPLOY**
+**GATE 00-08 PASS — PRODUCTION V3 LIVE — WECHAT REVIEW NOT SUBMITTED**
 
-候选分支和 PR 已冻结核验，本地完整回归、迁移、契约、构建、密钥扫描与远端必需 CI 均通过。独立 Neon Free staging 项目和 Render Free staging 服务已建立，hosted health/readiness、业务写链路、真实微信 code2Session/OpenID 恢复链路以及发布负责人真机弱网、后台恢复、身份恢复和双设备在线对局均通过。生产 API 逻辑备份及 PostgreSQL 自定义格式 dump 均完成，后者已通过本地隔离恢复。生产仍运行 V2.11；尚未执行 V3 数据库迁移、V3 部署、PR 合并或 Tag/Release。
+候选分支和 PR 已冻结核验，本地完整回归、迁移、契约、构建、密钥扫描与远端必需 CI 均通过。独立 Neon Free staging 项目和 Render Free staging 服务已建立，hosted health/readiness、业务写链路、真实微信 code2Session/OpenID 恢复链路以及发布负责人真机弱网、后台恢复、身份恢复和双设备在线对局均通过。生产 API 逻辑备份及 PostgreSQL 自定义格式 dump 均完成，后者已通过本地隔离恢复。PR #21 已合并，生产数据库已由启动守卫准备到 `20260817_14`，Render Free 生产服务已运行 V3.0.0；Tag、GitHub Release 与微信正式审核尚未执行。
 
 ## Gate 00：候选冻结
 
@@ -14,10 +14,10 @@
 | --- | --- |
 | 仓库 | `zj1310426307-stack/girlfriend-menu-app` |
 | 分支 | `feature/continuous-optimization-03` |
-| 代码候选提交 | `d11a708a6cf1fc9b807e734ee111670ce674625d` |
-| 发布证据修订 | 包含本报告的当前 PR head；推送后从 GitHub 实时核对 |
+| 代码候选提交 | `bca5dd5be148920dd1ebe2b45047a0ac168c01d8` |
+| 发布证据修订 | 生产发布后的文档提交；代码合并提交为 `f363128e4db49392e64c8cc00e2e6e926957e9f9` |
 | 基线 `main` | `641c0d612d2c5b77e731e43271e0b6462fdb52b9` |
-| PR | [#21](https://github.com/zj1310426307-stack/girlfriend-menu-app/pull/21)；OPEN、非 Draft、MERGEABLE |
+| PR | [#21](https://github.com/zj1310426307-stack/girlfriend-menu-app/pull/21)；MERGED |
 | 审查线程 | 0 个未解决且未过期线程 |
 | 工作区 | 核验时干净，分支与远端 head 一致 |
 
@@ -44,7 +44,7 @@ Windows 沙箱首次执行时，历史 `.test-tmp` ACL 和 `dist` 写权限导�
 - `Vercel Preview Comments`：PASS。
 - `Vercel`：FAIL，按任务书为非阻断；本项目生产 API 仍以 Render 为发布目标。
 
-以上应用候选对应 `d11a708`，同一提交已部署到隔离 staging。其后的 staging Origin 与证据修订也必须在各自成为 PR head 后重新通过 CI，不能复用旧结论冒充新提交通过。
+PR head 最终为 `bca5dd5`。合并后的 `main` 提交 `f363128` 再次通过 `backend`、`miniprogram`、`release-safety` 与 Dependabot checks；Vercel 不属于本项目 Render API 的阻断门。
 
 ## Gate 03：staging 隔离审计
 
@@ -82,14 +82,31 @@ Gate 03 当前为 **PASS**。Gate 04 的 hosted 业务子门已通过：客户�
 
 该 dump 随后恢复到仅监听本机回环地址的 PostgreSQL 18.6 `restore_verify` 数据库。19 个核心表行数与 manifest 完全一致，恢复库包含 24 个外键，Alembic revision 为 `20260812_12`。验证结束后临时数据库正常关闭并删除，生产 dump 与 manifest 保留在 Git 忽略的 `backups/`。Gate 05 当前为 **PASS**。
 
+## Gate 06：合并
+
+2026-09-03 从远端重新确认 `main` 为 `641c0d6`、发布分支 head 为 `bca5dd5`，且前者是后者的祖先。发布安全检查再次通过后创建标准双父合并提交 `f363128e4db49392e64c8cc00e2e6e926957e9f9` 并推送到 `main`，未删除 staging 所用分支。GitHub 公共 PR API 随后确认 PR #21 为 `closed`、`merged=true`，远端 `main` 与该合并提交一致。Gate 06 为 **PASS**。
+
+## Gate 07：生产迁移与部署
+
+生产微信 AppID、AppSecret 与登录开关仅写入 Render Secret，未写入仓库、构建产物或日志。Render Free 生产服务 `srv-d92svqtaeets73akrmbg` 已部署合并提交；最终重启 deploy `dep-daclp3mk1f9s73cps6gg` 显示 Live。启动守卫确认数据库已在当前 Alembic head `20260817_14`，最终重启记录 `schema_changed=False`、`reference_data_seeded=False`，说明前序 V3 启动已经完成迁移且本次未重复写入。Gate 07 为 **PASS**。
+
+## Gate 08：生产冒烟
+
+- `/api/health`：`status=ok`。
+- `/api/ready`：总状态 `ready`；PostgreSQL、database storage、authentication、wechat login 均为 `ready`，Redis 为单实例免费架构下的 `optional-disabled`。
+- OpenAPI：版本 `3.0.0`，包含 `/api/bootstrap` 与 `/api/customers/wechat-session`。
+- 数据保留：迁移后公开菜单仍为 19 条，与发布前基线一致；迁移只新增表与身份字段，不删除或重写客户、会话、订单、收藏、通知和游戏历史表。
+- 小程序：生产构建、全量 `test:ci`、dist 完整性、发布配置和密钥扫描均通过；产物只包含生产 Origin，staging Origin 为 0。
+
+Gate 08 为 **PASS**。
+
 ## 依赖安全观察
 
 `npm audit --omit=dev` 报告 17 个生产依赖树公告（11 moderate、3 high、3 critical）。critical 链路主要来自 Taro 4 的 H5 `swiper` 依赖；源码和微信 dist 均未引用 swiper，微信产物也不分发 `node_modules`。npm 给出的自动修复会把 Taro 4 降为 3.x，属于破坏性大版本替换，因此不在发布闭环中强制执行。该项记录为后续 Taro 官方兼容升级专项，不删除、不隐瞒。
 
-## 当前禁止动作
+## 当前剩余边界
 
-- 不合并 PR #21。
-- 不对生产数据库执行迁移或写入。
-- 不部署或切换生产服务。
+- 未上传本次生产 Origin 构建为新的微信体验版。
+- 未提交微信正式审核或正式发布；这些动作必须在生产体验版复核后单独确认。
 - 不创建 `v3.0.0` Tag/GitHub Release。
 - 不把发布负责人真机确认写成自动化日志或截图证据。

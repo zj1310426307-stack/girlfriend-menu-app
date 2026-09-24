@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Image, Text, View } from "@tarojs/components";
+import { Text, View } from "@tarojs/components";
 
-import { resolveImageUrl } from "../api";
+import CloudImage from "./CloudImage";
 import "./DishCard.css";
 
 /**
@@ -27,9 +27,10 @@ export default function DishCard({
   return (
     <View className={`shared-dish-card ${compact ? "is-compact" : ""}`} onClick={() => onOpen?.(dish)}>
       {dish.image_url && !imageFailed ? (
-        <Image
+        <CloudImage
           className="shared-dish-image"
-          src={resolveImageUrl(dish.image_url, { maxWidth: compact ? 640 : 480 })}
+          src={dish.image_url}
+          maxWidth={compact ? 640 : 480}
           mode="aspectFill"
           lazyLoad
           onError={() => setImageFailed(true)}

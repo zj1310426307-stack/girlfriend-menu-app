@@ -1,7 +1,8 @@
 import Taro from "@tarojs/taro";
 
-import { API_BASE_URL, API_ORIGIN } from "../config/env";
+import { API_ORIGIN } from "../config/env";
 import { clearCustomerSession, getCustomerToken } from "../utils/customer";
+import { callCloudContainer, USE_CLOUDBASE_PRIVATE_ACCESS } from "./cloudContainer";
 
 const MUTATION_REQUEST_TIMEOUT = 45000;
 const GET_REQUEST_TIMEOUT = 15000;
@@ -23,8 +24,43 @@ function reportNetworkFailure(error) {
     category = "MINIPROGRAM_TLS_FAILED";
   } else if (raw.includes("dns") || raw.includes("resolve host")) {
     category = "MINIPROGRAM_DNS_FAILED";
+  } else if (raw.includes("cloud") || raw.includes("environment") || raw.includes("env")) {
+    category = "MINIPROGRAM_CLOUDBASE_UNAVAILABLE";
   }
   console.info(`[network] ${category}`);
+}
+
+/** Build the shared request headers without exposing the customer token to logs. */
+function requestHeaders(overrides = {}) {
+  const customerToken = getCustomerToken();
+  return {
+    accept: "application/json",
+    "content-type": "application/json",
+    ...(customerToken ? { Authorization: `Bearer ${customerToken}` } : {}),
+    ...overrides
+  };
+}
+
+/** Execute one API request through CloudBase private access or the local direct transport. */
+function sendApiRequest(path, options) {
+  const pathWithSlash = normalizePath(path);
+  const normalizedPath = pathWithSlash.startsWith("/api/") || pathWithSlash.startsWith("/uploads/")
+    ? pathWithSlash
+    : `/api${pathWithSlash}`;
+  if (USE_CLOUDBASE_PRIVATE_ACCESS) {
+    return callCloudContainer({
+      path: normalizedPath,
+      method: options.method,
+      timeout: options.timeout,
+      data: options.data,
+      header: options.header,
+      responseType: options.responseType
+    });
+  }
+  return Taro.request({
+    url: `${API_ORIGIN}${normalizedPath}`,
+    ...options
+  });
 }
 
 /** Send one authenticated API request through the only HTTP transport boundary. */
@@ -34,17 +70,11 @@ export async function request(path, options = {}, attempt = 0) {
     ? Math.max(0, options.maxRetries)
     : MAX_GET_RETRIES;
   try {
-    const response = await Taro.request({
-      url: `${API_BASE_URL}${normalizePath(path)}`,
+    const response = await sendApiRequest(path, {
       method,
       timeout: options.timeout || (method === "GET" ? GET_REQUEST_TIMEOUT : MUTATION_REQUEST_TIMEOUT),
       data: options.data,
-      header: {
-        accept: "application/json",
-        "content-type": "application/json",
-        ...(getCustomerToken() ? { Authorization: `Bearer ${getCustomerToken()}` } : {}),
-        ...(options.header || {})
-      }
+      header: requestHeaders(options.header)
     });
     if (response.statusCode >= 200 && response.statusCode < 300) return response.data;
     if (
@@ -86,6 +116,20 @@ export async function request(path, options = {}, attempt = 0) {
     }
     throw error;
   }
+}
+
+/** Fetch an immutable API image as binary data for a private-link local cache. */
+export async function requestImageBinary(path) {
+  const response = await sendApiRequest(path, {
+    method: "GET",
+    timeout: GET_REQUEST_TIMEOUT,
+    responseType: "arraybuffer",
+    header: { accept: "image/*" }
+  });
+  if (response.statusCode >= 200 && response.statusCode < 300) return response;
+  const error = new Error(response.statusCode === 404 ? "图片不存在" : "图片加载失败");
+  error.statusCode = response.statusCode;
+  throw error;
 }
 
 /** Resolve stored relative image paths against the configured API origin. */

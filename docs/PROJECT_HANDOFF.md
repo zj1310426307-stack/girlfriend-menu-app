@@ -22,6 +22,7 @@
 | 后端 | FastAPI + SQLAlchemy 2 |
 | 生产数据库 | Neon PostgreSQL |
 | 本地数据库 | SQLite 回退 |
+| 生产小程序通信 | Render HTTPS/WSS 直连；统一 HTTP transport 与可恢复 WebSocket |
 | 生产 API | `https://girlfriend-menu-api.onrender.com` |
 | 2026-08-08 健康检查 | `/api/health` 正常；`/api/ready` 返回 PostgreSQL ready |
 | 线上启用菜品 | 19 道 |
@@ -37,7 +38,7 @@
 - 管理端令牌为 12 小时 HMAC 签名载荷。修改 `ADMIN_SECRET` 或 `ADMIN_TOKEN_VERSION` 可整体撤销已有令牌。
 - 生产启动必须先执行 Alembic；应用内 `create_all` 和旧 SQLite 兼容检查仅在 development/test 运行。
 - 私人部署的图片生产存储使用 PostgreSQL provider；`/api/ready` 会校验 provider。图片量增大时可无损切换到 S3-compatible provider。
-- 当前自动化验证不覆盖微信双真机、Render 冷启动、Neon 恢复演练或真实对象存储，因此版本保持 RC。
+- 当前自动化验证不覆盖微信双真机、CloudBase 冷启动、Neon 恢复演练或真实对象存储，因此版本保持 RC。
 - 以 [V2.8 能力矩阵](CAPABILITY_MATRIX.md)、[发布清单](RELEASE_CHECKLIST_V2_8.md)、[备份恢复](BACKUP_AND_RESTORE.md)和[回滚手册](ROLLBACK_V2_8.md)作为后续交接入口。
 - Phase 2A 已将 HTTP/WebSocket 路由拆分到 `backend/api/routes/`，共享鉴权和客户身份依赖位于 `backend/api/dependencies.py`；`main.py` 只保留应用装配，API 和数据库契约未改变。
 - Phase 2B 第一轮已将 Dish 与 Favorite 迁移为 `Router -> Service -> Repository`，`crud.py` 暂留兼容 facade；Review、Order、非游戏 Stats 尚未迁移，游戏/实时持久化明确延期到 Phase 2C。
@@ -48,23 +49,25 @@
 flowchart LR
   U["女朋友端"] --> MP["Taro React 微信小程序"]
   A["小厨房管理端"] --> MP
-  MP -->|"HTTPS JSON"| API["Render / FastAPI"]
-  MP <-->|"WSS"| RT["订单推送 / 大话骰 / 五子棋房间"]
+  MP -->|"HTTPS"| API["Render / FastAPI"]
+  MP <-->|"WSS + heartbeat/reconnect"| RT["订单推送 / 大话骰 / 五子棋房间"]
   MP -->|"HTTPS 轮询"| FL["持久飞行棋 / 每日任务"]
   MP -->|"HTTPS + version"| GE["斗地主 / 斗兽棋统一游戏核心"]
   API --> DB["Neon PostgreSQL"]
   FL --> DB
   GE --> DB
-  API --> FS["Render 本地 uploads（临时）"]
+  API --> IMG["PostgreSQL 图片 provider"]
   RT --> DB
   RT --> REDIS["可选 Redis 热缓存"]
-  GH["GitHub main"] -->|"自动部署"| API
+  GH["GitHub 候选分支"] -->|"门禁通过后手动部署"| API
 ```
 
 重要边界：
 
 - 用户端与管理端都在同一个微信小程序包里。
-- HTTP 数据通过 `miniprogram/src/api/index.js` 访问，订单推送和统一游戏协议分别由对应 WebSocket 客户端封装。
+- HTTP 数据统一经过 `miniprogram/src/api/transport.js`，正式构建访问 Render HTTPS；订单推送和统一游戏协议通过 Render WSS。客户端保留 CloudBase 私有 transport，但当前生产构建不启用它，因为现有免费 CloudBase PostgreSQL 环境不能转换为当前小程序环境。
+- PostgreSQL 图片路径由共享 `CloudImage` 组件通过生产 HTTPS 下载；管理端使用标准 multipart 上传，因此微信后台必须配置 Render 的 uploadFile/downloadFile 合法域名。
+- Render 免费实例会在空闲后唤醒。房间创建先执行健康探测，活动 WebSocket 每 25 秒发送心跳并在断开后指数退避重连；房间权威状态仍保存在 Neon，不依赖实例内存。
 - 订单、菜品、评价、游戏玩家、完成对局、飞行棋状态、V2.5 版本棋局、互动、任务、成就、情侣积分和统计持久化到 PostgreSQL。
 - 实时连接对象保留在进程内存；大话骰和五子棋权威快照写入 PostgreSQL `game_states`，Redis 只做可选热缓存。单实例进程重启后可恢复进行中棋盘、骰子与轮次。
 - 旧 React/Vite 网页端已退休且源码已清理，不再作为构建、部署或功能入口。
@@ -309,21 +312,21 @@ waiting → playing → finished → 双方 rematch/playing
 4. SQLite 与 PostgreSQL 双环境可运行，旧库补字段是幂等的。
 5. 生产环境变量没有提交到仓库。
 6. 已有 CI、后端集成测试和微信开发者工具冒烟脚本。
-7. 网络错误、Render 冷启动、图片失败和页面渲染异常都有基础回退提示。
+7. 网络错误、Render 免费实例唤醒、图片失败和页面渲染异常都有基础回退提示。
 
 ## 10. 风险与技术债
 
 ### P0：正式发布前外部验收
 
-1. PostgreSQL 图片 provider 仍需完成一次生产上传、读取验收。
+1. Render 生产域名的 request、socket、uploadFile、downloadFile 合法域名需在微信公众平台保持有效。
 2. 所有双人游戏仍需两台真机完成加入、弱网、切后台、断线恢复和重开验收。
 
 ### P1：稳定性与维护
 
 1. V2.11 已用 PostgreSQL 租约解决多实例同时写入同一实时房间；连接对象仍在实例内，实例切换会经历一次客户端重连，不是无感迁移。
-2. V2.11 已增加每分钟结算补偿、房间 TTL/`abandoned`、REST 动作幂等和象棋/斗兽棋超时和棋；仍需在真实 Render 多实例与双真机上做故障注入验收。
+2. V2.11 已增加每分钟结算补偿、房间 TTL/`abandoned`、REST 动作幂等和象棋/斗兽棋超时和棋；仍需在 Render 实例重启与双真机上做故障注入验收。
 3. `failed` 结算自动重试上限为 10 次；持续失败目前通过数据库字段和日志排查，管理端尚无专门的失败结算工作台。
-4. 生产图片必须使用 PostgreSQL 或 S3-compatible 持久化 provider；Render 本地目录仅供开发。
+4. 生产图片必须使用 PostgreSQL 或 S3-compatible 持久化 provider；容器本地目录仅供开发。
 
 ### P2：体验与产品结构
 
