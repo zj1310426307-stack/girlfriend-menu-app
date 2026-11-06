@@ -1,0 +1,24 @@
+/* One-tap "save match into our story" button on game result screens. */
+.game-memory-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 20rpx;
+  padding: 16rpx 36rpx;
+  border-radius: 999rpx;
+  background: #f4ede1;
+  color: #6f8469;
+  font-size: 26rpx;
+  line-height: 1.4;
+  border: 1rpx solid #e3d9c6;
+}
+
+.game-memory-button.saved {
+  background: #eef3ec;
+  border-color: #d5e2d2;
+  color: #8fa689;
+}
+
+.game-memory-button.busy {
+  opacity: 0.7;
+}

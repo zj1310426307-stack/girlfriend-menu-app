@@ -1,6 +1,7 @@
 import { Text, View } from "@tarojs/components";
 
 import ChessPiece from "./ChessPiece";
+import { playFeedback } from "../utils/feedback";
 import "./ChessBoard.css";
 
 /**
@@ -28,7 +29,11 @@ export default function ChessBoard({ pieces = [], myColor = "red", selectedId = 
           data-board-x={x}
           data-board-y={y}
           style={{ left: `${displayX * 12.5}%`, top: `${displayY * (100 / 9)}%` }}
-          onClick={() => !disabled && onCell(piece, x, y)}
+          onClick={() => {
+            if (disabled) return;
+            playFeedback("tap");
+            onCell(piece, x, y);
+          }}
         >
           {piece && <ChessPiece piece={piece} selected={selectedId === piece.id} lastMoved={lastMove?.piece_id === piece.id} />}
           {isMovingTarget && <View className={`chess-pending-piece ${pendingMove.color || "red"}`}><Text>{pendingMove.label || "子"}</Text></View>}

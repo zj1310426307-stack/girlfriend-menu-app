@@ -1,6 +1,7 @@
 import { ScrollView, View } from "@tarojs/components";
 
 import LandlordCard from "./LandlordCard";
+import { playFeedback } from "../utils/feedback";
 import "./LandlordHand.css";
 
 /** Horizontal hand with controlled multi-card selection. */
@@ -8,7 +9,11 @@ export default function LandlordHand({ cards = [], selected = [], disabled = fal
   return (
     <ScrollView scrollX enhanced showScrollbar={false} className="ll-hand-scroll">
       <View className={`ll-hand ${disabled ? "disabled" : ""}`}>
-        {cards.map((card) => <LandlordCard key={card.id} card={card} selected={selected.includes(card.id)} onClick={() => !disabled && onToggle?.(card.id)} />)}
+        {cards.map((card) => <LandlordCard key={card.id} card={card} selected={selected.includes(card.id)} onClick={() => {
+          if (disabled) return;
+          playFeedback("tap");
+          onToggle?.(card.id);
+        }} />)}
       </View>
     </ScrollView>
   );

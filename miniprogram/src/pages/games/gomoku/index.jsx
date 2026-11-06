@@ -5,9 +5,11 @@ import { Button, Input, Text, View } from "@tarojs/components";
 import { createGameRoom } from "../../../api";
 import { connectGomokuRoom } from "../../../api/gomokuSocket";
 import GomokuBoard from "../../../components/GomokuBoard";
+import GameMemoryButton from "../../../components/GameMemoryButton";
 import { getCustomerId } from "../../../utils/customer";
 import { ensureInvitePassed } from "../../../utils/invite";
 import { ensureGameRecovery } from "../../../utils/gameRecovery";
+import useGameFinishFeedback from "../../../hooks/useGameFinishFeedback";
 import "./index.css";
 
 const ROOM_CODE_PATTERN = /^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{6}$/;
@@ -86,6 +88,7 @@ export default function GomokuPage() {
   const canMove = connectionStatus === "online" && isMyTurn && !moving && !isFinished;
   const showReady = players.length === 2 && (room.phase === "ready" || room.requires_ready);
   const isDraw = Boolean(room.is_draw || room.draw || room.outcome?.is_draw || room.outcome?.draw);
+  useGameFinishFeedback(isFinished, Boolean(winnerId) && winnerId === playerIdRef.current && !isDraw);
 
   const rewardText = useMemo(() => {
     const seed = `${activeRoomCode}${room.round || 1}`.split("").reduce((total, char) => total + char.charCodeAt(0), 0);
@@ -315,6 +318,7 @@ export default function GomokuPage() {
               <Text>{me?.rematch_ready ? "等待对方再来一局" : "再来一局"}</Text>
             </View>
             <View className="gomoku-result-exit" onClick={returnToGameCenter}><Text>回到游戏大厅</Text></View>
+            <GameMemoryButton title={isDraw ? "五子棋和棋" : "五子棋对战"} content={`${isDraw ? "这局和棋，默契不分高下" : winnerId === playerIdRef.current ? "这局我赢啦 ♥" : room.mode === "ai" ? "AI 这局更胜一筹" : "这局她更胜一筹"} · ${room.mode === "ai" ? "人机对战" : `房间 ${activeRoomCode}`} · 第 ${room.round || 1} 局`} sourceType="gomoku" />
           </View>
         </View>
       )}

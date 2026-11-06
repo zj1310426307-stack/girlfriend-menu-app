@@ -1,5 +1,6 @@
 import { Text, View } from "@tarojs/components";
 
+import { playFeedback } from "../utils/feedback";
 import "./GomokuBoard.css";
 
 const BOARD_SIZE = 15;
@@ -44,7 +45,11 @@ export default function GomokuBoard({
               className={`gomoku-point ${edgeClasses}`}
               data-x={x}
               data-y={y}
-              onClick={() => !disabled && !stone && onMove?.(x, y)}
+              onClick={() => {
+                if (disabled || stone) return;
+                playFeedback("tap");
+                onMove?.(x, y);
+              }}
             >
               {stone && (
                 <View className={`gomoku-stone ${stone} ${isLastMove(lastMove, x, y) ? "last" : ""}`}>

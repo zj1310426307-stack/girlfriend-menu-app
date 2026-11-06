@@ -17,6 +17,7 @@ import {
 } from "./gameLogic";
 import { createNativeDiceScene } from "./nativeScene";
 import { ensureInvitePassed } from "../../utils/invite";
+import { playSound } from "../../utils/feedback";
 import "./index.css";
 
 const DICE_VERSION = "1.0.17";
@@ -231,6 +232,7 @@ export default function DicePage() {
     setPhase(PHASES.opening);
     setMessage("开盅中…");
     setCupDrag(1);
+    playSound("dice");
     vibrate("light");
     sceneRef.current.openCup().then(() => {
       if (!mountedRef.current) return;

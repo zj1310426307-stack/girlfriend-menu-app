@@ -43,7 +43,12 @@ const config = {
     __DEBUG_LOGS__: JSON.stringify(environmentName !== "production")
   },
   copy: {
-    patterns: [],
+    // Game feedback sounds are copied verbatim to dist/assets/sounds and
+    // referenced by absolute path from InnerAudioContext (wav is a supported
+    // format for InnerAudioContext; verify against official docs).
+    patterns: [
+      { from: "src/assets/sounds/", to: "dist/assets/sounds/" }
+    ],
     options: {}
   },
   framework: "react",

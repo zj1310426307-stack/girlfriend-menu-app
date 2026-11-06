@@ -12,12 +12,14 @@ import {
 import DiceButton from "../../../components/DiceButton";
 import EventPopup from "../../../components/EventPopup";
 import FlightBoard from "../../../components/FlightBoard";
+import GameMemoryButton from "../../../components/GameMemoryButton";
 import GameSyncBar from "../../../components/GameSyncBar";
 import GameTurnGuide from "../../../components/GameTurnGuide";
 import { getCustomerId } from "../../../utils/customer";
 import { ensureInvitePassed } from "../../../utils/invite";
 import { ensureGameRecovery, recoverGameRoom } from "../../../utils/gameRecovery";
 import useAdaptiveGamePolling from "../../../hooks/useAdaptiveGamePolling";
+import useGameFinishFeedback from "../../../hooks/useGameFinishFeedback";
 import "./index.css";
 
 const ROOM_PATTERN = /^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{6}$/;
@@ -52,6 +54,7 @@ export default function FlightPage() {
   const opponent = (state.players || []).find((player) => idOf(player) !== customerIdRef.current);
   const isMyTurn = state.phase === "playing" && state.turn_id === customerIdRef.current;
   const isFinished = state.phase === "finished";
+  useGameFinishFeedback(isFinished, isFinished && state.winner_id === customerIdRef.current);
   const pendingForMe = state.pending_event?.player_id === customerIdRef.current ? state.pending_event : null;
   const canRoll = connection === "online" && isMyTurn && state.dice == null && !state.pending_event && !busy;
 
@@ -279,6 +282,7 @@ export default function FlightPage() {
           <Text>{state.winner_id === customerIdRef.current ? "这一程你先到啦" : "她先飞到终点啦"}</Text>
           <Text>参与 +1 · 胜利 +5 · 今日游戏任务自动点亮</Text>
           <View onClick={() => { setRoomCode(""); setState(EMPTY_STATE); }}><Text>再开一个房间</Text></View>
+          <GameMemoryButton title="情侣飞行棋" content={`${state.winner_id === customerIdRef.current ? "这一程我先到啦" : "她先飞到终点啦"} · ${state.mode === "ai" ? "人机对战" : `房间 ${roomCode}`} · 第 ${state.round || 1} 回合`} sourceType="aeroplane" />
         </View>
       )}
 

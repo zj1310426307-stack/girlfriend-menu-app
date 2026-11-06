@@ -4,12 +4,14 @@ import { Canvas, Input, Text, View } from "@tarojs/components";
 
 import { createGameRoom, wakeGameService } from "../../api";
 import { connectDiceRoom } from "../../api/diceSocket";
+import GameMemoryButton from "../../components/GameMemoryButton";
 import {
   getAuthenticatedCustomerId,
   hasCustomerSession
 } from "../../utils/customer";
 import { ensureInvitePassed } from "../../utils/invite";
 import { ensureGameRecovery } from "../../utils/gameRecovery";
+import { playFeedback } from "../../utils/feedback";
 import { createNativeDiceScene } from "../dice/nativeScene";
 import "./index.css";
 
@@ -381,7 +383,11 @@ export default function DiceOnline() {
               <View className={`online-primary ${canSubmitBid ? "" : "disabled"}`} onClick={submitBid}>
                 <Text>我叫 · {bidQuantity} 个 {bidFace} 点</Text>
               </View>
-              <View className={`online-open ${isMyTurn && room.current_bid ? "" : "disabled"}`} onClick={() => isMyTurn && room.current_bid && socketRef.current?.send({ type: "challenge" })}>
+              <View className={`online-open ${isMyTurn && room.current_bid ? "" : "disabled"}`} onClick={() => {
+                if (!isMyTurn || !room.current_bid) return;
+                playFeedback("dice");
+                socketRef.current?.send({ type: "challenge" });
+              }}>
                 <Text>开！</Text><Text>不信</Text>
               </View>
             </View>
@@ -393,6 +399,7 @@ export default function DiceOnline() {
             <Text>实际有 {room.outcome?.actual_count} 颗符合叫法，胜者加 1 分</Text>
             {room.players.map((player) => <View key={player.id}><Text>{player.name}{player.id === loser?.id ? " · 本局输家" : ""}</Text><DiceRow values={room.all_dice?.[player.id]} /></View>)}
             <View className="online-primary" onClick={() => socketRef.current?.send({ type: "rematch" })}><Text>{me?.rematch_ready ? "等待对方再来一局" : "再来一局"}</Text></View>
+            <GameMemoryButton title="大话骰对决" content={`${winner?.id === playerIdRef.current ? "这局我赢啦 ♥" : `${winner?.name || "对方"} 赢了`} · 实际有 ${room.outcome?.actual_count} 颗符合叫法 · 房间 ${activeRoomCode}`} sourceType="dice" />
           </View>
         )}
       </View>

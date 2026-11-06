@@ -11,11 +11,13 @@ import {
 import LandlordDesk from "../../../components/LandlordDesk";
 import LandlordHand from "../../../components/LandlordHand";
 import LandlordPlayer from "../../../components/LandlordPlayer";
+import GameMemoryButton from "../../../components/GameMemoryButton";
 import GameSyncBar from "../../../components/GameSyncBar";
 import { getCustomerId } from "../../../utils/customer";
 import { ensureInvitePassed } from "../../../utils/invite";
 import { ensureGameRecovery, recoverGameRoom } from "../../../utils/gameRecovery";
 import useAdaptiveGamePolling from "../../../hooks/useAdaptiveGamePolling";
+import useGameFinishFeedback from "../../../hooks/useGameFinishFeedback";
 import "./index.css";
 
 const ROOM_PATTERN = /^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{6}$/;
@@ -157,6 +159,7 @@ export default function LandlordPage() {
     if (state.phase === "finished") return state.winner_id === customerId ? "你先出完手牌，赢啦 ♥" : `${state.names?.[state.winner_id] || "对方"} 赢得本局`;
     return isMyTurn ? "轮到你出牌" : `等待 ${state.names?.[state.turn_id] || "对方"} 出牌`;
   }, [customerId, isMyTurn, state]);
+  useGameFinishFeedback(state.phase === "finished", state.phase === "finished" && state.winner_id === customerId);
 
   if (!allowed) return <><PageMeta pageOrientation="landscape" /><View className="ll-loading"><Text>正在返回邀请码页面…</Text></View></>;
   if (!roomCode) return (
@@ -209,7 +212,7 @@ export default function LandlordPage() {
       </View>
       <LandlordHand cards={state.my_hand || []} selected={selected} disabled={!canAct || state.phase !== "playing"} onToggle={toggle} />
       <View className="ll-me"><Text>{state.names?.[customerId] || "我"}{state.landlord_id === customerId ? " · 地主" : ""}</Text><Text>{state.hand_counts?.[customerId] || 0} 张</Text></View>
-      {state.phase === "finished" && <View className="ll-result"><Text>{status}</Text><Text>参与 +1 · 胜利 +5 · AI 胜利加成 +2</Text><View onClick={() => { setRoomCode(""); setState(EMPTY); }}><Text>再开一桌</Text></View></View>}
+      {state.phase === "finished" && <View className="ll-result"><Text>{status}</Text><Text>参与 +1 · 胜利 +5 · AI 胜利加成 +2</Text><View onClick={() => { setRoomCode(""); setState(EMPTY); }}><Text>再开一桌</Text></View><GameMemoryButton title="斗地主对局" content={`${status} · ${state.mode === "ai" ? "人机对战" : `房间 ${roomCode}`}`} sourceType="landlord" /></View>}
       </View>
     </>
   );

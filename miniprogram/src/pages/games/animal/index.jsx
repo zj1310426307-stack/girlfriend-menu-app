@@ -4,12 +4,14 @@ import { Input, Text, View } from "@tarojs/components";
 
 import { createAnimalRoom, getVersionedGameState, joinAnimalRoom, sendAnimalMove } from "../../../api";
 import AnimalBoard from "../../../components/AnimalBoard";
+import GameMemoryButton from "../../../components/GameMemoryButton";
 import GameSyncBar from "../../../components/GameSyncBar";
 import GameTurnGuide from "../../../components/GameTurnGuide";
 import { getCustomerId } from "../../../utils/customer";
 import { ensureInvitePassed } from "../../../utils/invite";
 import { ensureGameRecovery, recoverGameRoom } from "../../../utils/gameRecovery";
 import useAdaptiveGamePolling from "../../../hooks/useAdaptiveGamePolling";
+import useGameFinishFeedback from "../../../hooks/useGameFinishFeedback";
 import "./index.css";
 
 const ROOM_PATTERN = /^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{6}$/;
@@ -152,6 +154,7 @@ export default function AnimalPage() {
     if (state.phase === "finished") return state.winner_id === customerId ? "你先占领兽穴，赢啦 ♥" : `${state.names?.[state.winner_id] || "对方"} 赢得本局`;
     return isMyTurn ? "轮到你行棋" : `等待 ${state.names?.[state.turn_id] || "对方"} 行棋`;
   }, [customerId, isMyTurn, state]);
+  useGameFinishFeedback(state.phase === "finished", state.phase === "finished" && state.winner_id === customerId);
   const turnGuide = useMemo(() => {
     if (busy === "MOVE") return { marker: "…", title: state.mode === "ai" ? "落子已发送，AI 正在思考" : "正在确认这一步", detail: "请稍等，避免重复点击", tone: "busy" };
     if (connection === "syncing") return { marker: "…", title: "正在同步棋局", detail: "同步完成后再继续操作", tone: "busy" };
@@ -185,7 +188,7 @@ export default function AnimalPage() {
       {state.phase !== "finished" && <GameTurnGuide {...turnGuide} />}
       <AnimalBoard pieces={state.pieces} selectedId={selectedId} pendingMove={pendingMove} disabled={connection !== "online" || !isMyTurn || state.phase !== "playing" || !!busy} onCell={onCell} />
       {state.last_move && <View className="animal-last"><Text>上一手</Text><Text>{state.names?.[state.last_move.player_id] || "对方"} · {state.last_move.piece_id?.split("_")[1]} → ({state.last_move.to.x + 1},{state.last_move.to.y + 1})</Text></View>}
-      {state.phase === "finished" && <View className="animal-result"><Text>{status}</Text><Text>参与 +1 · 胜利 +5 · AI 对战额外奖励</Text><View onClick={() => { setRoomCode(""); setState(EMPTY); }}><Text>再来一局</Text></View></View>}
+      {state.phase === "finished" && <View className="animal-result"><Text>{status}</Text><Text>参与 +1 · 胜利 +5 · AI 对战额外奖励</Text><View onClick={() => { setRoomCode(""); setState(EMPTY); }}><Text>再来一局</Text></View><GameMemoryButton title="斗兽棋对战" content={`${status} · ${state.mode === "ai" ? "人机对战" : `房间 ${roomCode}`}`} sourceType="jungle" /></View>}
       <View className="animal-footer"><Text onClick={() => refresh()}>立即同步</Text><Text onClick={confirmResign}>认输</Text><Text onClick={() => Taro.switchTab({ url: "/pages/games/index" })}>返回大厅</Text></View>
     </View>
   );

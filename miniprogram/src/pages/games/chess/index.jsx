@@ -4,6 +4,7 @@ import { Input, Text, View } from "@tarojs/components";
 
 import { createChessRoom, getVersionedGameState, joinChessRoom, sendChessMove } from "../../../api";
 import ChessBoard from "../../../components/ChessBoard";
+import GameMemoryButton from "../../../components/GameMemoryButton";
 import GameSyncBar from "../../../components/GameSyncBar";
 import GameTurnGuide from "../../../components/GameTurnGuide";
 import MoveHistory from "../../../components/MoveHistory";
@@ -11,6 +12,7 @@ import { getCustomerId } from "../../../utils/customer";
 import { ensureInvitePassed } from "../../../utils/invite";
 import { ensureGameRecovery, recoverGameRoom } from "../../../utils/gameRecovery";
 import useAdaptiveGamePolling from "../../../hooks/useAdaptiveGamePolling";
+import useGameFinishFeedback from "../../../hooks/useGameFinishFeedback";
 import "./index.css";
 
 const ROOM_PATTERN = /^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{6}$/;
@@ -164,6 +166,7 @@ export default function ChessPage() {
     if (state.check_color) return state.check_color === state.my_color ? "将军！请先应将" : "你将军了";
     return isMyTurn ? "轮到你落子" : `等待 ${state.names?.[state.turn_id] || "对方"} 落子`;
   }, [customerId, isMyTurn, state]);
+  useGameFinishFeedback(state.phase === "finished", state.phase === "finished" && state.winner_id === customerId);
   const turnGuide = useMemo(() => {
     if (busy === "MOVE") return { marker: "…", title: state.mode === "ai" ? "落子已发送，AI 正在应对" : "正在确认落子", detail: "服务器确认后棋盘会自动更新", tone: "busy" };
     if (connection === "syncing") return { marker: "…", title: "正在同步棋局", detail: "同步完成后再继续操作", tone: "busy" };
@@ -197,7 +200,7 @@ export default function ChessPage() {
       {state.phase !== "finished" && <GameTurnGuide {...turnGuide} />}
       <ChessBoard pieces={state.pieces} myColor={state.my_color} selectedId={selectedId} lastMove={state.last_move} pendingMove={pendingMove} disabled={connection !== "online" || !isMyTurn || state.phase !== "playing" || !!busy} onCell={onCell} />
       <MoveHistory moves={state.move_history} names={state.names} />
-      {state.phase === "finished" && <View className="chess-result"><Text>{statusText}</Text><Text>参与 +1 · 胜利 +5 · 成就奖励自动结算</Text><View onClick={() => { setRoomCode(""); setState(EMPTY); }}><Text>再来一局</Text></View></View>}
+      {state.phase === "finished" && <View className="chess-result"><Text>{statusText}</Text><Text>参与 +1 · 胜利 +5 · 成就奖励自动结算</Text><View onClick={() => { setRoomCode(""); setState(EMPTY); }}><Text>再来一局</Text></View><GameMemoryButton title="中国象棋对战" content={`${statusText} · 共 ${state.move_history?.length || 0} 步 · ${state.mode === "ai" ? "人机对战" : `房间 ${roomCode}`}`} sourceType="chinese_chess" /></View>}
       <View className="chess-footer"><Text onClick={() => refresh()}>同步棋局</Text><Text onClick={confirmResign}>认输</Text><Text onClick={() => Taro.navigateTo({ url: "/pages/games/ranking/index" })}>排行榜</Text></View>
     </View>
   );

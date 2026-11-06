@@ -1,6 +1,7 @@
 import { Text, View } from "@tarojs/components";
 
 import AnimalPiece from "./AnimalPiece";
+import { playFeedback } from "../utils/feedback";
 import "./AnimalBoard.css";
 
 const RIVER = new Set(Array.from({ length: 12 }, (_, i) => `${i % 4 < 2 ? 1 + i % 2 : 4 + i % 2}-${3 + Math.floor(i / 4)}`));
@@ -22,7 +23,11 @@ export default function AnimalBoard({ pieces = [], selectedId, pendingMove, disa
         const piece = isMovingSource ? null : currentPiece;
         const terrain = RIVER.has(key) ? "river" : DENS.has(key) ? "den" : TRAPS.has(key) ? "trap" : "land";
         return (
-          <View key={key} className={`animal-cell ${terrain}`} data-x={x} data-y={y} onClick={() => !disabled && onCell?.(piece, x, y)}>
+          <View key={key} className={`animal-cell ${terrain}`} data-x={x} data-y={y} onClick={() => {
+            if (disabled) return;
+            playFeedback("tap");
+            onCell?.(piece, x, y);
+          }}>
             {terrain === "den" && !piece && <Text>穴</Text>}
             {terrain === "trap" && !piece && <Text>陷</Text>}
             <AnimalPiece piece={piece} selected={piece?.id === selectedId} />
