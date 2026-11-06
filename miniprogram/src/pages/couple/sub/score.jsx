@@ -2,12 +2,12 @@ import { useState } from "react";
 import { useDidShow } from "@tarojs/taro";
 import { Text, View } from "@tarojs/components";
 
-import { getCoupleScore, getCoupleScoreHistory } from "../../api";
-import LoveScoreCard from "../../components/LoveScoreCard";
-import { getCustomerId } from "../../utils/customer";
-import { ensureInvitePassed } from "../../utils/invite";
-import { dateLabel, EMPTY_COUPLE_SCORE } from "./helpers";
-import "./index.css";
+import { getCoupleScore, getCoupleScoreHistory } from "../../../api";
+import LoveScoreCard from "../../../components/LoveScoreCard";
+import { getCustomerId } from "../../../utils/customer";
+import { ensureInvitePassed } from "../../../utils/invite";
+import { dateLabel, EMPTY_COUPLE_SCORE } from "../helpers";
+import "../index.css";
 
 export default function CoupleScorePage() {
   const [summary, setSummary] = useState(EMPTY_COUPLE_SCORE);

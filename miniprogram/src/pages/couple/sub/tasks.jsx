@@ -2,9 +2,9 @@ import { useCallback, useState } from "react";
 import Taro, { useDidShow, usePullDownRefresh } from "@tarojs/taro";
 import { Text, View } from "@tarojs/components";
 
-import { completeTodayTask, getTodayTasks } from "../../api";
-import { getCustomerId } from "../../utils/customer";
-import { ensureInvitePassed } from "../../utils/invite";
+import { completeTodayTask, getTodayTasks } from "../../../api";
+import { getCustomerId } from "../../../utils/customer";
+import { ensureInvitePassed } from "../../../utils/invite";
 import "./tasks.css";
 
 const META = {

@@ -92,7 +92,7 @@ async function run() {
     await element(page, ".couple-tasks-entry");
     console.log("[v24] 情侣中心：默契值与今日任务入口正常");
 
-    page = await open(miniProgram, "/pages/couple/tasks");
+    page = await open(miniProgram, "/pages/couple/sub/tasks");
     await element(page, ".tasks-progress-card");
     await element(page, ".tasks-hero");
     console.log("[v24] 每日任务：进度和任务容器正常");

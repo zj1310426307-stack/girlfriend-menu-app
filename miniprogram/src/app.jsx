@@ -2,12 +2,18 @@ import { Component } from "react";
 import { Text, View } from "@tarojs/components";
 
 import { ensureCloudContainerReady } from "./api/cloudContainer";
+import { wakeGameService } from "./api";
 import "./app.css";
 
 // Start CloudBase initialization without blocking the first visible page.
 ensureCloudContainerReady().catch(() => {
   console.info("[network] MINIPROGRAM_CLOUDBASE_UNAVAILABLE");
 });
+
+// Fire-and-forget health probe: wake a sleeping free-tier backend while the
+// user is still on the invite/identity screen, so the first real data request
+// (home bootstrap) already lands on a warm instance. Never blocks rendering.
+wakeGameService().catch(() => {});
 
 // Keep a visible recovery screen when an unexpected page render error occurs.
 class AppErrorBoundary extends Component {

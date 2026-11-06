@@ -80,10 +80,10 @@ flowchart LR
 | 菜单 | `pages/menu/index` | 搜索、分类、收藏、加入清单 |
 | 一起玩 | `pages/games/index` | 统一游戏目录、未完房间恢复、人机/双人能力与轻量工具入口 |
 | 我们 | `pages/couple/index` | 默契值、本月互动、共同成长、口味收藏和低强调管理入口 |
-| 积分明细 | `pages/couple/score` | 按日期查看积分来源 |
-| 共同记录 | `pages/couple/records` | 第一次点餐、完成次数、游戏次数和最爱菜品 |
-| 游戏记录 | `pages/couple/game-records` | 当前设备的五子棋局数、胜局、时长和最近结果 |
-| 成就 | `pages/couple/achievements` | 根据已有业务数据派生的成长成就 |
+| 积分明细 | `pages/couple/sub/score` | 按日期查看积分来源 |
+| 共同记录 | `pages/couple/sub/records` | 第一次点餐、完成次数、游戏次数和最爱菜品 |
+| 游戏记录 | `pages/couple/sub/game-records` | 当前设备的五子棋局数、胜局、时长和最近结果 |
+| 成就 | `pages/couple/sub/achievements` | 根据已有业务数据派生的成长成就 |
 | 菜品详情 | `pages/detail/index` | 菜品信息与加入清单 |
 | 点菜清单 | `pages/cart/index` | 数量、备注、时间、提交订单 |
 | 我的点菜单 | `pages/my-orders/index` | 当前设备的历史订单 |
@@ -95,8 +95,8 @@ flowchart LR
 | 情侣飞行棋 | `pages/games/flight/index` | 服务端骰子、四棋子、互动事件和持久棋局 |
 | 情侣斗地主 | `pages/games/landlord/index` | 两位真人 + AI、私有手牌、服务端牌型和结算 |
 | 情侣斗兽棋 | `pages/games/animal/index` | 7×9 棋盘、双人房间或单人 AI |
-| 每日任务 | `pages/couple/tasks` | 今日进度、自动触发任务和最近互动 |
-| 我们的故事 | `pages/couple/timeline` | 共同时间轴、手写记录和纪念日提醒 |
+| 每日任务 | `pages/couple/sub/tasks` | 今日进度、自动触发任务和最近互动 |
+| 我们的故事 | `pages/couple/sub/timeline` | 共同时间轴、手写记录和纪念日提醒 |
 | 消息 | `pages/notifications/index` | 订单进度、游戏与纪念日消息 |
 | 管理登录 | `pages/admin-login/index` | 管理密码登录 |
 | 管理总览 | `pages/admin-dashboard/index` | 订单、菜品、统计入口 |

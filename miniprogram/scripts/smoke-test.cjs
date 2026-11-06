@@ -275,7 +275,7 @@ async function run() {
       assert(tasksEntry, "情侣中心没有渲染今日任务入口");
       assert(adminEntry, "情侣中心没有渲染小厨房管理入口");
       await tasksEntry.tap();
-      page = await waitForCurrentPage(miniProgram, "pages/couple/tasks", page);
+      page = await waitForCurrentPage(miniProgram, "pages/couple/sub/tasks", page);
       assert(await waitForElement(page, ".tasks-progress-card", 5000), "每日任务页面没有完整渲染");
       page = await miniProgram.navigateBack();
       const returnedAdminEntry = await waitForElement(page, ".couple-admin-link", 4000);

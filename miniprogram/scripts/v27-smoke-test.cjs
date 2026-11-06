@@ -76,7 +76,7 @@ async function run() {
     let page = await open(miniProgram, "/pages/couple/index");
     await element(page, ".couple-profile-card");
     await element(page, ".couple-message-entry");
-    page = await open(miniProgram, "/pages/couple/timeline");
+    page = await open(miniProgram, "/pages/couple/sub/timeline");
     await element(page, ".timeline-tabs");
     await element(page, ".timeline-add");
     page = await open(miniProgram, "/pages/notifications/index");

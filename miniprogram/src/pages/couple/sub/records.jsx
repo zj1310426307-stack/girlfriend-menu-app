@@ -2,11 +2,11 @@ import { useState } from "react";
 import { useDidShow } from "@tarojs/taro";
 import { Text, View } from "@tarojs/components";
 
-import { getCoupleScoreHistory, getFavoriteRanking, getMyOrders } from "../../api";
-import { getCustomerId } from "../../utils/customer";
-import { ensureInvitePassed } from "../../utils/invite";
-import { formatDate } from "./helpers";
-import "./index.css";
+import { getCoupleScoreHistory, getFavoriteRanking, getMyOrders } from "../../../api";
+import { getCustomerId } from "../../../utils/customer";
+import { ensureInvitePassed } from "../../../utils/invite";
+import { formatDate } from "../helpers";
+import "../index.css";
 
 export default function CoupleRecordsPage() {
   const [records, setRecords] = useState({ firstOrder: null, meals: 0, games: 0, favorite: "还在慢慢发现" });

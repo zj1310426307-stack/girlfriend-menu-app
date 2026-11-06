@@ -9,9 +9,9 @@ import {
   deleteCoupleMemory,
   getCoupleDates,
   getCoupleMemories
-} from "../../api";
-import { getCustomerId } from "../../utils/customer";
-import { ensureInvitePassed } from "../../utils/invite";
+} from "../../../api";
+import { getCustomerId } from "../../../utils/customer";
+import { ensureInvitePassed } from "../../../utils/invite";
 import "./timeline.css";
 
 const localDate = () => {

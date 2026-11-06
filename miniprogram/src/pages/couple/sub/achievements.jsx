@@ -2,11 +2,11 @@ import { useState } from "react";
 import Taro, { useDidShow } from "@tarojs/taro";
 import { Text, View } from "@tarojs/components";
 
-import { completeGameLoveTask, getCoupleScore, getCoupleScoreHistory, getGameAchievements, getMyGameLoveTasks, getMyOrders } from "../../api";
-import { getCustomerId } from "../../utils/customer";
-import { ensureInvitePassed } from "../../utils/invite";
-import { EMPTY_COUPLE_SCORE } from "./helpers";
-import "./index.css";
+import { completeGameLoveTask, getCoupleScore, getCoupleScoreHistory, getGameAchievements, getMyGameLoveTasks, getMyOrders } from "../../../api";
+import { getCustomerId } from "../../../utils/customer";
+import { ensureInvitePassed } from "../../../utils/invite";
+import { EMPTY_COUPLE_SCORE } from "../helpers";
+import "../index.css";
 
 export default function CoupleAchievementsPage() {
   const [summary, setSummary] = useState(EMPTY_COUPLE_SCORE);

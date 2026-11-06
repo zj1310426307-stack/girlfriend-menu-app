@@ -92,7 +92,7 @@ async function run() {
     await element(page, ".animal-create");
     console.log("[v25] 斗兽棋：情侣/AI 模式大厅正常");
 
-    page = await open(miniProgram, "/pages/couple/achievements");
+    page = await open(miniProgram, "/pages/couple/sub/achievements");
     await element(page, ".couple-achievement-list");
     console.log("[v25] 情侣中心：持久化成就页可打开");
     console.log("[v25] PASS");

@@ -2,10 +2,10 @@ import { useCallback, useState } from "react";
 import Taro, { useDidShow, usePullDownRefresh } from "@tarojs/taro";
 import { Text, View } from "@tarojs/components";
 
-import { getMyGameRecords } from "../../api";
-import { getCustomerId } from "../../utils/customer";
-import { ensureInvitePassed } from "../../utils/invite";
-import { formatDate } from "./helpers";
+import { getMyGameRecords } from "../../../api";
+import { getCustomerId } from "../../../utils/customer";
+import { ensureInvitePassed } from "../../../utils/invite";
+import { formatDate } from "../helpers";
 import "./game-records.css";
 
 const GAME_NAMES = { dice: "大话骰", gomoku: "五子棋", aeroplane: "飞行棋" };

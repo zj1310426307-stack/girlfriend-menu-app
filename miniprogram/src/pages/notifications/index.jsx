@@ -3,6 +3,7 @@ import Taro, { useDidShow, usePullDownRefresh } from "@tarojs/taro";
 import { Text, View } from "@tarojs/components";
 
 import { getNotifications, markNotificationRead } from "../../api";
+import { ROUTES } from "../../config/routes";
 import { getCustomerId } from "../../utils/customer";
 import { ensureInvitePassed } from "../../utils/invite";
 import "./index.css";
@@ -29,7 +30,7 @@ export default function NotificationsPage() {
       setItems((current) => current.map((entry) => entry.id === item.id ? { ...entry, is_read: true } : entry));
     }
     if (item.type === "ORDER_STATUS" && item.related_id) Taro.navigateTo({ url: `/pages/order-detail/index?id=${item.related_id}` });
-    else if (item.type === "ANNIVERSARY") Taro.navigateTo({ url: "/pages/couple/timeline" });
+    else if (item.type === "ANNIVERSARY") Taro.navigateTo({ url: ROUTES.COUPLE_TIMELINE });
     else if (item.type.startsWith("GAME_")) Taro.switchTab({ url: "/pages/games/index" });
   };
 
