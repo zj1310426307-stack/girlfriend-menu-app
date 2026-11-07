@@ -1,0 +1,65 @@
+/* Consensual undo/draw negotiation banner for couple games. */
+.game-negotiation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  margin: 12rpx 0;
+  padding: 20rpx 24rpx;
+  border-radius: 20rpx;
+  background: #fdf8ef;
+  border: 1rpx solid #eadfc8;
+}
+
+.game-negotiation.pending {
+  background: #f4ede1;
+  border-color: #e3d5b8;
+}
+
+.game-negotiation > View:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 4rpx;
+}
+
+.game-negotiation > View:first-child > Text:first-child {
+  font-size: 28rpx;
+  color: #5b4a3a;
+  font-weight: 600;
+}
+
+.game-negotiation > View:first-child > Text:last-child {
+  font-size: 24rpx;
+  color: #9a8c7a;
+}
+
+.game-negotiation-actions {
+  display: flex;
+  gap: 12rpx;
+  flex-shrink: 0;
+}
+
+.game-negotiation-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12rpx 28rpx;
+  border-radius: 999rpx;
+  font-size: 26rpx;
+  flex-shrink: 0;
+}
+
+.game-negotiation-action.ghost {
+  background: #ffffff;
+  color: #8a7a66;
+  border: 1rpx solid #e3d9c6;
+}
+
+.game-negotiation-action.solid {
+  background: #6f8469;
+  color: #fffdf8;
+}
+
+.game-negotiation-action.disabled {
+  opacity: 0.55;
+}

@@ -42,3 +42,7 @@ page { min-height:100%; background:#f4efe3; }
 .animal-footer { display:grid; grid-template-columns:1fr .7fr 1fr; gap:8px; margin-top:13px; }
 .animal-footer text { height:51px; display:flex; align-items:center; justify-content:center; border:2px solid #e2d6c5; border-radius:16px; color:#70786d; background:#fffaf3; font-size:14px; font-weight:800; }
 .animal-footer text:active,.animal-create:active,.animal-join view:active { transform:scale(.98); filter:brightness(.94); }
+
+.animal-actions { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-top:10px; }
+.animal-actions text { height:45px; display:flex; align-items:center; justify-content:center; border:2px dashed #d6cdb8; border-radius:14px; color:#7d8168; background:#fffdf7; font-size:13px; font-weight:800; }
+.animal-actions text:active { transform:scale(.98); filter:brightness(.94); }

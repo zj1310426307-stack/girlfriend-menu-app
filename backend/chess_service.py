@@ -103,8 +103,18 @@ def _run_ai(game: ChessGame) -> None:
 
 
 def _persist_moves(db: Session, room: models.GameRoom, state: dict) -> None:
-    """Append all newly observed state-history entries to the immutable chess log."""
+    """Reconcile the immutable chess log with the authoritative move history."""
     header = _header(db, room.id, int(state.get("round", 1)))
+    history = state.get("move_history", [])
+    # A consensual undo shortens the history; drop stale trailing log rows so
+    # replayed moves can reuse their move numbers without collisions.
+    history_length = len(history)
+    stale = db.query(models.ChessMove).filter(
+        models.ChessMove.game_id == header.id,
+        models.ChessMove.move_number > history_length,
+    )
+    if stale.count():
+        stale.delete(synchronize_session=False)
     existing = {number for (number,) in db.query(models.ChessMove.move_number).filter(models.ChessMove.game_id == header.id)}
     for entry in state.get("move_history", []):
         number = int(entry["number"])

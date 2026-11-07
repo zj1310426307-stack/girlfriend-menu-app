@@ -7,6 +7,7 @@ from typing import Any
 
 from games.core.chat import append_chat
 from games.core.engine import GameEngine, GameRuleError
+from games.core.negotiation import answer_negotiation, offer_negotiation
 
 from .board import board_hash, opponent
 from .move import move_notation
@@ -33,6 +34,7 @@ class ChessGame(GameEngine):
         self.state.setdefault("turn_timeout_seconds", TURN_TIMEOUT_SECONDS)
         self.state.setdefault("draw_reason", None)
         self.state.setdefault("result_reason", None)
+        self.state.setdefault("negotiation", None)
         if self.state.get("phase") == "playing" and not self.state.get("turn_deadline_at"):
             self.state["turn_started_at"] = datetime.now(timezone.utc).isoformat()
             self.state["turn_deadline_at"] = _deadline(int(self.state["turn_timeout_seconds"]))
@@ -105,6 +107,8 @@ class ChessGame(GameEngine):
         if checking and next_count >= 3:
             raise GameRuleError("不能连续长将三次，请换一种走法")
         check_counts[player_id] = next_count
+        # Any accepted move invalidates a pending undo/draw negotiation.
+        self.state["negotiation"] = None
         self.state["pieces"] = result["pieces"]
         self.state["move_count"] += 1
         self.state["no_progress_moves"] = (
@@ -198,8 +202,53 @@ class ChessGame(GameEngine):
         )
         return True
 
+    def _undoable_entries(self, offerer: str) -> list[dict]:
+        """Return the plies from the offerer's most recent move to the end."""
+        history = self.state.get("move_history") or []
+        for index in range(len(history) - 1, -1, -1):
+            if history[index].get("player_id") == offerer:
+                return history[index:]
+        return []
+
+    def _apply_undo(self, offerer: str) -> None:
+        """Revert every ply from the offerer's last move onward, server-side."""
+        history = list(self.state.get("move_history") or [])
+        start = next(
+            (index for index in range(len(history) - 1, -1, -1) if history[index].get("player_id") == offerer),
+            None,
+        )
+        if start is None:
+            raise GameRuleError("你还没有可以悔的棋")
+        reverted = history[start:]
+        del history[start:]
+        for entry in reversed(reverted):
+            piece = next((item for item in self.state["pieces"] if item["id"] == entry["piece_id"]), None)
+            if piece:
+                piece["x"], piece["y"] = int(entry["from"]["x"]), int(entry["from"]["y"])
+            if entry.get("captured"):
+                captured = next((item for item in self.state["pieces"] if item["id"] == entry["captured"]), None)
+                if captured:
+                    captured["alive"] = True
+        self.state["move_history"] = history
+        self.state["move_count"] = max(0, int(self.state.get("move_count") or 0) - len(reverted))
+        self.state["last_move"] = history[-1] if history else None
+        self.state["turn_id"] = offerer
+        offerer_color = self.state["colors"].get(offerer)
+        self.state["check_color"] = offerer_color if in_check(self.state["pieces"], offerer_color) else None
+        checks = dict(self.state.get("consecutive_checks") or {})
+        checks[offerer] = 0
+        self.state["consecutive_checks"] = checks
+        self.state["no_progress_moves"] = 0
+        position_history = list(self.state.get("position_history") or [])
+        removable = min(len(reverted), max(0, len(position_history) - 1))
+        if removable:
+            self.state["position_history"] = position_history[: len(position_history) - removable]
+        self.state["negotiation"] = None
+        self.state["turn_started_at"] = datetime.now(timezone.utc).isoformat()
+        self.state["turn_deadline_at"] = _deadline(int(self.state.get("turn_timeout_seconds") or TURN_TIMEOUT_SECONDS))
+
     def apply(self, player_id: str, action: str, data: dict[str, Any] | None = None) -> dict:
-        """Dispatch move, resignation or room chat through one game contract."""
+        """Dispatch move, resignation, chat or consensual undo/draw negotiation."""
         data = data or {}
         if action == "MOVE":
             return self.move(player_id, str(data.get("piece_id", "")), int(data.get("x", -1)), int(data.get("y", -1)))
@@ -214,10 +263,42 @@ class ChessGame(GameEngine):
                 turn_id=None,
                 result_reason="resignation",
                 turn_deadline_at=None,
+                negotiation=None,
             )
             return self.serialize()
         if action == "CHAT":
             append_chat(self.state, player_id, data.get("text", ""))
+            return self.serialize()
+        if action == "UNDO_OFFER":
+            offer_negotiation(self.state, player_id, "undo", can_undo=bool(self._undoable_entries(player_id)))
+            return self.serialize()
+        if action == "UNDO_ACCEPT":
+            negotiation = self.state.get("negotiation") or {}
+            if answer_negotiation(self.state, player_id, "undo", accept=True):
+                self._apply_undo(str(negotiation.get("by")))
+            return self.serialize()
+        if action == "UNDO_DECLINE":
+            answer_negotiation(self.state, player_id, "undo", accept=False)
+            return self.serialize()
+        if action == "DRAW_OFFER":
+            offer_negotiation(self.state, player_id, "draw")
+            return self.serialize()
+        if action == "DRAW_ACCEPT":
+            if answer_negotiation(self.state, player_id, "draw", accept=True):
+                self.state.update(
+                    phase="finished",
+                    winner_id=None,
+                    winner_color=None,
+                    turn_id=None,
+                    check_color=None,
+                    draw_reason="agreement",
+                    result_reason="draw",
+                    turn_deadline_at=None,
+                    negotiation=None,
+                )
+            return self.serialize()
+        if action == "DRAW_DECLINE":
+            answer_negotiation(self.state, player_id, "draw", accept=False)
             return self.serialize()
         raise GameRuleError("不支持的象棋动作")
 

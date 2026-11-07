@@ -5,6 +5,7 @@ import { Input, Text, View } from "@tarojs/components";
 import { createAnimalRoom, getVersionedGameState, joinAnimalRoom, sendAnimalMove } from "../../../api";
 import AnimalBoard from "../../../components/AnimalBoard";
 import GameMemoryButton from "../../../components/GameMemoryButton";
+import GameNegotiationBar from "../../../components/GameNegotiationBar";
 import GameSyncBar from "../../../components/GameSyncBar";
 import GameTurnGuide from "../../../components/GameTurnGuide";
 import { getCustomerId } from "../../../utils/customer";
@@ -136,6 +137,21 @@ export default function AnimalPage() {
   };
 
   const isMyTurn = state.turn_id === customerId;
+  const negotiationType = state.negotiation?.type || "";
+  const canNegotiate = state.phase === "playing" && state.mode !== "ai" && connection === "online";
+  const offerUndo = () => {
+    if (!canNegotiate || busy) return;
+    act("UNDO_OFFER");
+  };
+  const offerDraw = async () => {
+    if (!canNegotiate || busy) return;
+    const result = await Taro.showModal({
+      title: "向她求和？",
+      content: "对方同意后本局按和棋结束，双方都拿到参与分。",
+      confirmText: "发起求和"
+    });
+    if (result.confirm) act("DRAW_OFFER");
+  };
   const opponentId = state.players?.find((item) => item !== customerId);
   const selectedPiece = state.pieces?.find((item) => item.id === selectedId);
   const status = useMemo(() => {
@@ -186,9 +202,23 @@ export default function AnimalPage() {
       <GameSyncBar status={connection} message={syncError} onRetry={() => refresh()} />
       <View className="animal-status"><Text>{status}</Text><Text>你是{state.my_color === "blue" ? "蓝方" : "红方"} · 对手 {state.names?.[opponentId] || "等待加入"}</Text></View>
       {state.phase !== "finished" && <GameTurnGuide {...turnGuide} />}
+      <GameNegotiationBar
+        negotiation={state.negotiation}
+        myId={customerId}
+        busy={busy}
+        onAccept={() => act(negotiationType === "undo" ? "UNDO_ACCEPT" : "DRAW_ACCEPT")}
+        onDecline={() => act(negotiationType === "undo" ? "UNDO_DECLINE" : "DRAW_DECLINE")}
+        onCancel={() => act(negotiationType === "undo" ? "UNDO_DECLINE" : "DRAW_DECLINE")}
+      />
       <AnimalBoard pieces={state.pieces} selectedId={selectedId} pendingMove={pendingMove} disabled={connection !== "online" || !isMyTurn || state.phase !== "playing" || !!busy} onCell={onCell} />
       {state.last_move && <View className="animal-last"><Text>上一手</Text><Text>{state.names?.[state.last_move.player_id] || "对方"} · {state.last_move.piece_id?.split("_")[1]} → ({state.last_move.to.x + 1},{state.last_move.to.y + 1})</Text></View>}
       {state.phase === "finished" && <View className="animal-result"><Text>{status}</Text><Text>参与 +1 · 胜利 +5 · AI 对战额外奖励</Text><View onClick={() => { setRoomCode(""); setState(EMPTY); }}><Text>再来一局</Text></View><GameMemoryButton title="斗兽棋对战" content={`${status} · ${state.mode === "ai" ? "人机对战" : `房间 ${roomCode}`}`} sourceType="jungle" /></View>}
+      {canNegotiate && !state.negotiation && (
+        <View className="animal-actions">
+          <Text onClick={offerUndo}>悔棋</Text>
+          <Text onClick={offerDraw}>求和</Text>
+        </View>
+      )}
       <View className="animal-footer"><Text onClick={() => refresh()}>立即同步</Text><Text onClick={confirmResign}>认输</Text><Text onClick={() => Taro.switchTab({ url: "/pages/games/index" })}>返回大厅</Text></View>
     </View>
   );

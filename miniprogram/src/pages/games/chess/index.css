@@ -26,3 +26,7 @@ page { min-height:100%; background:#efe8da; }
 .chess-result { margin-top:15px; padding:18px; border-radius:22px; color:#51483e; background:#fff9ed; text-align:center; }.chess-result > text:first-child { display:block; font-size:22px; font-weight:900; }.chess-result > text:nth-child(2) { display:block; margin-top:6px; color:#9c8976; font-size:13px; }.chess-result > view { margin-top:13px; padding:13px; border-radius:15px; color:#fff; background:#9f523f; font-weight:900; }
 .chess-footer { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:14px; }.chess-footer text { display:flex; align-items:center; justify-content:center; min-height:50px; border:2px solid #dfd2c1; border-radius:16px; color:#776859; background:#fffaf0; font-size:14px; font-weight:900; }
 .chess-footer text:active,.chess-create:active,.chess-join > view:active { transform:scale(.98); filter:brightness(.94); }
+
+.chess-actions { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-top:10px; }
+.chess-actions text { display:flex; align-items:center; justify-content:center; min-height:44px; border:2px dashed #d9c4ae; border-radius:14px; color:#8a6a52; background:#fffdf7; font-size:13px; font-weight:800; }
+.chess-actions text:active { transform:scale(.98); filter:brightness(.94); }

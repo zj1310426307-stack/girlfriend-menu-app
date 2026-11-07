@@ -7,6 +7,7 @@ from typing import Any
 
 from games.core.engine import GameEngine, GameRuleError
 from games.core.chat import append_chat
+from games.core.negotiation import answer_negotiation, offer_negotiation
 
 from .board import DENS, opponent
 from .piece import initial_pieces
@@ -44,6 +45,7 @@ class AnimalGame(GameEngine):
         self.state.setdefault("turn_timeout_seconds", TURN_TIMEOUT_SECONDS)
         self.state.setdefault("draw_reason", None)
         self.state.setdefault("result_reason", None)
+        self.state.setdefault("negotiation", None)
         if self.state.get("phase") == "playing" and not self.state.get("turn_deadline_at"):
             self.state["turn_started_at"] = datetime.now(timezone.utc).isoformat()
             self.state["turn_deadline_at"] = _deadline(int(self.state["turn_timeout_seconds"]))
@@ -103,6 +105,8 @@ class AnimalGame(GameEngine):
         result = validate_move(self.state["pieces"], piece_id, x, y, color)
         piece, captured = result["piece"], result["target"]
         before = {"x": piece["x"], "y": piece["y"]}
+        # Any accepted move invalidates a pending undo/draw negotiation.
+        self.state["negotiation"] = None
         if captured:
             captured["alive"] = False
         piece["x"], piece["y"] = result["x"], result["y"]
@@ -180,8 +184,37 @@ class AnimalGame(GameEngine):
         )
         return True
 
+    def _can_undo(self, offerer: str) -> bool:
+        """Only the player who made the most recent ply may retract it."""
+        last = self.state.get("last_move")
+        return bool(last) and last.get("player_id") == offerer
+
+    def _apply_undo(self, offerer: str) -> None:
+        """Revert the single most recent ply back to the offerer's turn."""
+        last = self.state.get("last_move")
+        if not self._can_undo(offerer):
+            raise GameRuleError("只能悔自己最近一步，对方行棋后本局无法回退")
+        piece = next((item for item in self.state["pieces"] if item["id"] == last["piece_id"]), None)
+        if piece:
+            piece["x"], piece["y"] = int(last["from"]["x"]), int(last["from"]["y"])
+        if last.get("captured"):
+            captured = next((item for item in self.state["pieces"] if item["id"] == last["captured"]), None)
+            if captured:
+                captured["alive"] = True
+        self.state["move_count"] = max(0, int(self.state.get("move_count") or 0) - 1)
+        self.state["no_capture_moves"] = 0
+        self.state["last_move"] = None
+        self.state["turn_id"] = offerer
+        history = list(self.state.get("position_history") or [])
+        if len(history) > 1:
+            history.pop()
+        self.state["position_history"] = history
+        self.state["negotiation"] = None
+        self.state["turn_started_at"] = datetime.now(timezone.utc).isoformat()
+        self.state["turn_deadline_at"] = _deadline(int(self.state.get("turn_timeout_seconds") or TURN_TIMEOUT_SECONDS))
+
     def apply(self, player_id: str, action: str, data: dict[str, Any] | None = None) -> dict:
-        """Dispatch move, resignation or bounded room chat."""
+        """Dispatch move, resignation, chat or consensual undo/draw negotiation."""
         data = data or {}
         if action == "MOVE":
             return self.move(player_id, str(data.get("piece_id", "")), int(data.get("x", -1)), int(data.get("y", -1)))
@@ -194,10 +227,43 @@ class AnimalGame(GameEngine):
                 turn_id=None,
                 result_reason="resignation",
                 turn_deadline_at=None,
+                negotiation=None,
             )
             return self.serialize()
         if action == "CHAT":
             append_chat(self.state, player_id, data.get("text", ""))
+            return self.serialize()
+        if action == "UNDO_OFFER":
+            last = self.state.get("last_move")
+            if last and last.get("player_id") != player_id:
+                raise GameRuleError("只能悔自己最近一步，对方行棋后本局无法回退")
+            offer_negotiation(self.state, player_id, "undo", can_undo=self._can_undo(player_id))
+            return self.serialize()
+        if action == "UNDO_ACCEPT":
+            negotiation = self.state.get("negotiation") or {}
+            if answer_negotiation(self.state, player_id, "undo", accept=True):
+                self._apply_undo(str(negotiation.get("by")))
+            return self.serialize()
+        if action == "UNDO_DECLINE":
+            answer_negotiation(self.state, player_id, "undo", accept=False)
+            return self.serialize()
+        if action == "DRAW_OFFER":
+            offer_negotiation(self.state, player_id, "draw")
+            return self.serialize()
+        if action == "DRAW_ACCEPT":
+            if answer_negotiation(self.state, player_id, "draw", accept=True):
+                self.state.update(
+                    phase="finished",
+                    winner_id=None,
+                    turn_id=None,
+                    draw_reason="agreement",
+                    result_reason="draw",
+                    turn_deadline_at=None,
+                    negotiation=None,
+                )
+            return self.serialize()
+        if action == "DRAW_DECLINE":
+            answer_negotiation(self.state, player_id, "draw", accept=False)
             return self.serialize()
         raise GameRuleError("不支持的斗兽棋动作")
 

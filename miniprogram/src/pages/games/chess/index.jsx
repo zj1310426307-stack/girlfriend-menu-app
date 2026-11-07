@@ -5,6 +5,7 @@ import { Input, Text, View } from "@tarojs/components";
 import { createChessRoom, getVersionedGameState, joinChessRoom, sendChessMove } from "../../../api";
 import ChessBoard from "../../../components/ChessBoard";
 import GameMemoryButton from "../../../components/GameMemoryButton";
+import GameNegotiationBar from "../../../components/GameNegotiationBar";
 import GameSyncBar from "../../../components/GameSyncBar";
 import GameTurnGuide from "../../../components/GameTurnGuide";
 import MoveHistory from "../../../components/MoveHistory";
@@ -147,6 +148,22 @@ export default function ChessPage() {
     if (result.confirm) act("RESIGN");
   };
 
+  const negotiationType = state.negotiation?.type || "";
+  const canNegotiate = state.phase === "playing" && state.mode !== "ai" && connection === "online";
+  const offerUndo = () => {
+    if (!canNegotiate || busy) return;
+    act("UNDO_OFFER");
+  };
+  const offerDraw = async () => {
+    if (!canNegotiate || busy) return;
+    const result = await Taro.showModal({
+      title: "向她求和？",
+      content: "对方同意后本局按和棋结束，双方都拿到参与分。",
+      confirmText: "发起求和"
+    });
+    if (result.confirm) act("DRAW_OFFER");
+  };
+
   const isMyTurn = state.turn_id === customerId;
   const selectedPiece = state.pieces?.find((item) => item.id === selectedId);
   const statusText = useMemo(() => {
@@ -198,9 +215,23 @@ export default function ChessPage() {
       <GameSyncBar status={connection} message={syncError} onRetry={() => refresh()} />
       <View className={`chess-status ${state.check_color ? "checking" : ""}`}><Text>{statusText}</Text><Text>你执{state.my_color === "red" ? "红" : "黑"} · {state.move_count || 0} 步 · {state.mode === "ai" ? "AI 陪练" : "情侣对局"}</Text></View>
       {state.phase !== "finished" && <GameTurnGuide {...turnGuide} />}
+      <GameNegotiationBar
+        negotiation={state.negotiation}
+        myId={customerId}
+        busy={busy}
+        onAccept={() => act(negotiationType === "undo" ? "UNDO_ACCEPT" : "DRAW_ACCEPT")}
+        onDecline={() => act(negotiationType === "undo" ? "UNDO_DECLINE" : "DRAW_DECLINE")}
+        onCancel={() => act(negotiationType === "undo" ? "UNDO_DECLINE" : "DRAW_DECLINE")}
+      />
       <ChessBoard pieces={state.pieces} myColor={state.my_color} selectedId={selectedId} lastMove={state.last_move} pendingMove={pendingMove} disabled={connection !== "online" || !isMyTurn || state.phase !== "playing" || !!busy} onCell={onCell} />
       <MoveHistory moves={state.move_history} names={state.names} />
       {state.phase === "finished" && <View className="chess-result"><Text>{statusText}</Text><Text>参与 +1 · 胜利 +5 · 成就奖励自动结算</Text><View onClick={() => { setRoomCode(""); setState(EMPTY); }}><Text>再来一局</Text></View><GameMemoryButton title="中国象棋对战" content={`${statusText} · 共 ${state.move_history?.length || 0} 步 · ${state.mode === "ai" ? "人机对战" : `房间 ${roomCode}`}`} sourceType="chinese_chess" /></View>}
+      {canNegotiate && !state.negotiation && (
+        <View className="chess-actions">
+          <Text onClick={offerUndo}>悔棋</Text>
+          <Text onClick={offerDraw}>求和</Text>
+        </View>
+      )}
       <View className="chess-footer"><Text onClick={() => refresh()}>同步棋局</Text><Text onClick={confirmResign}>认输</Text><Text onClick={() => Taro.navigateTo({ url: "/pages/games/ranking/index" })}>排行榜</Text></View>
     </View>
   );

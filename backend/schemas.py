@@ -199,7 +199,7 @@ class AnimalRoomJoin(BaseModel):
 
 class AnimalMove(BaseModel):
     room_code: str = Field(min_length=4, max_length=12, pattern=r"^[A-Za-z0-9]+$")
-    action: Literal["MOVE", "RESIGN", "CHAT"] = "MOVE"
+    action: Literal["MOVE", "RESIGN", "CHAT", "UNDO_OFFER", "UNDO_ACCEPT", "UNDO_DECLINE", "DRAW_OFFER", "DRAW_ACCEPT", "DRAW_DECLINE"] = "MOVE"
     expected_version: int = Field(ge=1)
     client_action_id: str | None = Field(default=None, min_length=8, max_length=80, pattern=r"^[A-Za-z0-9_-]+$")
     piece_id: str | None = Field(default=None, max_length=40)
@@ -229,7 +229,7 @@ class ChessMoveAction(BaseModel):
     """Versioned Chinese-chess action using public board coordinates."""
 
     room_code: str = Field(min_length=4, max_length=12, pattern=r"^[A-Za-z0-9]+$")
-    action: Literal["MOVE", "RESIGN", "CHAT"] = "MOVE"
+    action: Literal["MOVE", "RESIGN", "CHAT", "UNDO_OFFER", "UNDO_ACCEPT", "UNDO_DECLINE", "DRAW_OFFER", "DRAW_ACCEPT", "DRAW_DECLINE"] = "MOVE"
     expected_version: int = Field(ge=1)
     client_action_id: str | None = Field(default=None, min_length=8, max_length=80, pattern=r"^[A-Za-z0-9_-]+$")
     from_pos: str | None = Field(default=None, pattern=r"^[a-iA-I](?:10|[1-9])$")
