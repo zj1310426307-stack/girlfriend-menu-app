@@ -79,3 +79,7 @@ page { min-height: 100%; color: #363932; background: #f7f3ea; }
   .gomoku-player-stone { width: 31px; height: 31px; flex-basis: 31px; }
   .gomoku-players > view { padding: 10px; }
 }
+
+.gomoku-negotiate-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin: 10px 0 4px; }
+.gomoku-negotiate-row text { display: flex; align-items: center; justify-content: center; min-height: 44px; border: 2px dashed #d8cbb6; border-radius: 14px; color: #7c6f5c; background: #fffdf7; font-size: 13px; font-weight: 800; }
+.gomoku-negotiate-row text:active { transform: scale(.98); filter: brightness(.94); }

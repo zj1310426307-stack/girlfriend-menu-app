@@ -20,6 +20,16 @@ GOMOKU_REWARDS = (
     "赢家可以指定下一次约会的小任务",
 )
 GOMOKU_AI_ID = "ai_gomoku"
+GOMOKU_NEGOTIATION_ACTIONS = frozenset(
+    {
+        "undo_offer",
+        "undo_accept",
+        "undo_decline",
+        "draw_offer",
+        "draw_accept",
+        "draw_decline",
+    }
+)
 
 
 class GameRoomManager:
@@ -436,6 +446,8 @@ class GameRoomManager:
             data = message.get("data") if isinstance(message.get("data"), dict) else message
             if room["game_type"] == "gomoku" and action == "move":
                 error = self._gomoku_move(room, player_id, data)
+            elif room["game_type"] == "gomoku" and action in GOMOKU_NEGOTIATION_ACTIONS:
+                error = self._gomoku_negotiation(room, player_id, action)
             elif room["game_type"] == "gomoku" and action == "rematch":
                 error = self._gomoku_rematch(room, player_id)
             elif action == "roll":
@@ -616,40 +628,76 @@ class GameRoomManager:
         room["phase"] = engine.phase
         room["turn_id"] = engine.turn_id
         if engine.phase == "finished":
-            players = list(engine.players)
-            winner_id = engine.winner_id
-            loser_id = next((item for item in players if item != winner_id), None) if winner_id else None
-            reward = secrets.choice(GOMOKU_REWARDS)
-            room["outcome"] = {
+            GameRoomManager._gomoku_settle(room)
+        return None
+
+    @staticmethod
+    def _gomoku_settle(room):
+        """Build the outcome and pending settlement event for a finished round."""
+        engine = room["gomoku"]
+        players = list(engine.players)
+        winner_id = engine.winner_id
+        loser_id = next((item for item in players if item != winner_id), None) if winner_id else None
+        reward = secrets.choice(GOMOKU_REWARDS)
+        room["outcome"] = {
+            "winner_id": winner_id,
+            "loser_id": loser_id,
+            "is_draw": engine.is_draw,
+            "reward": reward,
+        }
+        if winner_id:
+            room["scores"][winner_id] = room["scores"].get(winner_id, 0) + 1
+        room["rematch_ready"] = set()
+        duration = max(0, round(time.monotonic() - (room["started_at"] or time.monotonic())))
+        room["completed_event"] = {
+            "room_code": room["room_code"],
+            "game_type": "gomoku",
+            "round_number": engine.round,
+            "players": players,
+            "winner_id": winner_id,
+            "duration": duration,
+            "result": {
                 "winner_id": winner_id,
-                "loser_id": loser_id,
                 "is_draw": engine.is_draw,
+                "move_count": engine.move_count,
+                "last_move": engine.last_move,
                 "reward": reward,
-            }
-            if winner_id:
-                room["scores"][winner_id] = room["scores"].get(winner_id, 0) + 1
-            room["rematch_ready"] = set()
-            duration = max(0, round(time.monotonic() - (room["started_at"] or time.monotonic())))
-            room["completed_event"] = {
-                "room_code": room["room_code"],
-                "game_type": "gomoku",
-                "round_number": engine.round,
-                "players": players,
-                "winner_id": winner_id,
-                "duration": duration,
-                "result": {
-                    "winner_id": winner_id,
-                    "is_draw": engine.is_draw,
-                    "move_count": engine.move_count,
-                    "last_move": engine.last_move,
-                    "reward": reward,
-                    "scores": dict(room["scores"]),
-                    "move_history": list(engine.move_history),
-                    "final_state": engine.serialize(),
-                    "mode": room.get("mode", "couple"),
-                    "difficulty": room.get("difficulty", "rule"),
-                },
-            }
+                "scores": dict(room["scores"]),
+                "move_history": list(engine.move_history),
+                "final_state": engine.serialize(),
+                "mode": room.get("mode", "couple"),
+                "difficulty": room.get("difficulty", "rule"),
+            },
+        }
+
+    @staticmethod
+    def _gomoku_negotiation(room, player_id, action):
+        """Apply a consensual undo/draw action for the gomoku room."""
+        if room.get("mode") == "ai":
+            return "人机模式不支持悔棋求和，可以新开一局"
+        engine = room["gomoku"]
+        try:
+            if action == "undo_offer":
+                engine.offer_undo(player_id)
+            elif action == "draw_offer":
+                engine.offer_draw(player_id)
+            elif action == "undo_accept":
+                if engine.answer_negotiation(player_id, "undo", True):
+                    room["phase"] = engine.phase
+                    room["turn_id"] = engine.turn_id
+            elif action == "draw_accept":
+                if engine.answer_negotiation(player_id, "draw", True):
+                    room["phase"] = engine.phase
+                    room["turn_id"] = engine.turn_id
+                    GameRoomManager._gomoku_settle(room)
+            elif action == "undo_decline":
+                engine.answer_negotiation(player_id, "undo", False)
+            elif action == "draw_decline":
+                engine.answer_negotiation(player_id, "draw", False)
+            else:
+                return "不支持的游戏操作"
+        except GomokuError as error:
+            return error.message
         return None
 
     @staticmethod

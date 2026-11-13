@@ -6,6 +6,7 @@ import { createGameRoom } from "../../../api";
 import { connectGomokuRoom } from "../../../api/gomokuSocket";
 import GomokuBoard from "../../../components/GomokuBoard";
 import GameMemoryButton from "../../../components/GameMemoryButton";
+import GameNegotiationBar from "../../../components/GameNegotiationBar";
 import { getCustomerId } from "../../../utils/customer";
 import { ensureInvitePassed } from "../../../utils/invite";
 import { ensureGameRecovery } from "../../../utils/gameRecovery";
@@ -88,6 +89,22 @@ export default function GomokuPage() {
   const canMove = connectionStatus === "online" && isMyTurn && !moving && !isFinished;
   const showReady = players.length === 2 && (room.phase === "ready" || room.requires_ready);
   const isDraw = Boolean(room.is_draw || room.draw || room.outcome?.is_draw || room.outcome?.draw);
+  const negotiation = room.negotiation || null;
+  const negotiationType = negotiation?.type || "";
+  const canNegotiate = connectionStatus === "online" && isPlaying && !isFinished && room.mode !== "ai" && !moving;
+  const sendNegotiation = (action) => {
+    if (!canNegotiate) return;
+    socketRef.current?.send({ type: action });
+  };
+  const offerDraw = async () => {
+    if (!canNegotiate) return;
+    const result = await Taro.showModal({
+      title: "向她求和？",
+      content: "对方同意后本局按和棋结束，双方都拿到参与分。",
+      confirmText: "发起求和"
+    });
+    if (result.confirm) sendNegotiation("draw_offer");
+  };
   useGameFinishFeedback(isFinished, Boolean(winnerId) && winnerId === playerIdRef.current && !isDraw);
 
   const rewardText = useMemo(() => {
@@ -208,8 +225,7 @@ export default function GomokuPage() {
     setTimeout(() => setMoving(false), 3000);
   };
 
-  const leaveRoom = () => {
-    closeSocket();
+  const leaveRoom = () => {    closeSocket();
     setActiveRoomCode("");
     setRoom(EMPTY_ROOM);
     setConnectionStatus("offline");
@@ -289,6 +305,14 @@ export default function GomokuPage() {
 
       <View className={`gomoku-turn-message ${isMyTurn ? "mine" : ""}`}><Text>{statusText}</Text><Text>第 {room.round || 1} 局</Text></View>
       {errorMessage && <View className="gomoku-error"><Text>{errorMessage}</Text></View>}
+      <GameNegotiationBar
+        negotiation={negotiation}
+        myId={playerIdRef.current}
+        busy={moving ? "MOVE" : ""}
+        onAccept={() => sendNegotiation(negotiationType === "undo" ? "undo_accept" : "draw_accept")}
+        onDecline={() => sendNegotiation(negotiationType === "undo" ? "undo_decline" : "draw_decline")}
+        onCancel={() => sendNegotiation(negotiationType === "undo" ? "undo_decline" : "draw_decline")}
+      />
 
       <GomokuBoard board={room.board || EMPTY_BOARD} lastMove={room.last_move} disabled={!canMove} onMove={submitMove} />
 
@@ -320,6 +344,13 @@ export default function GomokuPage() {
             <View className="gomoku-result-exit" onClick={returnToGameCenter}><Text>回到游戏大厅</Text></View>
             <GameMemoryButton title={isDraw ? "五子棋和棋" : "五子棋对战"} content={`${isDraw ? "这局和棋，默契不分高下" : winnerId === playerIdRef.current ? "这局我赢啦 ♥" : room.mode === "ai" ? "AI 这局更胜一筹" : "这局她更胜一筹"} · ${room.mode === "ai" ? "人机对战" : `房间 ${activeRoomCode}`} · 第 ${room.round || 1} 局`} sourceType="gomoku" />
           </View>
+        </View>
+      )}
+
+      {canNegotiate && !negotiation && (
+        <View className="gomoku-negotiate-row">
+          <Text onClick={() => sendNegotiation("undo_offer")}>悔棋</Text>
+          <Text onClick={offerDraw}>求和</Text>
         </View>
       )}
 

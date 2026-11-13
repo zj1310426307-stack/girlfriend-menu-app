@@ -93,6 +93,21 @@ class OccupiedCellError(GomokuError):
     default_message = "该位置已经有棋子"
 
 
+class UndoUnavailableError(GomokuError):
+    code = "UNDO_UNAVAILABLE"
+    default_message = "还没有可以悔的棋子，先下一手再发起"
+
+
+class NegotiationUnavailableError(GomokuError):
+    code = "NEGOTIATION_UNAVAILABLE"
+    default_message = "当前没有待回应的协商"
+
+
+class OpponentMustAnswerError(GomokuError):
+    code = "OPPONENT_MUST_ANSWER"
+    default_message = "只能由对方回应这个协商"
+
+
 class GomokuGame:
     """A two-player, freestyle Gomoku game on a fixed 15x15 board.
 
@@ -113,6 +128,7 @@ class GomokuGame:
         self.move_history: list[dict[str, Any]] = []
         self.round = 1
         self.is_draw = False
+        self.negotiation: dict[str, str] | None = None
 
         for player_id in player_ids or ():
             self.add_player(player_id)
@@ -176,6 +192,8 @@ class GomokuGame:
         color = self.players[player_id]
         self.board[y][x] = color
         self.move_count += 1
+        # Any accepted stone invalidates a pending undo/draw request.
+        self.negotiation = None
         self.last_move = {
             "player_id": player_id,
             "color": COLOR_NAMES[color],
@@ -216,6 +234,7 @@ class GomokuGame:
         self.move_history = []
         self.is_draw = False
         self.round += 1
+        self.negotiation = None
         if len(self.players) == 2:
             self.phase = "playing"
             self.turn_id = self._player_for_color(BLACK)
@@ -246,7 +265,92 @@ class GomokuGame:
             "move_history": [dict(item) for item in self.move_history],
             "is_draw": self.is_draw,
             "round": self.round,
+            "negotiation": dict(self.negotiation) if self.negotiation else None,
         }
+
+    def offer_undo(self, player_id: str) -> dict[str, Any]:
+        """Ask the opponent for permission to retract the offerer's last stone."""
+        self._require_playing(player_id)
+        if self._undo_index(player_id) is None:
+            raise UndoUnavailableError()
+        self.negotiation = {"type": "undo", "by": player_id}
+        return dict(self.negotiation)
+
+    def offer_draw(self, player_id: str) -> dict[str, Any]:
+        """Ask the opponent to end this round as a draw."""
+        self._require_playing(player_id)
+        self.negotiation = {"type": "draw", "by": player_id}
+        return dict(self.negotiation)
+
+    def answer_negotiation(self, player_id: str, kind: str, accept: bool) -> bool:
+        """Resolve a pending offer; return ``True`` only when it was accepted.
+
+        The offerer may use ``accept=False`` to cancel their own request, but
+        only the opponent is allowed to accept it.
+        """
+        if player_id not in self.players:
+            raise UnknownPlayerError(player_id=player_id)
+        negotiation = self.negotiation
+        if not negotiation or negotiation.get("type") != kind:
+            raise NegotiationUnavailableError()
+        if player_id == negotiation.get("by"):
+            if accept:
+                raise OpponentMustAnswerError()
+            self.negotiation = None
+            return False
+        if not accept:
+            self.negotiation = None
+            return False
+        self.negotiation = None
+        if kind == "undo":
+            self._apply_undo(str(negotiation.get("by")))
+        else:
+            self.phase = "finished"
+            self.turn_id = None
+            self.winner_id = None
+            self.is_draw = True
+        return True
+
+    def _require_playing(self, player_id: str) -> None:
+        if player_id not in self.players:
+            raise UnknownPlayerError(player_id=player_id)
+        if self.phase == "waiting":
+            raise GameNotReadyError()
+        if self.phase == "finished":
+            raise GameFinishedError(winner_id=self.winner_id, is_draw=self.is_draw)
+
+    def _undo_index(self, player_id: str) -> int | None:
+        """Return the history index of the player's most recent stone."""
+        for index in range(len(self.move_history) - 1, -1, -1):
+            if self.move_history[index]["player_id"] == player_id:
+                return index
+        return None
+
+    def _apply_undo(self, offerer: str) -> None:
+        """Remove every stone from the offerer's latest move onward."""
+        index = self._undo_index(offerer)
+        if index is None:
+            raise UndoUnavailableError()
+        for entry in reversed(self.move_history[index:]):
+            self.board[entry["y"]][entry["x"]] = EMPTY
+        del self.move_history[index:]
+        self.move_count = len(self.move_history)
+        last = self.move_history[-1] if self.move_history else None
+        self.last_move = (
+            {
+                "player_id": last["player_id"],
+                "color": last["color"],
+                "x": last["x"],
+                "y": last["y"],
+            }
+            if last
+            else None
+        )
+        self.phase = "playing"
+        self.winner_id = None
+        self.is_draw = False
+        # Both sides are back where the offerer is to place a stone again.
+        self.turn_id = offerer
 
     def _player_for_color(self, color: int) -> str | None:
         return next(
@@ -300,4 +404,7 @@ __all__ = [
     "NotYourTurnError",
     "OutOfBoundsError",
     "OccupiedCellError",
+    "UndoUnavailableError",
+    "NegotiationUnavailableError",
+    "OpponentMustAnswerError",
 ]
