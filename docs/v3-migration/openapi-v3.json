@@ -257,7 +257,13 @@
             "enum": [
               "MOVE",
               "RESIGN",
-              "CHAT"
+              "CHAT",
+              "UNDO_OFFER",
+              "UNDO_ACCEPT",
+              "UNDO_DECLINE",
+              "DRAW_OFFER",
+              "DRAW_ACCEPT",
+              "DRAW_DECLINE"
             ],
             "title": "Action",
             "type": "string"
@@ -538,7 +544,13 @@
             "enum": [
               "MOVE",
               "RESIGN",
-              "CHAT"
+              "CHAT",
+              "UNDO_OFFER",
+              "UNDO_ACCEPT",
+              "UNDO_DECLINE",
+              "DRAW_OFFER",
+              "DRAW_ACCEPT",
+              "DRAW_DECLINE"
             ],
             "title": "Action",
             "type": "string"
